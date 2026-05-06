@@ -6,144 +6,155 @@
 <title>ConsultoraDemo · Generador de Informes HyS con IA</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #09090b; color: #e4e4e7; }
   .step-pill { transition: all .2s ease; }
-  textarea, input, select { font-family: inherit; }
-  .prompt-area { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.6; }
-  .report-box { font-family: Georgia, "Times New Roman", serif; }
-  .report-box h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  textarea, input, select { font-family: inherit; background: #09090b; color: #e4e4e7; border-color: #3f3f46; }
+  textarea:focus, input:focus, select:focus { background: #18181b; border-color: #6366f1; outline: none; }
+  input::placeholder, textarea::placeholder { color: #71717a; }
+  select option { background: #18181b; color: #e4e4e7; }
+  .surface { background: #18181b; border: 1px solid #27272a; }
+  .surface-2 { background: #27272a; }
+  .text-muted { color: #a1a1aa; }
+  .text-dim { color: #71717a; }
+  .accent-bg { background: #4f46e5; }
+  .accent-bg:hover { background: #6366f1; }
+  .ghost-btn { border: 1px solid #3f3f46; color: #d4d4d8; background: transparent; transition: all .15s ease; }
+  .ghost-btn:hover { background: #27272a; border-color: #52525b; }
+  .prompt-area { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.6; background: #09090b; color: #e4e4e7; }
+  .report-box { font-family: Georgia, "Times New Roman", serif; background: #fafaf9; color: #18181b; }
+  .report-box h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; color: #18181b; }
   .report-box h2 { font-size: 16px; font-weight: 600; margin: 18px 0 6px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
-  .report-box h3 { font-size: 14px; font-weight: 600; margin: 14px 0 4px; }
+  .report-box h3 { font-size: 14px; font-weight: 600; margin: 14px 0 4px; color: #18181b; }
   .report-box p { margin: 6px 0; line-height: 1.6; font-size: 14px; color: #334155; }
   .report-box table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 8px 0; font-family: -apple-system, sans-serif; }
-  .report-box th, .report-box td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
+  .report-box th, .report-box td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; color: #18181b; }
   .report-box th { background: #f1f5f9; font-weight: 600; }
   .report-box .muted { color: #64748b; font-size: 12px; }
   .report-box .firma { margin-top: 32px; padding-top: 16px; border-top: 1px dashed #94a3b8; font-size: 12px; color: #475569; }
   details > summary { cursor: pointer; list-style: none; }
   details > summary::-webkit-details-marker { display: none; }
-  .spinner { border: 2px solid #cbd5e1; border-top-color: #1e40af; border-radius: 50%; width: 16px; height: 16px; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle; }
+  .spinner { border: 2px solid #3f3f46; border-top-color: #6366f1; border-radius: 50%; width: 16px; height: 16px; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @media print {
     .no-print { display: none !important; }
-    body { background: white; }
-    .report-box { border: none; box-shadow: none; padding: 0; }
+    body { background: white; color: black; }
+    .report-box { border: none; box-shadow: none; padding: 0; background: white; }
   }
 </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen">
+<body class="min-h-screen">
 
-<header class="bg-white border-b border-slate-200 sticky top-0 z-30 no-print">
+<header class="surface border-b border-zinc-800 sticky top-0 z-30 no-print">
   <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
     <div class="flex items-center gap-2">
-      <div class="w-8 h-8 rounded-md bg-slate-900 text-white flex items-center justify-center font-bold text-sm">CD</div>
+      <div class="w-8 h-8 rounded-md accent-bg text-white flex items-center justify-center font-bold text-sm">CD</div>
       <div>
-        <div class="font-semibold text-sm leading-tight">ConsultoraDemo</div>
-        <div class="text-xs text-slate-500 leading-tight">Generador de informes HyS con IA</div>
+        <div class="font-semibold text-sm leading-tight text-zinc-100">ConsultoraDemo</div>
+        <div class="text-xs text-dim leading-tight">Generador de informes HyS con IA</div>
       </div>
     </div>
-    <button onclick="window.print()" class="text-xs px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-100 hidden sm:block">Imprimir</button>
+    <button onclick="window.print()" class="ghost-btn text-xs px-3 py-1.5 rounded hidden sm:block">Imprimir</button>
   </div>
 </header>
 
 <main class="max-w-5xl mx-auto px-4 py-6 space-y-5">
 
   <!-- Paso 1: Tipo de informe -->
-  <section class="bg-white rounded-lg border border-slate-200 p-5 no-print">
+  <section class="surface rounded-lg p-5 no-print">
     <div class="flex items-center gap-2 mb-3">
-      <span class="step-pill bg-slate-900 text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">1</span>
-      <h2 class="font-semibold text-base">Elegí el tipo de informe</h2>
+      <span class="step-pill accent-bg text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">1</span>
+      <h2 class="font-semibold text-base text-zinc-100">Elegí el tipo de informe</h2>
     </div>
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2" id="report-types"></div>
   </section>
 
   <!-- Paso 2: Datos -->
-  <section class="bg-white rounded-lg border border-slate-200 p-5 no-print">
+  <section class="surface rounded-lg p-5 no-print">
     <div class="flex items-center gap-2 mb-3">
-      <span class="step-pill bg-slate-900 text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">2</span>
-      <h2 class="font-semibold text-base">Cargá los datos del informe</h2>
+      <span class="step-pill accent-bg text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">2</span>
+      <h2 class="font-semibold text-base text-zinc-100">Cargá los datos del informe</h2>
     </div>
     <div id="form-container" class="space-y-4"></div>
     <div class="mt-3 flex flex-wrap gap-2">
-      <button onclick="loadSample()" class="text-xs px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-100">Cargar datos de ejemplo</button>
-      <button onclick="clearData()" class="text-xs px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-100">Limpiar</button>
+      <button onclick="loadSample()" class="ghost-btn text-xs px-3 py-1.5 rounded">Cargar datos de ejemplo</button>
+      <button onclick="clearData()" class="ghost-btn text-xs px-3 py-1.5 rounded">Limpiar</button>
     </div>
   </section>
 
   <!-- Paso 3: Prompt -->
-  <section class="bg-white rounded-lg border border-slate-200 p-5 no-print">
+  <section class="surface rounded-lg p-5 no-print">
     <div class="flex items-center gap-2 mb-2">
-      <span class="step-pill bg-slate-900 text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">3</span>
-      <h2 class="font-semibold text-base">Prompt para la IA</h2>
+      <span class="step-pill accent-bg text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">3</span>
+      <h2 class="font-semibold text-base text-zinc-100">Prompt para la IA</h2>
     </div>
-    <p class="text-xs text-slate-500 mb-2">Este es el prompt por defecto. Lo podés editar para ajustar tono, profundidad, o agregar criterios propios de tu consultora.</p>
-    <textarea id="prompt-input" class="prompt-area w-full h-56 border border-slate-300 rounded p-3 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400"></textarea>
+    <p class="text-xs text-muted mb-2">Este es el prompt por defecto. Lo podés editar para ajustar tono, profundidad, o agregar criterios propios de tu consultora.</p>
+    <textarea id="prompt-input" class="prompt-area w-full h-56 border rounded p-3"></textarea>
     <div class="mt-2 flex flex-wrap gap-2">
-      <button onclick="resetPrompt()" class="text-xs px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-100">Restaurar prompt por defecto</button>
-      <span class="text-xs text-slate-500 self-center" id="prompt-info"></span>
+      <button onclick="resetPrompt()" class="ghost-btn text-xs px-3 py-1.5 rounded">Restaurar prompt por defecto</button>
+      <span class="text-xs text-dim self-center" id="prompt-info"></span>
     </div>
   </section>
 
   <!-- Paso 4: Modo y generar -->
-  <section class="bg-white rounded-lg border border-slate-200 p-5 no-print">
+  <section class="surface rounded-lg p-5 no-print">
     <div class="flex items-center gap-2 mb-3">
-      <span class="step-pill bg-slate-900 text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">4</span>
-      <h2 class="font-semibold text-base">Modo de generación</h2>
+      <span class="step-pill accent-bg text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">4</span>
+      <h2 class="font-semibold text-base text-zinc-100">Modo de generación</h2>
     </div>
     <div class="grid sm:grid-cols-2 gap-3">
-      <label class="border border-slate-200 rounded p-3 cursor-pointer hover:border-slate-400" onclick="setMode('demo')">
+      <label class="border border-zinc-800 hover:border-zinc-600 rounded p-3 cursor-pointer transition" onclick="setMode('demo')">
         <div class="flex items-start gap-2">
-          <input type="radio" name="mode" id="mode-demo" checked class="mt-1">
+          <input type="radio" name="mode" id="mode-demo" checked class="mt-1 accent-indigo-500">
           <div>
-            <div class="font-medium text-sm">Modo demo</div>
-            <div class="text-xs text-slate-500">Genera un informe armado a partir de plantillas. No requiere API. Ideal para mostrar.</div>
+            <div class="font-medium text-sm text-zinc-100">Modo demo</div>
+            <div class="text-xs text-muted">Genera un informe armado a partir de plantillas. No requiere API. Ideal para mostrar.</div>
           </div>
         </div>
       </label>
-      <label class="border border-slate-200 rounded p-3 cursor-pointer hover:border-slate-400" onclick="setMode('api')">
+      <label class="border border-zinc-800 hover:border-zinc-600 rounded p-3 cursor-pointer transition" onclick="setMode('api')">
         <div class="flex items-start gap-2">
-          <input type="radio" name="mode" id="mode-api" class="mt-1">
+          <input type="radio" name="mode" id="mode-api" class="mt-1 accent-indigo-500">
           <div>
-            <div class="font-medium text-sm">IA real (Claude API)</div>
-            <div class="text-xs text-slate-500">Llama a la API de Anthropic con tu key. Salida personalizada según el prompt.</div>
+            <div class="font-medium text-sm text-zinc-100">IA real (Claude API)</div>
+            <div class="text-xs text-muted">Llama a la API de Anthropic con tu key. Salida personalizada según el prompt.</div>
           </div>
         </div>
       </label>
     </div>
     <div id="api-key-block" class="hidden mt-3 space-y-2">
       <div>
-        <label class="block text-xs font-medium text-slate-700 mb-1">API key de Anthropic</label>
-        <input type="password" id="api-key" placeholder="sk-ant-api03-..." class="w-full border border-slate-300 rounded p-2 text-sm">
+        <label class="block text-xs font-medium text-zinc-300 mb-1">API key de Anthropic</label>
+        <input type="password" id="api-key" placeholder="sk-ant-api03-..." class="w-full border rounded p-2 text-sm">
       </div>
       <div>
-        <label class="block text-xs font-medium text-slate-700 mb-1">Modelo</label>
-        <select id="api-model" class="w-full border border-slate-300 rounded p-2 text-sm">
+        <label class="block text-xs font-medium text-zinc-300 mb-1">Modelo</label>
+        <select id="api-model" class="w-full border rounded p-2 text-sm">
           <option value="claude-sonnet-4-5">Claude Sonnet 4.5 (recomendado)</option>
           <option value="claude-opus-4-5">Claude Opus 4.5 (más potente, más caro)</option>
           <option value="claude-haiku-4-5">Claude Haiku 4.5 (más rápido y barato)</option>
         </select>
       </div>
-      <p class="text-xs text-slate-500">La key queda solo en tu navegador. Para producción se debe llamar desde un backend.</p>
+      <p class="text-xs text-dim">La key queda solo en tu navegador. Para producción se debe llamar desde un backend.</p>
     </div>
-    <button onclick="generate()" id="generate-btn" class="mt-4 w-full sm:w-auto px-5 py-2.5 rounded bg-slate-900 hover:bg-slate-700 text-white text-sm font-medium">Generar informe</button>
+    <button onclick="generate()" id="generate-btn" class="mt-4 w-full sm:w-auto px-5 py-2.5 rounded accent-bg text-white text-sm font-medium">Generar informe</button>
   </section>
 
   <!-- Resultado -->
-  <section id="result-section" class="hidden bg-white rounded-lg border border-slate-200 p-5">
+  <section id="result-section" class="hidden surface rounded-lg p-5">
     <div class="flex items-center justify-between mb-3 no-print">
       <div class="flex items-center gap-2">
-        <span class="step-pill bg-emerald-600 text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">✓</span>
-        <h2 class="font-semibold text-base">Informe generado</h2>
+        <span class="step-pill bg-emerald-500 text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">✓</span>
+        <h2 class="font-semibold text-base text-zinc-100">Informe generado</h2>
       </div>
       <div class="flex gap-2">
-        <button onclick="copyReport()" class="text-xs px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-100">Copiar</button>
-        <button onclick="window.print()" class="text-xs px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-100">Imprimir / PDF</button>
+        <button onclick="copyReport()" class="ghost-btn text-xs px-3 py-1.5 rounded">Copiar</button>
+        <button onclick="window.print()" class="ghost-btn text-xs px-3 py-1.5 rounded">Imprimir / PDF</button>
       </div>
     </div>
-    <div id="report" class="report-box bg-white p-6 sm:p-8 border border-slate-200 rounded"></div>
+    <div id="report" class="report-box p-6 sm:p-8 rounded"></div>
   </section>
 
-  <footer class="text-center text-xs text-slate-500 pt-4 pb-8 no-print">
+  <footer class="text-center text-xs text-dim pt-4 pb-8 no-print">
     ConsultoraDemo — prototipo de generador de informes HyS asistido por IA. Demo, no apto para uso legal sin revisión profesional.
   </footer>
 </main>
@@ -382,10 +393,10 @@ function renderTypePicker() {
   Object.entries(REPORTS).forEach(([key, r]) => {
     const active = key === currentType;
     const btn = document.createElement("button");
-    btn.className = `text-left p-3 rounded border transition ${active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white hover:border-slate-400"}`;
+    btn.className = `text-left p-3 rounded border transition ${active ? "border-indigo-500 bg-indigo-600 text-white" : "border-zinc-800 bg-zinc-900 text-zinc-200 hover:border-zinc-600"}`;
     btn.innerHTML = `
       <div class="flex items-center gap-2 mb-1">${r.icon}<span class="font-medium text-sm">${r.label}</span></div>
-      <div class="text-xs ${active ? "text-slate-300" : "text-slate-500"}">${r.norma}</div>
+      <div class="text-xs ${active ? "text-indigo-100" : "text-zinc-500"}">${r.norma}</div>
     `;
     btn.onclick = () => { currentType = key; renderAll(); };
     container.appendChild(btn);
@@ -401,7 +412,7 @@ function renderForm() {
   report.fields.forEach((field, idx) => {
     if (field.type === "section") {
       const h = document.createElement("h3");
-      h.className = "text-xs font-semibold uppercase tracking-wide text-slate-500 mt-4 first:mt-0";
+      h.className = "text-xs font-semibold uppercase tracking-wide text-zinc-400 mt-4 first:mt-0";
       h.textContent = field.label;
       container.appendChild(h);
       return;
@@ -410,12 +421,12 @@ function renderForm() {
     if (field.type === "table") {
       formData[field.name] = field.rows.map(r => [...r]);
       const wrap = document.createElement("div");
-      wrap.className = "overflow-x-auto border border-slate-200 rounded";
+      wrap.className = "overflow-x-auto border border-zinc-800 rounded";
       wrap.innerHTML = renderTable(field.name, field.columns);
       container.appendChild(wrap);
       const actions = document.createElement("div");
       actions.className = "mt-1 flex gap-2";
-      actions.innerHTML = `<button onclick="addRow('${field.name}')" class="text-xs text-slate-700 underline">+ Agregar fila</button>`;
+      actions.innerHTML = `<button onclick="addRow('${field.name}')" class="text-xs text-indigo-400 hover:text-indigo-300 underline">+ Agregar fila</button>`;
       container.appendChild(actions);
       return;
     }
@@ -423,14 +434,14 @@ function renderForm() {
     formData[field.name] = field.default || "";
     const row = document.createElement("div");
     row.className = "grid sm:grid-cols-3 gap-2 items-center";
-    const labelEl = `<label class="text-xs font-medium text-slate-600 sm:col-span-1">${field.label}</label>`;
+    const labelEl = `<label class="text-xs font-medium text-zinc-300 sm:col-span-1">${field.label}</label>`;
     let inputEl;
     if (field.type === "select") {
-      inputEl = `<select class="sm:col-span-2 border border-slate-300 rounded p-2 text-sm" onchange="formData['${field.name}']=this.value">
+      inputEl = `<select class="sm:col-span-2 border rounded p-2 text-sm" onchange="formData['${field.name}']=this.value">
         ${field.options.map(o => `<option ${o === field.default ? "selected" : ""}>${o}</option>`).join("")}
       </select>`;
     } else {
-      inputEl = `<input type="${field.type}" value="${field.default || ""}" oninput="formData['${field.name}']=this.value" class="sm:col-span-2 border border-slate-300 rounded p-2 text-sm">`;
+      inputEl = `<input type="${field.type}" value="${field.default || ""}" oninput="formData['${field.name}']=this.value" class="sm:col-span-2 border rounded p-2 text-sm">`;
     }
     row.innerHTML = labelEl + inputEl;
     container.appendChild(row);
@@ -439,15 +450,15 @@ function renderForm() {
 
 function renderTable(name, columns) {
   const rows = formData[name];
-  let html = `<table class="w-full text-xs"><thead class="bg-slate-100"><tr>`;
-  columns.forEach(c => html += `<th class="text-left p-2 font-medium border-b border-slate-200">${c}</th>`);
-  html += `<th class="p-2 border-b border-slate-200" style="width:30px"></th></tr></thead><tbody>`;
+  let html = `<table class="w-full text-xs"><thead style="background:#27272a;"><tr>`;
+  columns.forEach(c => html += `<th class="text-left p-2 font-medium border-b border-zinc-700 text-zinc-200">${c}</th>`);
+  html += `<th class="p-2 border-b border-zinc-700" style="width:30px"></th></tr></thead><tbody>`;
   rows.forEach((row, i) => {
     html += `<tr>`;
     row.forEach((cell, j) => {
-      html += `<td class="p-1 border-b border-slate-100"><input value="${escapeHtml(cell)}" oninput="formData['${name}'][${i}][${j}]=this.value" class="w-full px-1 py-1 text-xs bg-transparent focus:bg-slate-50 outline-none"></td>`;
+      html += `<td class="p-1 border-b border-zinc-800"><input value="${escapeHtml(cell)}" oninput="formData['${name}'][${i}][${j}]=this.value" class="w-full px-1 py-1 text-xs outline-none" style="background:transparent;border:none;color:#e4e4e7;"></td>`;
     });
-    html += `<td class="p-1 border-b border-slate-100 text-center"><button onclick="delRow('${name}',${i})" class="text-slate-400 hover:text-red-600">×</button></td>`;
+    html += `<td class="p-1 border-b border-zinc-800 text-center"><button onclick="delRow('${name}',${i})" class="text-zinc-500 hover:text-red-400">×</button></td>`;
     html += `</tr>`;
   });
   html += `</tbody></table>`;
