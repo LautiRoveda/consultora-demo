@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConsultoraDemo · Generador de Informes HyS con IA</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  .step-pill { transition: all .2s ease; }
+  textarea, input, select { font-family: inherit; }
+  .prompt-area { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.6; }
+  .report-box { font-family: Georgia, "Times New Roman", serif; }
+  .report-box h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  .report-box h2 { font-size: 16px; font-weight: 600; margin: 18px 0 6px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+  .report-box h3 { font-size: 14px; font-weight: 600; margin: 14px 0 4px; }
+  .report-box p { margin: 6px 0; line-height: 1.6; font-size: 14px; color: #334155; }
+  .report-box table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 8px 0; font-family: -apple-system, sans-serif; }
+  .report-box th, .report-box td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
+  .report-box th { background: #f1f5f9; font-weight: 600; }
+  .report-box .muted { color: #64748b; font-size: 12px; }
+  .report-box .firma { margin-top: 32px; padding-top: 16px; border-top: 1px dashed #94a3b8; font-size: 12px; color: #475569; }
+  details > summary { cursor: pointer; list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  .spinner { border: 2px solid #cbd5e1; border-top-color: #1e40af; border-radius: 50%; width: 16px; height: 16px; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white; }
+    .report-box { border: none; box-shadow: none; padding: 0; }
+  }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30 no-print">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded-md bg-slate-900 text-white flex items-center justify-center font-bold text-sm">CD</div>
+      <div>
+        <div class="font-semibold text-sm leading-tight">ConsultoraDemo</div>
+        <div class="text-xs text-slate-500 leading-tight">Generador de informes HyS con IA</div>
+      </div>
+    </div>
+    <button onclick="window.print()" class="text-xs px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-100 hidden sm:block">Imprimir</button>
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 py-6 space-y-5">
+
+  <!-- Paso 1: Tipo de informe -->
+  <section class="bg-white rounded-lg border border-slate-200 p-5 no-print">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="step-pill bg-slate-900 text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">1</span>
+      <h2 class="font-semibold text-base">Elegí el tipo de informe</h2>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2" id="report-types"></div>
+  </section>
+
+  <!-- Paso 2: Datos -->
+  <section class="bg-white rounded-lg border border-slate-200 p-5 no-print">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="step-pill bg-slate-900 text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">2</span>
+      <h2 class="font-semibold text-base">Cargá los datos del informe</h2>
+    </div>
+    <div id="form-container" class="space-y-4"></div>
+    <div class="mt-3 flex flex-wrap gap-2">
+      <button onclick="loadSample()" class="text-xs px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-100">Cargar datos de ejemplo</button>
+      <button onclick="clearData()" class="text-xs px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-100">Limpiar</button>
+    </div>
+  </section>
+
+  <!-- Paso 3: Prompt -->
+  <section class="bg-white rounded-lg border border-slate-200 p-5 no-print">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="step-pill bg-slate-900 text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">3</span>
+      <h2 class="font-semibold text-base">Prompt para la IA</h2>
+    </div>
+    <p class="text-xs text-slate-500 mb-2">Este es el prompt por defecto. Lo podés editar para ajustar tono, profundidad, o agregar criterios propios de tu consultora.</p>
+    <textarea id="prompt-input" class="prompt-area w-full h-56 border border-slate-300 rounded p-3 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400"></textarea>
+    <div class="mt-2 flex flex-wrap gap-2">
+      <button onclick="resetPrompt()" class="text-xs px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-100">Restaurar prompt por defecto</button>
+      <span class="text-xs text-slate-500 self-center" id="prompt-info"></span>
+    </div>
+  </section>
+
+  <!-- Paso 4: Modo y generar -->
+  <section class="bg-white rounded-lg border border-slate-200 p-5 no-print">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="step-pill bg-slate-900 text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">4</span>
+      <h2 class="font-semibold text-base">Modo de generación</h2>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <label class="border border-slate-200 rounded p-3 cursor-pointer hover:border-slate-400" onclick="setMode('demo')">
+        <div class="flex items-start gap-2">
+          <input type="radio" name="mode" id="mode-demo" checked class="mt-1">
+          <div>
+            <div class="font-medium text-sm">Modo demo</div>
+            <div class="text-xs text-slate-500">Genera un informe armado a partir de plantillas. No requiere API. Ideal para mostrar.</div>
+          </div>
+        </div>
+      </label>
+      <label class="border border-slate-200 rounded p-3 cursor-pointer hover:border-slate-400" onclick="setMode('api')">
+        <div class="flex items-start gap-2">
+          <input type="radio" name="mode" id="mode-api" class="mt-1">
+          <div>
+            <div class="font-medium text-sm">IA real (Claude API)</div>
+            <div class="text-xs text-slate-500">Llama a la API de Anthropic con tu key. Salida personalizada según el prompt.</div>
+          </div>
+        </div>
+      </label>
+    </div>
+    <div id="api-key-block" class="hidden mt-3 space-y-2">
+      <div>
+        <label class="block text-xs font-medium text-slate-700 mb-1">API key de Anthropic</label>
+        <input type="password" id="api-key" placeholder="sk-ant-api03-..." class="w-full border border-slate-300 rounded p-2 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-700 mb-1">Modelo</label>
+        <select id="api-model" class="w-full border border-slate-300 rounded p-2 text-sm">
+          <option value="claude-sonnet-4-5">Claude Sonnet 4.5 (recomendado)</option>
+          <option value="claude-opus-4-5">Claude Opus 4.5 (más potente, más caro)</option>
+          <option value="claude-haiku-4-5">Claude Haiku 4.5 (más rápido y barato)</option>
+        </select>
+      </div>
+      <p class="text-xs text-slate-500">La key queda solo en tu navegador. Para producción se debe llamar desde un backend.</p>
+    </div>
+    <button onclick="generate()" id="generate-btn" class="mt-4 w-full sm:w-auto px-5 py-2.5 rounded bg-slate-900 hover:bg-slate-700 text-white text-sm font-medium">Generar informe</button>
+  </section>
+
+  <!-- Resultado -->
+  <section id="result-section" class="hidden bg-white rounded-lg border border-slate-200 p-5">
+    <div class="flex items-center justify-between mb-3 no-print">
+      <div class="flex items-center gap-2">
+        <span class="step-pill bg-emerald-600 text-white text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center">✓</span>
+        <h2 class="font-semibold text-base">Informe generado</h2>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="copyReport()" class="text-xs px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-100">Copiar</button>
+        <button onclick="window.print()" class="text-xs px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-100">Imprimir / PDF</button>
+      </div>
+    </div>
+    <div id="report" class="report-box bg-white p-6 sm:p-8 border border-slate-200 rounded"></div>
+  </section>
+
+  <footer class="text-center text-xs text-slate-500 pt-4 pb-8 no-print">
+    ConsultoraDemo — prototipo de generador de informes HyS asistido por IA. Demo, no apto para uso legal sin revisión profesional.
+  </footer>
+</main>
+
+<script>
+// ============================================================
+// DEFINICIÓN DE TIPOS DE INFORME
+// ============================================================
+
+const REPORTS = {
+  ruido: {
+    label: "Ruido",
+    norma: "Res. SRT 85/12",
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>',
+    fields: [
+      { type: "section", label: "Datos del establecimiento" },
+      { name: "empresa", label: "Razón social", type: "text", default: "Industrias del Sur S.A." },
+      { name: "cuit", label: "CUIT", type: "text", default: "30-12345678-9" },
+      { name: "domicilio", label: "Domicilio", type: "text", default: "Av. Industrial 1450, Avellaneda, Buenos Aires" },
+      { name: "actividad", label: "Actividad", type: "text", default: "Metalúrgica – fabricación de autopartes" },
+      { name: "fecha", label: "Fecha de medición", type: "date", default: "2026-04-15" },
+      { type: "section", label: "Instrumental" },
+      { name: "equipo", label: "Sonómetro/Dosímetro (marca, modelo, serie)", type: "text", default: "Quest Edge eg5 – S/N 1234567" },
+      { name: "calibracion", label: "Certificado de calibración", type: "text", default: "Lab. INTI – cert. 8821, vence 2026-09-10" },
+      { type: "section", label: "Profesional firmante" },
+      { name: "profesional", label: "Nombre y matrícula", type: "text", default: "Lic. Mariana López – Mat. 14587 CPHySA" },
+      { type: "section", label: "Mediciones" },
+      { name: "mediciones", label: "", type: "table", columns: ["Punto", "Sector", "Puesto", "Fuente", "Leq dB(A)", "Lmax dB(C)", "Tiempo (h)", "EPP"], rows: [
+        ["P1", "Producción", "Operario torno", "Torno CNC", "88.4", "104.2", "8", "Tapones 27dB"],
+        ["P2", "Producción", "Soldador", "Soldadora MIG", "91.2", "108.5", "8", "Copa 30dB"],
+        ["P3", "Producción", "Pulido", "Esmeril angular", "94.1", "112.8", "6", "Copa 30dB"],
+        ["P4", "Almacén", "Operario logístico", "Autoelevador", "78.3", "92.1", "8", "Sin EPP auditivo"],
+        ["P5", "Oficinas", "Administrativo", "HVAC", "62.7", "74.5", "8", "Sin EPP auditivo"]
+      ]}
+    ]
+  },
+  iluminacion: {
+    label: "Iluminación",
+    norma: "Res. SRT 84/12",
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>',
+    fields: [
+      { type: "section", label: "Datos del establecimiento" },
+      { name: "empresa", label: "Razón social", type: "text", default: "Textiles Norte SRL" },
+      { name: "cuit", label: "CUIT", type: "text", default: "30-87654321-2" },
+      { name: "domicilio", label: "Domicilio", type: "text", default: "Ruta 9 Km 12, Córdoba" },
+      { name: "actividad", label: "Actividad", type: "text", default: "Confección textil" },
+      { name: "fecha", label: "Fecha de medición", type: "date", default: "2026-04-22" },
+      { type: "section", label: "Instrumental" },
+      { name: "equipo", label: "Luxómetro (marca, modelo, serie)", type: "text", default: "Extech LT300 – S/N 442109" },
+      { name: "calibracion", label: "Certificado de calibración", type: "text", default: "INTI 2025-1102, vence 2026-11-02" },
+      { name: "tipoLuz", label: "Tipo de iluminación", type: "select", options: ["Natural", "Artificial", "Mixta"], default: "Mixta" },
+      { type: "section", label: "Profesional firmante" },
+      { name: "profesional", label: "Nombre y matrícula", type: "text", default: "Ing. Tomás Acevedo – Mat. 9821" },
+      { type: "section", label: "Mediciones" },
+      { name: "mediciones", label: "", type: "table", columns: ["Punto", "Sector", "Tarea visual", "E medido (lux)", "E mínimo (lux)"], rows: [
+        ["P1", "Costura", "Trabajo fino sobre tela oscura", "780", "1000"],
+        ["P2", "Corte", "Trabajo medio", "520", "500"],
+        ["P3", "Empaque", "Trabajo común", "340", "300"],
+        ["P4", "Depósito", "Circulación", "180", "150"],
+        ["P5", "Oficinas", "Lectura/escritura", "510", "500"]
+      ]}
+    ]
+  },
+  pat: {
+    label: "Puesta a Tierra",
+    norma: "AEA 90364 / Dec 351/79",
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v8M5 10h14M7 14h10M9 18h6M11 22h2"/></svg>',
+    fields: [
+      { type: "section", label: "Datos del establecimiento" },
+      { name: "empresa", label: "Razón social", type: "text", default: "Frigorífico Las Pampas SA" },
+      { name: "cuit", label: "CUIT", type: "text", default: "30-55598877-1" },
+      { name: "domicilio", label: "Domicilio", type: "text", default: "Parque Industrial Pilar, Lote 14" },
+      { name: "actividad", label: "Actividad", type: "text", default: "Procesamiento cárnico" },
+      { name: "fecha", label: "Fecha de medición", type: "date", default: "2026-04-08" },
+      { type: "section", label: "Instrumental" },
+      { name: "equipo", label: "Telurómetro (marca, modelo, serie)", type: "text", default: "Megger DET3TC – S/N 9982" },
+      { name: "calibracion", label: "Certificado de calibración", type: "text", default: "Cert. INTI 2025-7711, vence 2026-12-01" },
+      { type: "section", label: "Profesional firmante" },
+      { name: "profesional", label: "Nombre y matrícula", type: "text", default: "Ing. Federico Navecilla – CIE Cba 8841" },
+      { type: "section", label: "Mediciones" },
+      { name: "mediciones", label: "", type: "table", columns: ["Jabalina", "Ubicación", "Tipo de electrodo", "Resistencia (Ω)", "Continuidad masas (Ω)"], rows: [
+        ["J1", "Tablero general", "Cu/Acero 1.5m", "3.8", "0.4"],
+        ["J2", "Sala de máquinas", "Cu/Acero 1.5m", "5.2", "0.6"],
+        ["J3", "Cámara de frío 1", "Cu/Acero 1.5m", "8.1", "0.9"],
+        ["J4", "Sector empaque", "Cu/Acero 1.5m", "4.5", "0.5"]
+      ]}
+    ]
+  },
+  rgrl: {
+    label: "RGRL",
+    norma: "Res. SRT 463/09",
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+    fields: [
+      { type: "section", label: "Datos del establecimiento" },
+      { name: "empresa", label: "Razón social", type: "text", default: "Construcciones del Plata SA" },
+      { name: "cuit", label: "CUIT", type: "text", default: "30-77711122-8" },
+      { name: "domicilio", label: "Domicilio", type: "text", default: "Av. del Libertador 5500, CABA" },
+      { name: "actividad", label: "Actividad", type: "text", default: "Construcción civil" },
+      { name: "fecha", label: "Fecha de relevamiento", type: "date", default: "2026-04-30" },
+      { name: "decreto", label: "Decreto aplicable", type: "select", options: ["351/79 (industria/comercio)", "911/96 (construcción)", "617/97 (agro)"], default: "911/96 (construcción)" },
+      { name: "empleados", label: "Cantidad de empleados", type: "number", default: "42" },
+      { type: "section", label: "Profesional firmante" },
+      { name: "profesional", label: "Nombre y matrícula", type: "text", default: "Lic. Carolina Suárez – Mat. 11203" },
+      { type: "section", label: "Items relevados" },
+      { name: "items", label: "", type: "table", columns: ["Ítem", "Tema", "Cumple", "Observaciones"], rows: [
+        ["1", "Servicio de HyS habilitado", "SI", "Profesional matriculado"],
+        ["2", "Programa de seguridad aprobado por ART", "SI", "Aprobado 03/2026"],
+        ["3", "Capacitación al ingreso del personal", "PARCIAL", "Falta registrar último ingreso"],
+        ["4", "Provisión de EPP según puesto", "SI", "Stock verificado"],
+        ["5", "Botiquín de primeros auxilios", "SI", "Vencimientos OK"],
+        ["6", "Matafuegos en cantidad y vigencia", "NO", "3 unidades vencidas"],
+        ["7", "Señalización de seguridad", "PARCIAL", "Falta en sector encofrado"],
+        ["8", "Plan de emergencia y simulacro", "NO", "Pendiente simulacro 2026"],
+        ["9", "Mediciones laborales vigentes", "SI", "Ruido e iluminación al día"],
+        ["10", "Aviso de obra a la SRT", "SI", "Vigente"]
+      ]}
+    ]
+  },
+  cargafuego: {
+    label: "Carga de Fuego",
+    norma: "Dec 351/79 / IRAM 11949",
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+    fields: [
+      { type: "section", label: "Datos del establecimiento" },
+      { name: "empresa", label: "Razón social", type: "text", default: "Depósitos Patagonia SRL" },
+      { name: "cuit", label: "CUIT", type: "text", default: "30-66533299-4" },
+      { name: "domicilio", label: "Domicilio", type: "text", default: "Av. Roca 2200, Neuquén" },
+      { name: "actividad", label: "Actividad", type: "text", default: "Depósito de mercaderías generales" },
+      { name: "fecha", label: "Fecha de evaluación", type: "date", default: "2026-04-12" },
+      { type: "section", label: "Profesional firmante" },
+      { name: "profesional", label: "Nombre y matrícula", type: "text", default: "Ing. Sebastián Palma – Mat. 7821" },
+      { type: "section", label: "Sector evaluado" },
+      { name: "sector", label: "Sector", type: "text", default: "Depósito principal" },
+      { name: "area", label: "Área del sector (m²)", type: "number", default: "850" },
+      { type: "section", label: "Materiales combustibles" },
+      { name: "materiales", label: "", type: "table", columns: ["Material", "Cantidad (kg)", "Poder calorífico (MJ/kg)", "Equivalente madera (kg)"], rows: [
+        ["Cartón corrugado", "3200", "16.7", "4480"],
+        ["Madera de pallets", "1800", "18.4", "2778"],
+        ["Plásticos PE/PP", "950", "44.0", "3504"],
+        ["Papel", "640", "16.0", "858"],
+        ["Textiles algodón", "420", "16.5", "581"]
+      ]}
+    ]
+  }
+};
+
+// ============================================================
+// PROMPTS POR DEFECTO
+// ============================================================
+
+const DEFAULT_PROMPTS = {
+  ruido: `Sos un Licenciado en Higiene y Seguridad matriculado. Generá un informe técnico de medición de ruido en ambiente laboral conforme a la Resolución SRT 85/12 y al Decreto 351/79 (Anexo V, ley 19.587).
+
+Estructura del informe:
+1. Encabezado con datos de la empresa
+2. Marco normativo (Ley 19.587, Dec 351/79 anexo V, Res SRT 85/12, valor límite 85 dB(A) para 8h)
+3. Instrumental utilizado y certificado de calibración
+4. Metodología (puntos de muestreo, condiciones de operación)
+5. Tabla con resultados por punto
+6. Análisis comparativo contra el valor límite
+7. Conclusiones (cumple / no cumple por punto)
+8. Recomendaciones técnicas (controles de ingeniería, EPP auditivo según NRR, vigilancia médica audiométrica)
+9. Firma profesional
+
+Tono: técnico, formal, en español de Argentina. Concreto y citando artículos. Para puntos > 85 dB(A) marcar como NO cumple. Recomendar EPP auditivo con NRR adecuado. Si hay puntos > 95 dB(A) sugerir controles de ingeniería como prioritarios.`,
+
+  iluminacion: `Sos un Licenciado en Higiene y Seguridad matriculado. Generá un informe técnico de medición de iluminación en ambiente laboral conforme a la Resolución SRT 84/12 y al Decreto 351/79 (Anexo IV, ley 19.587).
+
+Estructura del informe:
+1. Encabezado con datos de la empresa
+2. Marco normativo (Ley 19.587, Dec 351/79 anexo IV - tabla de niveles mínimos según tarea visual, Res SRT 84/12)
+3. Instrumental (luxómetro) y certificado de calibración
+4. Metodología (grilla de puntos, condiciones, tipo de iluminación natural/artificial/mixta)
+5. Tabla con resultados (E medido vs E mínimo requerido)
+6. Análisis y conclusiones por puesto
+7. Recomendaciones (refuerzo de luminarias, mantenimiento, redistribución, color, deslumbramiento)
+8. Firma profesional
+
+Tono: técnico, formal, español de Argentina. Si E medido < E mínimo marcar como NO cumple y recomendar acción concreta.`,
+
+  pat: `Sos un Ingeniero electricista o Licenciado en Higiene y Seguridad matriculado. Generá un informe técnico de medición de Puesta a Tierra y Continuidad de las Masas conforme a la reglamentación AEA 90364 y al Decreto 351/79 (cap. 14, ley 19.587).
+
+Estructura:
+1. Datos de la empresa
+2. Marco normativo (Ley 19.587, Dec 351/79 cap 14, AEA 90364 secc 771, valor admisible R ≤ 10 Ω para instalaciones generales y ≤ 5 Ω en sectores con riesgo)
+3. Instrumental (telurómetro) y calibración
+4. Metodología (método de caída de potencial, condiciones del terreno)
+5. Tabla con resultados por jabalina
+6. Conclusiones por punto
+7. Recomendaciones (jabalinas adicionales, tratamientos del terreno, reapriete de masas, plano de tierras)
+8. Firma profesional
+
+Tono: técnico, formal, español de Argentina. Si R > 10 Ω marcar NO cumple. Si continuidad de masas > 1 Ω indicar revisión.`,
+
+  rgrl: `Sos un Licenciado en Higiene y Seguridad matriculado. Generá un Relevamiento General de Riesgos Laborales (RGRL) conforme a la Resolución SRT 463/09 modificada por 529/09.
+
+Estructura del informe:
+1. Carátula con datos de la empresa, decreto aplicable y fecha
+2. Marco normativo (Ley 19.587, Dec aplicable, Res SRT 463/09)
+3. Resumen del establecimiento y dotación
+4. Tabla de items relevados con estado (Cumple / No cumple / Parcial) y observación
+5. Plan de mejoras recomendado, ordenado por prioridad y plazo (urgente / 30 días / 60 días)
+6. Conclusión general del estado de cumplimiento (porcentaje aproximado)
+7. Firma profesional y declaración jurada
+
+Tono: técnico, formal, español de Argentina. Sé específico con plazos y responsabilidades.`,
+
+  cargafuego: `Sos un Ingeniero o Licenciado en Higiene y Seguridad matriculado. Generá un Estudio de Carga de Fuego conforme al Decreto 351/79 (capítulo 18) y norma IRAM 11949.
+
+Estructura:
+1. Datos del establecimiento y sector evaluado
+2. Marco normativo (Ley 19.587, Dec 351/79 cap 18, IRAM 11949)
+3. Memoria de cálculo: convertir cada material en madera equivalente usando la fórmula Eq = (PC_material × Cantidad) / 18.4 MJ/kg
+4. Tabla de materiales con poder calorífico y equivalente madera
+5. Cálculo de q (kg/m²) = total madera equivalente / área del sector
+6. Determinación del riesgo R (de R1 muy bajo a R7 muy alto) según q y tipo de actividad
+7. Determinación del Tiempo Equivalente y resistencia al fuego F exigida (F30/F60/F90/F180)
+8. Cantidad y tipo de extintores requeridos
+9. Conclusión: ¿es viable la actividad en el sector? Recomendaciones de protección
+10. Firma profesional
+
+Tono: técnico, formal, español de Argentina. Mostrá los cálculos paso a paso.`
+};
+
+// ============================================================
+// ESTADO Y RENDERIZADO
+// ============================================================
+
+let currentType = "ruido";
+let currentMode = "demo";
+let formData = {};
+
+function renderTypePicker() {
+  const container = document.getElementById("report-types");
+  container.innerHTML = "";
+  Object.entries(REPORTS).forEach(([key, r]) => {
+    const active = key === currentType;
+    const btn = document.createElement("button");
+    btn.className = `text-left p-3 rounded border transition ${active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white hover:border-slate-400"}`;
+    btn.innerHTML = `
+      <div class="flex items-center gap-2 mb-1">${r.icon}<span class="font-medium text-sm">${r.label}</span></div>
+      <div class="text-xs ${active ? "text-slate-300" : "text-slate-500"}">${r.norma}</div>
+    `;
+    btn.onclick = () => { currentType = key; renderAll(); };
+    container.appendChild(btn);
+  });
+}
+
+function renderForm() {
+  const container = document.getElementById("form-container");
+  container.innerHTML = "";
+  const report = REPORTS[currentType];
+  formData = {};
+
+  report.fields.forEach((field, idx) => {
+    if (field.type === "section") {
+      const h = document.createElement("h3");
+      h.className = "text-xs font-semibold uppercase tracking-wide text-slate-500 mt-4 first:mt-0";
+      h.textContent = field.label;
+      container.appendChild(h);
+      return;
+    }
+
+    if (field.type === "table") {
+      formData[field.name] = field.rows.map(r => [...r]);
+      const wrap = document.createElement("div");
+      wrap.className = "overflow-x-auto border border-slate-200 rounded";
+      wrap.innerHTML = renderTable(field.name, field.columns);
+      container.appendChild(wrap);
+      const actions = document.createElement("div");
+      actions.className = "mt-1 flex gap-2";
+      actions.innerHTML = `<button onclick="addRow('${field.name}')" class="text-xs text-slate-700 underline">+ Agregar fila</button>`;
+      container.appendChild(actions);
+      return;
+    }
+
+    formData[field.name] = field.default || "";
+    const row = document.createElement("div");
+    row.className = "grid sm:grid-cols-3 gap-2 items-center";
+    const labelEl = `<label class="text-xs font-medium text-slate-600 sm:col-span-1">${field.label}</label>`;
+    let inputEl;
+    if (field.type === "select") {
+      inputEl = `<select class="sm:col-span-2 border border-slate-300 rounded p-2 text-sm" onchange="formData['${field.name}']=this.value">
+        ${field.options.map(o => `<option ${o === field.default ? "selected" : ""}>${o}</option>`).join("")}
+      </select>`;
+    } else {
+      inputEl = `<input type="${field.type}" value="${field.default || ""}" oninput="formData['${field.name}']=this.value" class="sm:col-span-2 border border-slate-300 rounded p-2 text-sm">`;
+    }
+    row.innerHTML = labelEl + inputEl;
+    container.appendChild(row);
+  });
+}
+
+function renderTable(name, columns) {
+  const rows = formData[name];
+  let html = `<table class="w-full text-xs"><thead class="bg-slate-100"><tr>`;
+  columns.forEach(c => html += `<th class="text-left p-2 font-medium border-b border-slate-200">${c}</th>`);
+  html += `<th class="p-2 border-b border-slate-200" style="width:30px"></th></tr></thead><tbody>`;
+  rows.forEach((row, i) => {
+    html += `<tr>`;
+    row.forEach((cell, j) => {
+      html += `<td class="p-1 border-b border-slate-100"><input value="${escapeHtml(cell)}" oninput="formData['${name}'][${i}][${j}]=this.value" class="w-full px-1 py-1 text-xs bg-transparent focus:bg-slate-50 outline-none"></td>`;
+    });
+    html += `<td class="p-1 border-b border-slate-100 text-center"><button onclick="delRow('${name}',${i})" class="text-slate-400 hover:text-red-600">×</button></td>`;
+    html += `</tr>`;
+  });
+  html += `</tbody></table>`;
+  return html;
+}
+
+function addRow(name) {
+  const report = REPORTS[currentType];
+  const field = report.fields.find(f => f.name === name);
+  formData[name].push(field.columns.map(() => ""));
+  refreshTable(name);
+}
+
+function delRow(name, idx) {
+  formData[name].splice(idx, 1);
+  refreshTable(name);
+}
+
+function refreshTable(name) {
+  const report = REPORTS[currentType];
+  const field = report.fields.find(f => f.name === name);
+  document.querySelectorAll('#form-container .overflow-x-auto').forEach(el => {
+    if (el.innerHTML.includes(`formData['${name}']`)) {
+      el.innerHTML = renderTable(name, field.columns);
+    }
+  });
+}
+
+function renderPrompt() {
+  document.getElementById("prompt-input").value = DEFAULT_PROMPTS[currentType];
+  document.getElementById("prompt-info").textContent = `Plantilla: ${REPORTS[currentType].label}`;
+}
+
+function resetPrompt() {
+  document.getElementById("prompt-input").value = DEFAULT_PROMPTS[currentType];
+}
+
+function setMode(m) {
+  currentMode = m;
+  document.getElementById("mode-demo").checked = (m === "demo");
+  document.getElementById("mode-api").checked = (m === "api");
+  document.getElementById("api-key-block").classList.toggle("hidden", m !== "api");
+}
+
+function renderAll() {
+  renderTypePicker();
+  renderForm();
+  renderPrompt();
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function loadSample() { renderForm(); }
+function clearData() {
+  Object.keys(formData).forEach(k => {
+    if (Array.isArray(formData[k])) formData[k] = [formData[k][0].map(() => "")];
+    else formData[k] = "";
+  });
+  renderForm();
+  Object.keys(formData).forEach(k => { if (!Array.isArray(formData[k])) formData[k] = ""; });
+}
+
+// ============================================================
+// GENERACIÓN
+// ============================================================
+
+async function generate() {
+  const btn = document.getElementById("generate-btn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner mr-2"></span> Generando...';
+
+  try {
+    let html;
+    if (currentMode === "demo") {
+      await new Promise(r => setTimeout(r, 900));
+      html = generateDemoReport();
+    } else {
+      html = await generateWithAPI();
+    }
+    document.getElementById("report").innerHTML = html;
+    document.getElementById("result-section").classList.remove("hidden");
+    document.getElementById("result-section").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) {
+    alert("Error: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Generar informe";
+  }
+}
+
+function generateDemoReport() {
+  const generators = {
+    ruido: genRuido,
+    iluminacion: genIluminacion,
+    pat: genPAT,
+    rgrl: genRGRL,
+    cargafuego: genCargaFuego
+  };
+  return generators[currentType]();
+}
+
+function header(title, norma) {
+  return `
+    <div style="text-align:center; margin-bottom:16px;">
+      <div style="font-size:11px; color:#64748b; letter-spacing:1px;">CONSULTORADEMO · HIGIENE Y SEGURIDAD LABORAL</div>
+      <h1>${title}</h1>
+      <div class="muted">Conforme ${norma}</div>
+    </div>
+    <table style="margin-bottom:8px;">
+      <tr><th style="width:30%;">Razón social</th><td>${formData.empresa || ""}</td></tr>
+      <tr><th>CUIT</th><td>${formData.cuit || ""}</td></tr>
+      <tr><th>Domicilio</th><td>${formData.domicilio || ""}</td></tr>
+      <tr><th>Actividad</th><td>${formData.actividad || ""}</td></tr>
+      <tr><th>Fecha</th><td>${formData.fecha || ""}</td></tr>
+    </table>
+  `;
+}
+
+function firma() {
+  return `<div class="firma">
+    <p><strong>Profesional responsable:</strong> ${formData.profesional || ""}</p>
+    <p>Firma y sello: _______________________________</p>
+    <p class="muted">Este informe tiene carácter de declaración técnica y es válido por 12 meses desde su emisión.</p>
+  </div>`;
+}
+
+function genRuido() {
+  const meds = formData.mediciones || [];
+  const noCumple = meds.filter(m => parseFloat(m[4]) > 85).length;
+  const critico = meds.filter(m => parseFloat(m[4]) > 95).length;
+
+  let tabla = `<table><thead><tr><th>Punto</th><th>Sector</th><th>Puesto</th><th>Fuente</th><th>Leq dB(A)</th><th>Lmax dB(C)</th><th>Tiempo (h)</th><th>EPP</th><th>Estado</th></tr></thead><tbody>`;
+  meds.forEach(m => {
+    const v = parseFloat(m[4]);
+    const estado = v > 95 ? '<span style="color:#b91c1c;font-weight:600;">CRÍTICO</span>' : v > 85 ? '<span style="color:#c2410c;font-weight:600;">NO CUMPLE</span>' : '<span style="color:#15803d;font-weight:600;">CUMPLE</span>';
+    tabla += `<tr><td>${m[0]}</td><td>${m[1]}</td><td>${m[2]}</td><td>${m[3]}</td><td>${m[4]}</td><td>${m[5]}</td><td>${m[6]}</td><td>${m[7]}</td><td>${estado}</td></tr>`;
+  });
+  tabla += `</tbody></table>`;
+
+  return header("Informe técnico de medición de ruido", "Resolución SRT 85/12 — Decreto 351/79 anexo V") + `
+    <h2>1. Marco normativo</h2>
+    <p>El presente informe se emite conforme a la Ley 19.587 de Higiene y Seguridad en el Trabajo, su decreto reglamentario 351/79 (Anexo V) y la Resolución SRT N° 85/12, que aprueba el Protocolo para la Medición del Nivel de Ruido en el Ambiente Laboral. El valor límite admisible para una jornada de 8 horas es de <strong>85 dB(A)</strong> en nivel sonoro continuo equivalente.</p>
+    <h2>2. Instrumental utilizado</h2>
+    <p><strong>Equipo:</strong> ${formData.equipo}<br><strong>Calibración:</strong> ${formData.calibracion}<br>El equipo cumple los requisitos de la norma IEC 61672-1 clase 2 o superior.</p>
+    <h2>3. Metodología</h2>
+    <p>Las mediciones se realizaron en condiciones normales de operación de la planta, durante el turno de mayor actividad. Se ubicó el micrófono a la altura del oído del trabajador, con pantalla antiviento. Cada medición tuvo una duración mínima representativa del ciclo de trabajo. Se relevaron ${meds.length} puntos de medición.</p>
+    <h2>4. Resultados</h2>
+    ${tabla}
+    <h2>5. Análisis y conclusiones</h2>
+    <p>Del relevamiento se desprende que <strong>${noCumple} de los ${meds.length} puntos</strong> superan el valor límite admisible de 85 dB(A) para 8 horas de exposición${critico > 0 ? `, y ${critico} alcanzan niveles considerados críticos (> 95 dB(A))` : ""}. Los puntos restantes cumplen con la normativa vigente.</p>
+    <h2>6. Recomendaciones</h2>
+    <p>Se sugieren las siguientes acciones, en orden de prioridad:</p>
+    <p>• <strong>Controles de ingeniería</strong> en los puntos críticos: encerramiento acústico de fuentes, mantenimiento preventivo de máquinas y, donde sea factible, sustitución por equipos de menor emisión sonora.<br>
+    • <strong>Controles administrativos:</strong> rotación de tareas para reducir el tiempo de exposición individual.<br>
+    • <strong>Provisión de EPP auditivo</strong> certificado IRAM con NRR adecuado al nivel de cada punto. Para Leq superiores a 95 dB(A) recomendar protección dual (tapón + copa).<br>
+    • <strong>Vigilancia médica:</strong> incluir audiometrías anuales para todo personal expuesto > 85 dB(A) conforme Res SRT 37/10.<br>
+    • <strong>Capacitación específica</strong> sobre uso correcto de protectores auditivos y efectos sobre la salud.</p>
+    ${firma()}
+  `;
+}
+
+function genIluminacion() {
+  const meds = formData.mediciones || [];
+  const noCumple = meds.filter(m => parseFloat(m[3]) < parseFloat(m[4])).length;
+
+  let tabla = `<table><thead><tr><th>Punto</th><th>Sector</th><th>Tarea visual</th><th>E medido (lux)</th><th>E mínimo (lux)</th><th>Estado</th></tr></thead><tbody>`;
+  meds.forEach(m => {
+    const cumple = parseFloat(m[3]) >= parseFloat(m[4]);
+    const estado = cumple ? '<span style="color:#15803d;font-weight:600;">CUMPLE</span>' : '<span style="color:#c2410c;font-weight:600;">NO CUMPLE</span>';
+    tabla += `<tr><td>${m[0]}</td><td>${m[1]}</td><td>${m[2]}</td><td>${m[3]}</td><td>${m[4]}</td><td>${estado}</td></tr>`;
+  });
+  tabla += `</tbody></table>`;
+
+  return header("Informe técnico de medición de iluminación", "Resolución SRT 84/12 — Decreto 351/79 anexo IV") + `
+    <h2>1. Marco normativo</h2>
+    <p>El presente informe se emite conforme a la Ley 19.587, decreto 351/79 anexo IV (tabla de valores mínimos de servicio según tarea visual) y la Resolución SRT N° 84/12. La iluminación adecuada en el puesto de trabajo es un factor crítico para prevenir fatiga visual y accidentes.</p>
+    <h2>2. Instrumental utilizado</h2>
+    <p><strong>Equipo:</strong> ${formData.equipo}<br><strong>Calibración:</strong> ${formData.calibracion}<br><strong>Tipo de iluminación predominante:</strong> ${formData.tipoLuz}.</p>
+    <h2>3. Metodología</h2>
+    <p>Se realizó una grilla de medición sobre el plano de trabajo de cada puesto. Se promediaron al menos tres lecturas por punto, eliminando reflejos directos. Se consideraron las condiciones de luminosidad propias del turno habitual. Se relevaron ${meds.length} puntos.</p>
+    <h2>4. Resultados</h2>
+    ${tabla}
+    <h2>5. Análisis y conclusiones</h2>
+    <p><strong>${noCumple} de los ${meds.length} puntos</strong> presentan niveles por debajo del mínimo exigido para la tarea visual desarrollada. Los puntos restantes cumplen con los valores mínimos del Decreto 351/79.</p>
+    <h2>6. Recomendaciones</h2>
+    <p>• Refuerzo de luminarias en los sectores deficitarios, priorizando tecnología LED de alto IRC (≥ 80) y temperatura de color adecuada a la tarea (3000-4000 K para tareas finas).<br>
+    • Plan de mantenimiento preventivo: limpieza periódica de luminarias y reemplazo programado de lámparas según vida útil declarada por fabricante.<br>
+    • Pintura de paredes y techos en colores claros para favorecer reflexión de luz.<br>
+    • Estudio de deslumbramiento (UGR) en los puestos de trabajo con pantallas.<br>
+    • Nueva medición a los 90 días de implementadas las mejoras.</p>
+    ${firma()}
+  `;
+}
+
+function genPAT() {
+  const meds = formData.mediciones || [];
+  const noCumple = meds.filter(m => parseFloat(m[3]) > 10).length;
+
+  let tabla = `<table><thead><tr><th>Jabalina</th><th>Ubicación</th><th>Electrodo</th><th>R (Ω)</th><th>Continuidad masas (Ω)</th><th>Estado</th></tr></thead><tbody>`;
+  meds.forEach(m => {
+    const v = parseFloat(m[3]);
+    const estado = v > 10 ? '<span style="color:#c2410c;font-weight:600;">NO CUMPLE</span>' : v > 5 ? '<span style="color:#ca8a04;font-weight:600;">REVISAR</span>' : '<span style="color:#15803d;font-weight:600;">CUMPLE</span>';
+    tabla += `<tr><td>${m[0]}</td><td>${m[1]}</td><td>${m[2]}</td><td>${m[3]}</td><td>${m[4]}</td><td>${estado}</td></tr>`;
+  });
+  tabla += `</tbody></table>`;
+
+  return header("Informe técnico de Puesta a Tierra y Continuidad de las Masas", "AEA 90364 — Decreto 351/79 cap. 14") + `
+    <h2>1. Marco normativo</h2>
+    <p>El presente informe se emite conforme a la Ley 19.587, decreto 351/79 capítulo 14, y la reglamentación AEA 90364 sección 771. Se considera valor admisible <strong>R ≤ 10 Ω</strong> para instalaciones de uso general y <strong>R ≤ 5 Ω</strong> para sectores con presencia de equipos sensibles o riesgo elevado.</p>
+    <h2>2. Instrumental</h2>
+    <p><strong>Equipo:</strong> ${formData.equipo}<br><strong>Calibración:</strong> ${formData.calibracion}.</p>
+    <h2>3. Metodología</h2>
+    <p>Se aplicó el método de caída de potencial con tres electrodos auxiliares, alineados respecto a la jabalina principal, con distancias ajustadas según norma. Se midió continuidad de masas con instrumento de baja resistencia. Las mediciones se efectuaron con tiempo seco y suelo en condiciones representativas. Total de jabalinas evaluadas: ${meds.length}.</p>
+    <h2>4. Resultados</h2>
+    ${tabla}
+    <h2>5. Conclusiones</h2>
+    <p><strong>${noCumple} de las ${meds.length} jabalinas</strong> presentan resistencia superior al valor admisible. La continuidad de las masas debe ser ≤ 1 Ω para garantizar el correcto disparo de las protecciones diferenciales.</p>
+    <h2>6. Recomendaciones</h2>
+    <p>• Adicionar jabalinas en paralelo en los puntos no conformes hasta alcanzar el valor objetivo.<br>
+    • Aplicar tratamiento del terreno (sales conductivas, bentonita) en suelos de alta resistividad.<br>
+    • Reapretar las conexiones de masas y verificar la sección de los conductores de protección (PE).<br>
+    • Confeccionar plano de tierras actualizado y mantenerlo en obra.<br>
+    • Auditar el disparo de los disyuntores diferenciales conforme Res. AEA 95305.<br>
+    • Repetir la medición con periodicidad anual.</p>
+    ${firma()}
+  `;
+}
+
+function genRGRL() {
+  const items = formData.items || [];
+  const cumple = items.filter(i => i[2] === "SI").length;
+  const noCumple = items.filter(i => i[2] === "NO").length;
+  const parcial = items.filter(i => i[2] === "PARCIAL").length;
+  const pct = items.length > 0 ? Math.round((cumple / items.length) * 100) : 0;
+
+  let tabla = `<table><thead><tr><th style="width:8%;">#</th><th>Tema</th><th style="width:14%;">Cumple</th><th>Observaciones</th></tr></thead><tbody>`;
+  items.forEach(i => {
+    const color = i[2] === "SI" ? "#15803d" : i[2] === "NO" ? "#b91c1c" : "#ca8a04";
+    tabla += `<tr><td>${i[0]}</td><td>${i[1]}</td><td style="color:${color};font-weight:600;">${i[2]}</td><td>${i[3]}</td></tr>`;
+  });
+  tabla += `</tbody></table>`;
+
+  const planMejoras = items.filter(i => i[2] !== "SI").map((i, idx) => {
+    const plazo = i[2] === "NO" ? "30 días" : "60 días";
+    return `<tr><td>${idx + 1}</td><td>${i[1]}</td><td>${plazo}</td><td>${i[3] || "Adecuar a normativa"}</td></tr>`;
+  }).join("");
+
+  return header("Relevamiento General de Riesgos Laborales (RGRL)", "Resolución SRT 463/09 mod. 529/09") + `
+    <h2>1. Marco normativo</h2>
+    <p>Conforme a la Ley 19.587, ${formData.decreto || "decreto aplicable según actividad"} y la Resolución SRT N° 463/09 modificada por la 529/09, se emite el presente Relevamiento General de Riesgos Laborales como declaración jurada del estado de cumplimiento normativo del establecimiento.</p>
+    <h2>2. Resumen del establecimiento</h2>
+    <p><strong>Cantidad de empleados relevados:</strong> ${formData.empleados || 0}<br><strong>Total de ítems evaluados:</strong> ${items.length}</p>
+    <h2>3. Tabla de relevamiento</h2>
+    ${tabla}
+    <h2>4. Plan de mejoras</h2>
+    ${planMejoras ? `<table><thead><tr><th style="width:8%;">#</th><th>Acción</th><th style="width:18%;">Plazo</th><th>Responsable</th></tr></thead><tbody>${planMejoras}</tbody></table>` : "<p>No se detectan ítems en estado no conforme.</p>"}
+    <h2>5. Conclusión</h2>
+    <p>Estado general de cumplimiento aproximado: <strong>${pct}%</strong>. Ítems en cumplimiento: ${cumple}. Parciales: ${parcial}. No conformes: ${noCumple}.</p>
+    <p>El presente relevamiento tiene carácter de declaración jurada, debiendo ser actualizado anualmente y presentado a la ART correspondiente.</p>
+    ${firma()}
+  `;
+}
+
+function genCargaFuego() {
+  const mats = formData.materiales || [];
+  const totalEqMadera = mats.reduce((s, m) => s + (parseFloat(m[3]) || 0), 0);
+  const area = parseFloat(formData.area) || 1;
+  const q = totalEqMadera / area;
+
+  let R, F;
+  if (q < 15) { R = "R1 — Riesgo muy bajo"; F = "F30"; }
+  else if (q < 30) { R = "R2 — Riesgo bajo"; F = "F60"; }
+  else if (q < 60) { R = "R3 — Riesgo medio"; F = "F90"; }
+  else if (q < 100) { R = "R4 — Riesgo alto"; F = "F120"; }
+  else { R = "R5+ — Riesgo muy alto"; F = "F180"; }
+
+  let tabla = `<table><thead><tr><th>Material</th><th>Cantidad (kg)</th><th>PC (MJ/kg)</th><th>Eq. madera (kg)</th></tr></thead><tbody>`;
+  mats.forEach(m => tabla += `<tr><td>${m[0]}</td><td>${m[1]}</td><td>${m[2]}</td><td>${m[3]}</td></tr>`);
+  tabla += `<tr style="background:#f1f5f9;font-weight:600;"><td colspan="3">Total equivalente en madera</td><td>${totalEqMadera.toFixed(0)} kg</td></tr>`;
+  tabla += `</tbody></table>`;
+
+  return header("Estudio de Carga de Fuego", "Decreto 351/79 cap. 18 — IRAM 11949") + `
+    <h2>1. Marco normativo</h2>
+    <p>El presente estudio se emite conforme a la Ley 19.587, decreto 351/79 capítulo 18 y a la norma IRAM 11949. Tiene por objeto determinar la carga de fuego del sector evaluado y, en función de ello, las exigencias de protección contra incendio.</p>
+    <h2>2. Sector evaluado</h2>
+    <p><strong>Sector:</strong> ${formData.sector}<br><strong>Área:</strong> ${formData.area} m²</p>
+    <h2>3. Memoria de cálculo</h2>
+    <p>Se relevan los materiales combustibles presentes y se convierten a su equivalente en madera mediante la fórmula:</p>
+    <p style="text-align:center; background:#f1f5f9; padding:8px; font-family:monospace;">Eq. madera = (PC del material × Cantidad) / 18.4 MJ/kg</p>
+    ${tabla}
+    <h2>4. Densidad de carga de fuego</h2>
+    <p style="font-size:18px; text-align:center; margin:16px 0;"><strong>q = ${totalEqMadera.toFixed(0)} kg / ${area} m² = ${q.toFixed(2)} kg/m²</strong></p>
+    <h2>5. Determinación del riesgo y resistencia al fuego</h2>
+    <p><strong>Riesgo:</strong> ${R}<br><strong>Resistencia al fuego exigida (estructura):</strong> ${F}</p>
+    <h2>6. Medios de extinción exigibles</h2>
+    <p>De acuerdo a la categoría de riesgo y a lo establecido en el Decreto 351/79, se requieren las siguientes dotaciones mínimas:</p>
+    <p>• <strong>Extintores portátiles:</strong> 1 por cada 200 m² de superficie cubierta o fracción, de carga ABC tipo PQS de 5 kg como mínimo.<br>
+    • <strong>Detección automática</strong> de humo en sectores cerrados sin presencia constante de personal.<br>
+    • <strong>Sistema de alarma manual</strong> conectado a tablero centralizado.<br>
+    ${q > 30 ? "• <strong>Hidrantes de incendio</strong> con red propia o pública según superficie y altura del sector.<br>" : ""}
+    ${q > 60 ? "• <strong>Sistema fijo de extinción automática</strong> (sprinklers) en función de la actividad y disposición de mercaderías.<br>" : ""}
+    • Plan de evacuación con simulacros anuales y señalización conforme IRAM 10005.</p>
+    <h2>7. Conclusión</h2>
+    <p>El sector evaluado presenta una carga de fuego de <strong>${q.toFixed(2)} kg/m²</strong>, clasificándolo en categoría <strong>${R}</strong>. Se recomienda implementar las medidas indicadas y revisar el estudio cada 12 meses o ante modificaciones edilicias o de stock.</p>
+    ${firma()}
+  `;
+}
+
+// ============================================================
+// LLAMADA A API CLAUDE
+// ============================================================
+
+async function generateWithAPI() {
+  const apiKey = document.getElementById("api-key").value.trim();
+  if (!apiKey) throw new Error("Ingresá tu API key de Anthropic");
+  const prompt = document.getElementById("prompt-input").value;
+  const dataStr = JSON.stringify(formData, null, 2);
+
+  const fullPrompt = `${prompt}\n\nDatos del informe (JSON):\n\`\`\`json\n${dataStr}\n\`\`\`\n\nDevolvé el informe completo en formato HTML, usando <h2>, <h3>, <p>, <table>, <strong>. No agregues estilos inline. Empezá directamente con el HTML del informe.`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      model: document.getElementById("api-model").value || "claude-sonnet-4-5",
+      max_tokens: 4000,
+      messages: [{ role: "user", content: fullPrompt }]
+    })
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error("API: " + t.slice(0, 300));
+  }
+  const j = await res.json();
+  return j.content[0].text;
+}
+
+// ============================================================
+// UTILIDADES
+// ============================================================
+
+function copyReport() {
+  const html = document.getElementById("report").innerHTML;
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  navigator.clipboard.writeText(tmp.innerText).then(() => {
+    alert("Informe copiado al portapapeles.");
+  });
+}
+
+// Init
+renderAll();
+</script>
+</body>
+</html>
