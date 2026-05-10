@@ -108,9 +108,15 @@ Roadmap detallado por tickets en `docs/technical/10-roadmap.md`.
 
 - **Discovery completo** ✅ (4 documentos en `docs/discovery/`).
 - **Diseño técnico completo** ✅ (5 documentos clave en `docs/technical/`).
-- **ADRs iniciales** ✅ (template + ADR-0002 con elección de stack).
+- **ADRs iniciales** ✅ (template + ADR-0002 stack + ADR-0003 modelo Claude default + ADR-0004 branch protection diferida).
 - **Prototipo Fase 0** ✅ (`index.html` estático, ya en producción Vercel).
-- **Implementación Fase 1** 🔄 → **siguiente paso**.
+- **Sprint 0 — setup del repo** 🔄
+  - **T-001** ✅ Next.js 16 + TS strict + Tailwind 4 + shadcn/ui base.
+  - **T-002** ✅ ESLint 9 (flat) + Prettier 3 + Husky 9 (commit-msg, pre-commit, pre-push).
+  - **T-003** ✅ Vitest 3 (projects: unit, component) + Playwright (chromium).
+  - **T-004** ✅ GitHub Actions CI (`.github/workflows/ci.yml`) + flow PR-based + hook pre-push contra push directo a `main` (branch protection server-side diferida, ver ADR-0004).
+  - **T-005** ✅ Supabase CLI instalada + proyecto remoto `consultora-demo` creado y linkeado + primera migration (`<ts>_extensions.sql`) aplicada al remote (uuid-ossp, pgcrypto, vector, pg_cron). Docker Desktop **no** instalado: trabajamos contra el remote.
+  - **T-006 a T-010** 🔜 cliente Supabase + Sentry + tema shadcn + landing/login + Vercel deploy.
 
 ## Cómo arrancar a construir
 

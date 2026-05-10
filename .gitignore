@@ -37,9 +37,13 @@ yarn-error.log*
 .env
 .env.local
 .env*
+!.env.example
 
 # vercel
 .vercel
+
+# supabase CLI metadata (token cache, project ref, branches)
+.supabase/
 
 # typescript
 *.tsbuildinfo
