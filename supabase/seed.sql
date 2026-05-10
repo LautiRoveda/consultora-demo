@@ -1,0 +1,2 @@
+-- Seed de desarrollo local. Se aplica con `supabase db reset` después de las migrations.
+-- Vacío en T-005. Se va a poblar cuando existan tablas (T-011 en adelante).

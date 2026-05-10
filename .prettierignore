@@ -8,3 +8,10 @@ pnpm-lock.yaml
 docs/
 CLAUDE.md
 README.md
+
+# Supabase
+supabase/.temp/
+supabase/.branches/
+supabase/migrations/
+supabase/seed.sql
+supabase/README.md

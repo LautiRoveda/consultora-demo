@@ -20,6 +20,14 @@
     "test:e2e": "playwright test --project=chromium",
     "test:e2e:ui": "playwright test --project=chromium --ui",
     "test:e2e:all-browsers": "playwright test",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:status": "supabase status",
+    "db:reset": "supabase db reset",
+    "db:push": "supabase db push",
+    "db:diff": "supabase db diff",
+    "db:migration:new": "supabase migration new",
+    "db:types": "supabase gen types typescript --linked > src/shared/supabase/types.ts",
     "prepare": "husky"
   },
   "dependencies": {
@@ -50,6 +58,7 @@
     "jsdom": "^25.0.1",
     "lint-staged": "^15.5.2",
     "prettier": "3.8.3",
+    "supabase": "^2.98.2",
     "tailwindcss": "^4",
     "typescript": "^5",
     "typescript-eslint": "^8.59.2",
