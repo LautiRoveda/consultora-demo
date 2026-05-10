@@ -30,6 +30,11 @@ jobs:
       NEXT_PUBLIC_SENTRY_DSN: https://placeholder@o0.ingest.sentry.io/0
       SENTRY_ORG: placeholder-org
       SENTRY_PROJECT: placeholder-project
+      # Site URL placeholder — el .default() del schema Zod cubre si se omite,
+      # pero lo seteamos explícito para que sitemap.xml/robots.txt generados en
+      # CI no tengan el default hardcodeado. T-010 lo reemplaza por el dominio
+      # real cuando Vercel deploye a prod.
+      NEXT_PUBLIC_SITE_URL: https://placeholder.example.com
     steps:
       - name: Checkout
         uses: actions/checkout@v5

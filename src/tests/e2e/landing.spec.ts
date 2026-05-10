@@ -1,15 +1,34 @@
 import { expect, test } from '@playwright/test';
 
-test('home page carga y muestra contenido', async ({ page }) => {
+test('landing carga con hero, CTAs y FAQ', async ({ page }) => {
   await page.goto('/');
-  await expect(page).toHaveTitle('ConsultoraDemo');
-  // Boilerplate de create-next-app tiene un h1 con "To get started, edit the page.tsx file."
-  // T-009 reemplazará esto. Por ahora verificamos que el documento responde.
-  await expect(page.locator('body')).toBeVisible();
+
+  // Title con el formato del template ("default · ConsultoraDemo").
+  await expect(page).toHaveTitle(/ConsultoraDemo/);
+
+  // H1 único, balance del hero.
+  const h1 = page.getByRole('heading', { level: 1 });
+  await expect(h1).toContainText('piloto automático');
+
+  // CTA primario.
+  await expect(page.getByRole('link', { name: 'Empezar prueba de 7 días' }).first()).toBeVisible();
+
+  // CTA secundario al prototipo.
+  await expect(page.getByRole('link', { name: 'Ver demo' })).toBeVisible();
+
+  // FAQ render con `<details>`.
+  await expect(page.getByText('¿Necesito tarjeta de crédito para probar?')).toBeVisible();
 });
 
 test('prototipo Fase 0 sigue siendo accesible', async ({ page }) => {
   await page.goto('/prototipo');
-  // El prototipo es HTML estático con <html lang="es">.
   await expect(page).toHaveTitle(/ConsultoraDemo/);
+});
+
+test('skip-link al main content existe y es navegable por teclado', async ({ page }) => {
+  await page.goto('/');
+  // El skip-link es el primer link focusable de la página.
+  await page.keyboard.press('Tab');
+  const focused = page.locator(':focus');
+  await expect(focused).toContainText('Saltar al contenido');
 });

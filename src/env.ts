@@ -23,6 +23,11 @@ export const envSchema = z.object({
   // Sentry desde NODE_ENV=development (validación end-to-end de /api/test-error).
   // Vacío en uso normal.
   SENTRY_FORCE_ENABLE: z.string().optional(),
+
+  // URL pública del sitio (T-009). Usada por src/app/robots.ts y
+  // src/app/sitemap.ts para generar URLs absolutas. En T-010 se setea como
+  // env var en Vercel con el dominio real; mientras tanto, default placeholder.
+  NEXT_PUBLIC_SITE_URL: z.string().url().default('https://consultorademo.com.ar'),
 });
 
 const parsed = envSchema.safeParse(process.env);
