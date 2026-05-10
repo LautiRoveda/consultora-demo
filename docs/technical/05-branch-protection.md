@@ -1,50 +1,172 @@
 # Technical 05 · Branch protection de `main`
 
-Configuración de protección de la branch `main` en GitHub. Se aplica **una sola vez** después de validar que el primer run del workflow `CI` (ver `.github/workflows/ci.yml`) pasa verde.
+## Estado actual: diferida
 
-## Cuándo aplicarla
+La protección server-side de `main` está **diferida**. El blocker es de billing tier y no de implementación. Esta doc registra la realidad, las opciones evaluadas, la decisión, y los triggers para reactivar.
 
-1. T-004 mergeado en `main`.
-2. Primer run del workflow `CI` ejecutado y verde en `https://github.com/LautiRoveda/consultora-demo/actions`.
-3. **Recién entonces** correr el script de Parte A o aplicar Parte B manualmente.
+## Por qué está diferida
 
-Si la aplicás antes de que CI haya corrido al menos una vez, GitHub no encuentra el status check `CI` registrado y rechaza la config.
+GitHub ofrece dos APIs para proteger una branch:
 
-## Configuración resultante
+1. **Classic branch protection** — `PUT /repos/{owner}/{repo}/branches/{branch}/protection`.
+2. **Rulesets** (más moderno, reemplazo de classic) — `POST /repos/{owner}/{repo}/rulesets`.
 
-| Regla | Valor | Por qué |
-|-------|-------|---------|
-| Require status checks to pass before merging | ✅ con check `CI` | El pipeline es el gate real (P5). |
-| Require branches to be up to date before merging | ✅ | Garantiza linear history sobre `main`. |
-| Require conversation resolution before merging | ✅ | Cierra discusiones de PR antes de mergear. |
-| Required pull request reviews | 0 (no requerido) | Proyecto unipersonal hoy. Subir cuando se sume gente. |
-| Allow force pushes | ❌ | No queremos reescribir historia de `main`. |
-| Allow deletions | ❌ | `main` no se borra nunca. |
-| Enforce for admins | ❌ | El dueño puede hot-fix si rompe algo (por convención no lo hace). |
-| Lock branch | ❌ | `main` recibe merges de PRs, no está locked. |
+Al intentar aplicar T-004 (post-merge `70b75dc`), las dos APIs devolvieron **HTTP 403** con el mismo mensaje:
 
-## Parte A · Aplicar con `gh CLI` (recomendado)
+```
+{
+  "message": "Upgrade to GitHub Pro or make this repository public to enable this feature.",
+  "status": "403"
+}
+```
 
-Pre-requisito: tener GitHub CLI instalado y autenticado (`gh auth status` debe devolver OK).
+Verificado empíricamente el **2026-05-09** sobre `LautiRoveda/consultora-demo`. Probado:
+
+- Classic protection con el payload completo de T-004 → 403.
+- Rulesets con el payload completo de T-004 → 403.
+- Rulesets minimal (solo `deletion` + `non_fast_forward`, las menos restrictivas) → 403.
+
+**Conclusión:** en cuenta GitHub free + repo privado **no hay forma server-side gratis** de proteger `main`, ni siquiera con la regla más mínima. Documentación oficial del límite: <https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches>.
+
+| API | Repo privado free | Repo público free | Repo privado Pro |
+|---|---|---|---|
+| Classic branch protection | ❌ 403 | ✅ | ✅ |
+| Rulesets | ❌ 403 | ✅ | ✅ |
+
+## Opciones evaluadas (T-004 follow-up)
+
+### Opción A · Hacer el repo público
+
+**Pros:** habilita ambas APIs gratis. Sin costo.
+**Contras:** expone todo `docs/discovery/` (análisis de mercado, pricing detallado, decisiones competitivas, personas), `docs/technical/`, ADRs. Esto es ventaja competitiva en etapa pre-MVP. Hacer público hoy es prematuro.
+
+### Opción B · Upgrade a GitHub Pro (~USD 4/mes)
+
+**Pros:** habilita classic + Rulesets en repos privados. También suma Codespaces extendido, Copilot Pro, code scanning para privados, etc.
+**Contras:** USD 48/año recurrentes. Para 1 contributor, el ROI directo es bajo (los hooks locales + CI cubren ~95% del riesgo). El ROI sube cuando se sume el segundo dev.
+
+### Opción C · Diferir + reforzar con convención auto-impuesta + hook local
+
+**Pros:** sin costo, sin exposición. La convención de "todo cambio va por feature branch + PR + CI verde" se aplica solo (sos el único contributor). Reforzada técnicamente con un hook `pre-push` que bloquea pushes directos a `main`/`master`.
+**Contras:** el hook local se puede saltar con `git push --no-verify`. Confianza basada en disciplina, no en enforcement server-side. Si en algún momento alguien con acceso al repo pushea con bypass, no hay rollback automático.
+
+## Decisión: Opción C
+
+**Diferir branch protection server-side.** Detalle completo en [ADR-0004](../adr/0004-diferir-branch-protection-server-side.md).
+
+## Convención auto-impuesta · flow PR-based
+
+Todo cambio en `main` desde T-005 en adelante sigue este flow:
 
 ```bash
-gh api -X PUT \
-  repos/LautiRoveda/consultora-demo/branches/main/protection \
+# 1. Crear branch para el ticket
+git checkout main && git pull
+git checkout -b feature/T-005-supabase-tenancy
+
+# 2. Trabajo + commits locales (formato T-XXX · ... validado por commit-msg hook)
+# ... edits, tests, etc ...
+git add <files>
+git commit -m "T-005 · ..."
+
+# 3. Push de la feature branch (pre-push corre typecheck local)
+git push -u origin feature/T-005-supabase-tenancy
+
+# 4. Crear PR
+gh pr create --title "T-005 · ..." --fill
+
+# 5. CI corre sobre el PR. Esperar verde.
+gh pr checks --watch
+
+# 6. Cuando CI verde: merge squash + delete branch remota
+gh pr merge --squash --delete-branch
+
+# 7. Volver a main local sincronizada
+git checkout main
+git pull
+git branch -d feature/T-005-supabase-tenancy   # delete local
+```
+
+## Refuerzo técnico · hook `pre-push`
+
+`.husky/pre-push` bloquea pushes directos a `main`/`master`:
+
+```bash
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
+  echo "❌ Push directo a $current_branch bloqueado por convención auto-impuesta."
+  # ... mensaje de ayuda con flow correcto ...
+  exit 1
+fi
+
+pnpm typecheck
+```
+
+El hook NO sustituye protección server-side. Es un recordatorio activo + safety net contra distracción.
+
+## Bypass para emergencias
+
+Si hay un hot-fix urgente que justifica push directo (ej: bug que rompe prod, deploy roto en Vercel):
+
+```bash
+git push --no-verify
+```
+
+`--no-verify` saltea **todos** los hooks Husky (pre-commit + pre-push + commit-msg). Documentar el bypass en el mensaje del commit con prefijo `hotfix:` o `fix!:` y una línea explicando por qué se saltó CI:
+
+```
+hotfix: revertir merge T-042 por pánico en prod
+
+Push directo a main con --no-verify porque el deploy de Vercel está
+caído desde hace 30 min y el revert restaura prod inmediatamente.
+CI se verifica en el siguiente PR de cleanup.
+```
+
+El historial git queda con un marcador claro del bypass para auditoría.
+
+## Triggers para reactivar T-004.5
+
+Reabrir branch protection server-side cuando ocurra **alguno** de:
+
+- **Nuevo contributor.** Si se suma una persona al repo (interno o externo), la confianza basada en convención unipersonal deja de ser suficiente. Activar Pro o pasar a público + classic/Rulesets.
+- **MRR > USD 100** (o equivalente que justifique USD 4/mes en tooling). Plan Pro deja de ser inversión "innecesaria".
+- **Incidente real por push directo.** Si se rompe `main` por un bypass (intencional o accidental) que cuesta tiempo restaurar, el trigger se cumple inmediatamente.
+- **Open-sourcing del proyecto.** Si la decisión D-XX cambia y abrimos el repo, branch protection clásica se habilita gratis.
+
+Cuando se cumpla un trigger, abrir ticket `T-004.5 · Activar branch protection (Rulesets)` y reusar el script de la sección siguiente.
+
+## Script para el día que se reactive
+
+Listo para cuando se cumpla un trigger. **No ejecutar mientras el repo siga en free + privado** (devuelve 403). Pre-requisito: `gh CLI` autenticado con permiso admin sobre el repo.
+
+```bash
+gh api -X POST repos/LautiRoveda/consultora-demo/rulesets \
   --input - <<'EOF'
 {
-  "required_status_checks": {
-    "strict": true,
-    "contexts": ["CI"]
+  "name": "main protection",
+  "target": "branch",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": ["~DEFAULT_BRANCH"],
+      "exclude": []
+    }
   },
-  "enforce_admins": false,
-  "required_pull_request_reviews": null,
-  "restrictions": null,
-  "allow_force_pushes": false,
-  "allow_deletions": false,
-  "required_linear_history": true,
-  "required_conversation_resolution": true,
-  "lock_branch": false,
-  "allow_fork_syncing": true
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "required_linear_history" },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "required_status_checks": [
+          { "context": "CI" }
+        ],
+        "strict_required_status_checks_policy": true
+      }
+    }
+  ]
 }
 EOF
 ```
@@ -52,97 +174,31 @@ EOF
 Verificación:
 
 ```bash
-gh api repos/LautiRoveda/consultora-demo/branches/main/protection | jq
+gh api repos/LautiRoveda/consultora-demo/rulesets | jq '.[] | {id, name, enforcement}'
 ```
 
-Debe devolver el JSON con la misma config aplicada.
+Después de aplicado, el hook `pre-push` local pasa a ser **doble seguro** (server + client). Mantenerlo ambos lados — defense-in-depth.
 
-## Parte B · Aplicar vía UI de GitHub (alternativa manual)
+### Vía UI (cuando se reactive)
 
-1. Ir a `https://github.com/LautiRoveda/consultora-demo/settings/branches`.
-2. Click **Add branch ruleset** (o **Add classic branch protection rule** si preferís el flujo viejo).
-3. **Branch name pattern:** `main`.
-4. Activar las siguientes reglas:
-   - ✅ **Require a pull request before merging**
-     - Required approvals: **0**
-     - ✅ Require conversation resolution before merging
-   - ✅ **Require status checks to pass**
-     - ✅ Require branches to be up to date before merging
-     - Buscar y seleccionar: **CI**
-   - ✅ **Require linear history**
-   - ❌ Require deployments to succeed (no aplica)
-   - ❌ Lock branch
-   - ❌ Do not allow bypassing the above settings
-5. **Restrict pushes:**
-   - ❌ Allow force pushes
-   - ❌ Allow deletions
-6. Click **Create** o **Save changes**.
+1. `Settings → Rules → Rulesets → New ruleset` (no usar el flow viejo de "Branches → Add rule").
+2. Ruleset name: `main protection`.
+3. Enforcement status: **Active**.
+4. Bypass list: vacío (sin admin bypass).
+5. Target branches: **Include default branch** (`~DEFAULT_BRANCH`).
+6. Rules:
+   - ✅ Restrict deletions
+   - ✅ Block force pushes
+   - ✅ Require linear history
+   - ✅ Require status checks to pass
+     - ✅ Require branches to be up to date
+     - Add status check: **CI** (job name del workflow `.github/workflows/ci.yml`)
+7. Save.
 
-## Verificación post-aplicación
+## Relación con Vercel deploy
 
-Test rápido para confirmar que la protección funciona:
+Vercel está integrado con GitHub via su app. Cada push a `main` triggea un deploy de producción automático. Cada PR triggea un deploy preview en `consultora-demo-git-<branch>-<scope>.vercel.app`.
 
-```bash
-# Desde main local, intentar push directo de un commit cualquiera
-git checkout main
-git commit --allow-empty -m "chore: test branch protection"
-git push origin main
-```
+Con la convención + hook actual, Vercel sigue deployando solo lo que llega a `main` vía PR mergeado con CI verde. La diferencia con protección server-side: **si alguien usa `--no-verify` para pushear directo, Vercel deploya sin CI verde**. Es el riesgo aceptado de Opción C.
 
-Esperado: GitHub rechaza el push con un mensaje tipo `Required status check 'CI' is expected` o `protected branch hook declined`. Si pasa, la protección NO está activa — revisar la config.
-
-Limpieza (revertir el commit de prueba):
-
-```bash
-git reset --soft HEAD~1
-```
-
-(Notar `--soft`, alineado con la regla de seguridad de tickets anteriores: nunca `--hard`.)
-
-## Cómo trabajar con `main` protegida
-
-Workflow de aquí en adelante:
-
-```bash
-# 1. Crear branch para el ticket
-git checkout -b feature/T-005-supabase-tenancy
-
-# 2. Hacer cambios, commits con formato T-XXX · ... (validados por commit-msg hook)
-git add .
-git commit -m "T-005 · ..."
-
-# 3. Push de la branch (pre-push hook corre typecheck local)
-git push -u origin feature/T-005-supabase-tenancy
-
-# 4. Abrir PR
-gh pr create --base main --head feature/T-005-supabase-tenancy --fill
-
-# 5. Esperar CI verde en el PR. Mergear via gh CLI o UI.
-gh pr merge --squash --delete-branch
-
-# 6. Volver a main
-git checkout main
-git pull
-```
-
-`main` queda intocable salvo vía PR mergeado con CI verde.
-
-## Para revertir la protección (emergencia)
-
-Si por algún motivo necesitás push directo (hot-fix de un bug que rompe prod):
-
-```bash
-gh api -X DELETE repos/LautiRoveda/consultora-demo/branches/main/protection
-# ... hacés el hot-fix con push directo ...
-# después VOLVER A APLICAR la protección con el script de Parte A.
-```
-
-Mejor evitar esta ruta. Preferir un PR de hot-fix con CI verde aún en emergencias.
-
-## Relación con el deploy de Vercel
-
-Vercel está integrado con GitHub via su app. Cada push a `main` triggea un deploy de producción automático. Cada PR triggea un deploy preview en una URL `consultora-demo-git-<branch>-<scope>.vercel.app`.
-
-La protección de `main` no afecta el flujo de Vercel — al contrario, lo hace más seguro: solo se deploya código que pasó por CI verde.
-
-T-010 va a confirmar la config de Vercel. Hoy el proyecto está deployado como sitio estático (vía `vercel.json` que apunta al `index.html` viejo, ahora movido a `public/prototipo/`). El próximo deploy de Vercel post-T-010 va a servir el Next.js 16.
+T-010 confirma la config de Vercel.
