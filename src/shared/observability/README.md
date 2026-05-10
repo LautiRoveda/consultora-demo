@@ -89,6 +89,21 @@ Endpoint `GET /api/test-error` (gated por `NODE_ENV !== 'production'`):
 3. Ver el error en `sentry.io/organizations/<SENTRY_ORG>/issues/` en ~30 segundos.
 4. Borrar `SENTRY_FORCE_ENABLE=true` de `.env.local`.
 
+## Producción (T-010)
+
+Las 4 vars Sentry están configuradas como Vercel Environment Variables:
+
+| Var | Scope Vercel |
+|---|---|
+| `NEXT_PUBLIC_SENTRY_DSN` | Production + Preview |
+| `SENTRY_ORG` | Production + Preview |
+| `SENTRY_PROJECT` | Production + Preview |
+| `SENTRY_AUTH_TOKEN` | Production + Preview |
+
+**`SENTRY_AUTH_TOKEN`** (T-010) tiene scope mínimo `project:releases` + `project:write`. Lo consume `withSentryConfig` en [`next.config.ts`](../../../next.config.ts) para subir source maps automáticamente en cada build de Vercel. NO se carga al `src/env.ts` schema porque es var de **build-time** (no se importa desde código de runtime).
+
+Verificación post-deploy: `sentry.io → Releases → <release-sha>` debe tener tab "Artifacts" con `*.js` + `*.js.map` subidos. Si no, el token está mal o no se inyectó. Ver [docs/technical/06-deployment.md](../../../docs/technical/06-deployment.md) sección "Source maps a Sentry".
+
 ## Tracking de costo
 
 Plan free de Sentry: 5 K errores/mes. Con `tracesSampleRate: 0.05` y replay/profiling en 0, deberíamos quedar muy por debajo del cap durante MVP. Monitorear el quota indicator del dashboard una vez por mes.

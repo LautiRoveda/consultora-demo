@@ -32,6 +32,8 @@ Creado al ejecutar T-005:
 
 Las credenciales (URL, anon key, service role key, DB password, project ref) viven en `.env.local` (gitignored). La plantilla está en [`.env.example`](../.env.example).
 
+**Producción (T-010):** las 3 vars `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` están configuradas como Vercel Environment Variables en scopes **Production + Preview**. La `SUPABASE_DB_PASSWORD` y el `SUPABASE_PROJECT_REF` NO se exponen al runtime — solo se usan desde CLI local con el dueño del proyecto. Ver [docs/technical/06-deployment.md](../docs/technical/06-deployment.md) para regenerar keys o agregar contributors.
+
 ## Setup local en una máquina nueva
 
 1. Instalar dependencias: `pnpm install` — descarga la CLI de Supabase como devDep.
