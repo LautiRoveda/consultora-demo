@@ -16,6 +16,14 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Placeholders para Supabase. El build estático de Next.js no llama a
+    # Supabase en runtime; solo necesitamos pasar la validación de Zod en
+    # `src/env.ts`. Cuando T-012 monte signup/login, reemplazar por GitHub
+    # Secrets con valores reales.
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -71,6 +79,17 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      # Defensa en profundidad sobre `import 'server-only'` en src/env.ts y
+      # src/shared/supabase/service-role.ts: si por bug futuro un Client
+      # Component termina importando esas keys, este step rompe el CI.
+      - name: Verify service_role not in client bundle
+        run: |
+          if grep -rE 'service_role|SUPABASE_SERVICE_ROLE_KEY' .next/static; then
+            echo "::error::Server-only credenciales filtradas al bundle del cliente."
+            exit 1
+          fi
+          echo "✅ Bundle del cliente limpio."
 
       - name: Cache Playwright browsers
         id: playwright-cache
