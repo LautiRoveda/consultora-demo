@@ -129,9 +129,9 @@
       <div>
         <label class="block text-xs font-medium text-zinc-300 mb-1">Modelo</label>
         <select id="api-model" class="w-full border rounded p-2 text-sm">
-          <option value="claude-sonnet-4-5">Claude Sonnet 4.5 (recomendado)</option>
-          <option value="claude-opus-4-5">Claude Opus 4.5 (más potente, más caro)</option>
-          <option value="claude-haiku-4-5">Claude Haiku 4.5 (más rápido y barato)</option>
+          <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (recomendado)</option>
+          <option value="claude-opus-4-7">Claude Opus 4.7 (más potente, más caro)</option>
+          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (más rápido y barato)</option>
         </select>
       </div>
       <p class="text-xs text-dim">La key queda solo en tu navegador. Para producción se debe llamar desde un backend.</p>
@@ -790,7 +790,7 @@ async function generateWithAPI() {
       "content-type": "application/json"
     },
     body: JSON.stringify({
-      model: document.getElementById("api-model").value || "claude-sonnet-4-5",
+      model: document.getElementById("api-model").value || "claude-sonnet-4-6",
       max_tokens: 4000,
       messages: [{ role: "user", content: fullPrompt }]
     })
