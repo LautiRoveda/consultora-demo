@@ -1,0 +1,10 @@
+.next/
+out/
+build/
+node_modules/
+public/prototipo/
+pnpm-lock.yaml
+*.tsbuildinfo
+docs/
+CLAUDE.md
+README.md

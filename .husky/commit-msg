@@ -1,0 +1,17 @@
+commit_msg=$(cat "$1")
+
+if echo "$commit_msg" | head -1 | grep -qE '^(T-[0-9]{3,4} · .{10,}|(docs|fix|chore|refactor|test|style|build|ci|perf|revert)(\([a-z0-9-]+\))?: .{10,})$'; then
+  exit 0
+fi
+
+echo "❌ Mensaje de commit no respeta la convención del proyecto."
+echo ""
+echo "Formato A (ticket): T-XXX · descripción de al menos 10 chars"
+echo "  ej: T-002 · Configurar ESLint + Prettier + Husky"
+echo ""
+echo "Formato B (no-ticket): prefix(scope opcional): descripción"
+echo "  prefijos válidos: docs, fix, chore, refactor, test, style, build, ci, perf, revert"
+echo "  ej: docs: actualizar README con comandos de lint"
+echo "  ej: fix(auth): corregir refresh de sesión"
+echo ""
+exit 1

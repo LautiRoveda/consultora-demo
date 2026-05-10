@@ -1,5 +1,5 @@
-import type { NextConfig } from "next";
-import path from "node:path";
+import type { NextConfig } from 'next';
+import path from 'node:path';
 
 const nextConfig: NextConfig = {
   turbopack: {
@@ -7,8 +7,8 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-      { source: "/prototipo", destination: "/prototipo/index.html" },
-      { source: "/prototipo/", destination: "/prototipo/index.html" },
+      { source: '/prototipo', destination: '/prototipo/index.html' },
+      { source: '/prototipo/', destination: '/prototipo/index.html' },
     ];
   },
 };
