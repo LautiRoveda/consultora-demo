@@ -21,6 +21,10 @@ export default defineConfig([
     'test-results/**',
     'blob-report/**',
     'playwright/.cache/**',
+    // types.ts es autogenerado por `pnpm db:types`. Los `never` en uniones son
+    // artefacto de la conversión schema Postgres → TS y no aportan valor
+    // lintarlos.
+    'src/shared/supabase/types.ts',
   ]),
 
   ...nextVitals,
