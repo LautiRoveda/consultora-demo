@@ -44,3 +44,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Test artifacts
+/coverage/
+/playwright-report/
+/test-results/
+/.vitest-cache/
+/blob-report/
+/playwright/.cache/

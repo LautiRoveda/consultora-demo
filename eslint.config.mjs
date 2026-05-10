@@ -16,6 +16,11 @@ export default defineConfig([
     '.lintstagedrc.{js,mjs,cjs}',
     '.prettierrc.{js,mjs,cjs}',
     'pnpm-lock.yaml',
+    'coverage/**',
+    'playwright-report/**',
+    'test-results/**',
+    'blob-report/**',
+    'playwright/.cache/**',
   ]),
 
   ...nextVitals,
@@ -35,6 +40,19 @@ export default defineConfig([
   {
     files: ['**/*.{js,mjs,cjs}'],
     ...tseslint.configs.disableTypeChecked,
+  },
+
+  {
+    files: ['src/tests/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
   },
 
   prettier,
