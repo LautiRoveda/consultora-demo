@@ -89,6 +89,33 @@ describe('envSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('NEXT_PUBLIC_SITE_URL tiene default si se omite', () => {
+    const result = envSchema.safeParse(validInput);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.NEXT_PUBLIC_SITE_URL).toBe('https://consultorademo.com.ar');
+    }
+  });
+
+  it('NEXT_PUBLIC_SITE_URL acepta override válido', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      NEXT_PUBLIC_SITE_URL: 'https://staging.consultorademo.com.ar',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.NEXT_PUBLIC_SITE_URL).toBe('https://staging.consultorademo.com.ar');
+    }
+  });
+
+  it('NEXT_PUBLIC_SITE_URL rechaza valor no-URL', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      NEXT_PUBLIC_SITE_URL: 'not-a-url',
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rechaza objeto sin las claves requeridas', () => {
     const result = envSchema.safeParse({});
     expect(result.success).toBe(false);
