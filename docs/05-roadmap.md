@@ -29,7 +29,7 @@ Cada fase entrega **algo usable y vendible**. Nada de fases de 6 meses sin produ
 **Objetivo:** convertir la app en un producto cobrable básico. Persistir todo. Sumar la sexta feature crítica (kit de jornada por tarea).
 
 **Alcance:**
-- Migrar de HTML estático a Next.js 14 con App Router.
+- Migrar de HTML estático a Next.js 16 con App Router.
 - Auth con Supabase (email + password + magic link).
 - Multi-tenancy desde día cero (todas las tablas con `consultora_id`, RLS activo).
 - Persistir `informes` generados con histórico por usuario.

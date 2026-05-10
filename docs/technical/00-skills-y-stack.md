@@ -24,7 +24,7 @@ Una **skill** en Claude Code es un módulo con conocimiento especializado y guí
 ### Las que NO encontré como skills oficiales pero hay que cubrir igual
 
 - Generación de tests (Vitest)
-- Patrones Next.js 15 App Router
+- Patrones Next.js 16 App Router
 - Supabase RLS y multi-tenant
 - Tailwind / shadcn/ui
 - CI/CD GitHub Actions
@@ -35,7 +35,7 @@ Estas no las cubre una skill específica. Las cubrimos con **documentación téc
 
 | Pieza | Elección | Por qué | Costo |
 |-------|----------|---------|-------|
-| Framework | Next.js 15 con App Router | Server components nativos, Server Actions reducen API code, deploy 1-click en Vercel | Gratis |
+| Framework | Next.js 16 con App Router | Server components nativos, Server Actions reducen API code, deploy 1-click en Vercel | Gratis |
 | Lenguaje | TypeScript con `strict: true` | Type safety end-to-end. Claude Code rinde mejor con tipos | Gratis |
 | Estilos | Tailwind CSS + shadcn/ui | shadcn copia componentes a tu repo, podés modificarlos. Sin lock-in | Gratis |
 | DB / Auth / Storage | Supabase | Postgres real con RLS para multi-tenant, auth y storage en un solo paquete | Gratis hasta 500MB DB |
@@ -59,7 +59,7 @@ Estas no las cubre una skill específica. Las cubrimos con **documentación téc
 
 Lo que sale de la investigación, ordenado por prioridad de implementación.
 
-### Next.js 15 + App Router + Server Actions
+### Next.js 16 + App Router + Server Actions
 
 Las prácticas críticas de seguridad para 2026 según docs oficiales:
 
@@ -315,7 +315,7 @@ Con este documento como base de qué herramientas usamos y qué patrones aplicam
 
 ## Sources
 
-- [Next.js 15 Security Best Practices Guide 2026](https://www.authgear.com/post/nextjs-security-best-practices/)
+- [Next.js 16 Security Best Practices Guide 2026](https://www.authgear.com/post/nextjs-security-best-practices/)
 - [Next.js Multi-Tenant Guide](https://nextjs.org/docs/app/guides/multi-tenant)
 - [Supabase RLS Best Practices](https://makerkit.dev/blog/tutorials/supabase-rls-best-practices)
 - [Row Level Security in Supabase with Next.js (2026)](https://blog.starmorph.com/blog/row-level-security-supabase-tables-nextjs)

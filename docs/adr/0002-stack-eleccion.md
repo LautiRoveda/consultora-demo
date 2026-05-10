@@ -65,7 +65,7 @@ Criterios de evaluación:
 
 ## Decisión
 
-**Opción A: Next.js 15 con App Router + TypeScript strict + Supabase (Postgres + Auth + Storage) + Vercel + Anthropic SDK + Resend + Telegram Bot + Mercado Pago + Vitest + Playwright + Sentry.**
+**Opción A: Next.js 16 con App Router + TypeScript strict + Supabase (Postgres + Auth + Storage) + Vercel + Anthropic SDK + Resend + Telegram Bot + Mercado Pago + Vitest + Playwright + Sentry.**
 
 Sin ORM al inicio (`@supabase/supabase-js` directo). Si en Fase 4 aparecen queries complejas, reconsiderar Drizzle.
 

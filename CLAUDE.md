@@ -24,7 +24,7 @@ Pricing: USD 30/mes plan Pro. Trial de 7 días. Sin llamar a comercial.
 
 ## Stack
 
-- **Frontend:** Next.js 15 con App Router + React 19 + TypeScript strict + Tailwind + shadcn/ui.
+- **Frontend:** Next.js 16 con App Router + React 19 + TypeScript strict + Tailwind 4 + shadcn/ui.
 - **Backend:** Next.js Route Handlers y Server Actions, en Vercel serverless.
 - **DB / Auth / Storage:** Supabase (Postgres con RLS multi-tenant).
 - **IA:** Anthropic Claude API (Sonnet 4.6 por default — ver ADR-0003).

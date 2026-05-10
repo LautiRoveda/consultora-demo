@@ -6,7 +6,7 @@ Define los 14 módulos del sistema, qué hace cada uno, qué expone, qué consum
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ Cliente: PWA en navegador (Next.js 15, React, Tailwind)          │
+│ Cliente: PWA en navegador (Next.js 16, React, Tailwind)          │
 │ Pantallas → Server Components + Server Actions                   │
 └─────────────────────────┬────────────────────────────────────────┘
                           │

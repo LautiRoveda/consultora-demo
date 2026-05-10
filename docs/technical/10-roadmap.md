@@ -16,7 +16,7 @@ Cómo construir el sistema, ticket por ticket, con dependencias claras. La idea:
 
 Tickets base que dejan el repo listo para construir features.
 
-- **T-001 · Inicializar Next.js 15 con TypeScript strict.**
+- **T-001 · Inicializar Next.js 16 con TypeScript strict.**
   Crear el proyecto, configurar `tsconfig`, instalar Tailwind, configurar shadcn/ui CLI, primer commit.
 
 - **T-002 · Configurar ESLint + Prettier + Husky + commit hooks.**

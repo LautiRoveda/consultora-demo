@@ -7,7 +7,7 @@ Este documento define el stack, el modelo de datos y los patrones de implementac
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Cliente: PWA en navegador móvil/desktop                     │
-│ Next.js 14 App Router · Tailwind · shadcn/ui · React Query  │
+│ Next.js 16 App Router · Tailwind · shadcn/ui · React Query  │
 │ Service worker para offline · IndexedDB para cache local    │
 └──────────────────────┬──────────────────────────────────────┘
                        │ HTTPS
@@ -25,7 +25,7 @@ Este documento define el stack, el modelo de datos y los patrones de implementac
 
 ### Frontend
 
-- **Framework:** Next.js 14+ con App Router. Server components por defecto, client components donde haya interactividad. SSR para SEO de landing.
+- **Framework:** Next.js 16 con App Router. Server components por defecto, client components donde haya interactividad. SSR para SEO de landing.
 - **Estilos:** Tailwind CSS 3 con `tailwindcss/forms`. La paleta oscura del prototipo Fase 0 ya está definida (zinc + indigo).
 - **Componentes:** shadcn/ui (Radix UI + Tailwind). No instalar ant-design, MUI ni nada pesado.
 - **State:** React Query (`@tanstack/react-query`) para fetching/cache. Zustand si hace falta state global compartido.
