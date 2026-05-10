@@ -2,6 +2,18 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Theme tokens del proyecto (T-008).
+ *
+ * Light mode (`:root`) es el default. Dark mode (`.dark`) queda preparado con
+ * los HEX exactos del prototipo Fase 0 (`public/prototipo/index.html`) — la
+ * activación queda para Fase 3+ (no instalamos `next-themes` ni
+ * ThemeProvider en T-008).
+ *
+ * Brand color: indigo (--primary). Tokens semánticos HyS (severity) coherentes
+ * en ambos modos. Valores oklch tomados de la paleta oficial Tailwind 4.
+ */
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);
@@ -10,7 +22,8 @@
   --card-foreground: oklch(0.141 0.005 285.823);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.21 0.006 285.885);
+  /* Brand: indigo-600. */
+  --primary: oklch(0.511 0.262 276.966);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
@@ -21,18 +34,35 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.92 0.004 286.32);
   --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.705 0.015 286.067);
+  /* Focus ring = brand: foco con el mismo color que la acción. */
+  --ring: oklch(0.511 0.262 276.966);
+
+  /*
+   * Tokens semánticos HyS (severidad).
+   * Mantienen significado funcional en light y dark — se repiten en `.dark`.
+   * Tailwind 4: green-600, blue-600, amber-600, red-600.
+   */
+  --severity-ok: oklch(0.627 0.194 149.214);
+  --severity-ok-foreground: oklch(0.985 0 0);
+  --severity-info: oklch(0.546 0.245 262.881);
+  --severity-info-foreground: oklch(0.985 0 0);
+  --severity-warning: oklch(0.666 0.179 58.318);
+  --severity-warning-foreground: oklch(0.21 0.006 285.885);
+  --severity-danger: oklch(0.577 0.245 27.325);
+  --severity-danger-foreground: oklch(0.985 0 0);
 }
 
 .dark {
+  /* HEX exactos del prototipo Fase 0 (zinc-950 / 900 / 800 / 200). */
   --background: oklch(0.141 0.005 285.823);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.21 0.006 285.885);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.21 0.006 285.885);
+  /* Brand en dark: indigo-500 (más claro para contraste sobre fondo oscuro). */
+  --primary: oklch(0.585 0.233 277.117);
+  --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.274 0.006 286.033);
@@ -42,7 +72,17 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.552 0.016 285.938);
+  --ring: oklch(0.585 0.233 277.117);
+
+  /* Severity tokens — mismos colores funcionales que en light. */
+  --severity-ok: oklch(0.627 0.194 149.214);
+  --severity-ok-foreground: oklch(0.985 0 0);
+  --severity-info: oklch(0.546 0.245 262.881);
+  --severity-info-foreground: oklch(0.985 0 0);
+  --severity-warning: oklch(0.666 0.179 58.318);
+  --severity-warning-foreground: oklch(0.21 0.006 285.885);
+  --severity-danger: oklch(0.577 0.245 27.325);
+  --severity-danger-foreground: oklch(0.985 0 0);
 }
 
 @theme inline {
@@ -64,6 +104,17 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* Severity utilities: bg-severity-warning, text-severity-danger-foreground, ... */
+  --color-severity-ok: var(--severity-ok);
+  --color-severity-ok-foreground: var(--severity-ok-foreground);
+  --color-severity-info: var(--severity-info);
+  --color-severity-info-foreground: var(--severity-info-foreground);
+  --color-severity-warning: var(--severity-warning);
+  --color-severity-warning-foreground: var(--severity-warning-foreground);
+  --color-severity-danger: var(--severity-danger);
+  --color-severity-danger-foreground: var(--severity-danger-foreground);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
