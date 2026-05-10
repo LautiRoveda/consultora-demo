@@ -51,6 +51,17 @@ export const metadata: Metadata = {
     title: `${SITE_NAME} · Generador de informes HyS con IA`,
     description: SITE_DESCRIPTION,
   },
+  /*
+   * Indexación global (T-010): solo el deploy de production permite indexar.
+   * Preview deploys de Vercel emiten `<meta name="robots" content="noindex,nofollow">`
+   * a nivel root layout para evitar que Google indexe URLs efímeras tipo
+   * `consultora-demo-git-<branch>-<scope>.vercel.app`.
+   *
+   * `VERCEL_ENV` lo inyecta Vercel automáticamente: 'production' | 'preview' |
+   * 'development'. En build local sin Vercel queda undefined → la rama
+   * `!== 'production'` aplica noindex (seguro por default).
+   */
+  robots: process.env.VERCEL_ENV === 'production' ? undefined : { index: false, follow: false },
 };
 
 export default function RootLayout({
