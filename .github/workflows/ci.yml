@@ -16,14 +16,20 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Placeholders para Supabase. El build estático de Next.js no llama a
-    # Supabase en runtime; solo necesitamos pasar la validación de Zod en
-    # `src/env.ts`. Cuando T-012 monte signup/login, reemplazar por GitHub
-    # Secrets con valores reales.
+    # Placeholders para vars que valida Zod en `src/env.ts`. El build estático
+    # de Next.js no las usa en runtime; solo necesitamos pasar la validación.
+    # Cuando T-012 monte signup/login, reemplazar Supabase keys por GitHub
+    # Secrets reales. Cuando T-010 monte Vercel deploy, agregar SENTRY_AUTH_TOKEN
+    # como secret real para subir source maps. Hoy: enabled: NODE_ENV ===
+    # 'production' en cada sentry.*.config.ts hace que estos placeholders no
+    # envíen nada a Sentry desde CI.
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
       SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+      NEXT_PUBLIC_SENTRY_DSN: https://placeholder@o0.ingest.sentry.io/0
+      SENTRY_ORG: placeholder-org
+      SENTRY_PROJECT: placeholder-project
     steps:
       - name: Checkout
         uses: actions/checkout@v5

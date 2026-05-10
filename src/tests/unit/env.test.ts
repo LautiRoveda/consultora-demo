@@ -16,6 +16,9 @@ vi.hoisted(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://hoisted.supabase.co';
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'hoisted-anon-key';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'hoisted-service-role-key';
+  process.env.NEXT_PUBLIC_SENTRY_DSN = 'https://hoisted@o0.ingest.sentry.io/0';
+  process.env.SENTRY_ORG = 'hoisted-org';
+  process.env.SENTRY_PROJECT = 'hoisted-project';
 });
 
 describe('envSchema', () => {
@@ -23,6 +26,9 @@ describe('envSchema', () => {
     NEXT_PUBLIC_SUPABASE_URL: 'https://example.supabase.co',
     NEXT_PUBLIC_SUPABASE_ANON_KEY: 'anon-key',
     SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
+    NEXT_PUBLIC_SENTRY_DSN: 'https://abc@o0.ingest.sentry.io/0',
+    SENTRY_ORG: 'lautaro-96',
+    SENTRY_PROJECT: 'consultora-demo',
   };
 
   it('acepta vars válidas', () => {
@@ -30,7 +36,7 @@ describe('envSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('rechaza URL inválida', () => {
+  it('rechaza URL inválida en Supabase URL', () => {
     const result = envSchema.safeParse({
       ...validInput,
       NEXT_PUBLIC_SUPABASE_URL: 'not-a-url',
@@ -52,6 +58,35 @@ describe('envSchema', () => {
       SUPABASE_SERVICE_ROLE_KEY: '',
     });
     expect(result.success).toBe(false);
+  });
+
+  it('rechaza Sentry DSN no-URL', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      NEXT_PUBLIC_SENTRY_DSN: 'not-a-url',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza SENTRY_ORG vacío', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      SENTRY_ORG: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('acepta SENTRY_FORCE_ENABLE ausente (es opcional)', () => {
+    const result = envSchema.safeParse(validInput);
+    expect(result.success).toBe(true);
+  });
+
+  it('acepta SENTRY_FORCE_ENABLE seteado a "true"', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      SENTRY_FORCE_ENABLE: 'true',
+    });
+    expect(result.success).toBe(true);
   });
 
   it('rechaza objeto sin las claves requeridas', () => {

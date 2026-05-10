@@ -45,6 +45,10 @@ yarn-error.log*
 # supabase CLI metadata (token cache, project ref, branches)
 .supabase/
 
+# Sentry CLI / build plugin
+.sentryclirc
+.env.sentry-build-plugin
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
