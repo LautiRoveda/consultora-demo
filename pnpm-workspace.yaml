@@ -1,9 +1,11 @@
 allowBuilds:
+  '@sentry/cli': true
   esbuild: true
   sharp: true
   supabase: true
   unrs-resolver: true
 onlyBuiltDependencies:
+  - '@sentry/cli'
   - esbuild
   - sharp
   - supabase

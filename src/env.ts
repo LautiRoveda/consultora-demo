@@ -12,6 +12,17 @@ export const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+
+  // Sentry (T-007). El DSN público no es secreto — lo expone el bundle del
+  // cliente. SENTRY_ORG y SENTRY_PROJECT son server-only (los usa
+  // withSentryConfig para upload de source maps).
+  NEXT_PUBLIC_SENTRY_DSN: z.string().url(),
+  SENTRY_ORG: z.string().min(1),
+  SENTRY_PROJECT: z.string().min(1),
+  // Override opcional: setear a 'true' en .env.local para forzar envío real a
+  // Sentry desde NODE_ENV=development (validación end-to-end de /api/test-error).
+  // Vacío en uso normal.
+  SENTRY_FORCE_ENABLE: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
