@@ -71,6 +71,16 @@ export async function GET(request: NextRequest) {
       logger.error({ error, code: code.slice(0, 8) }, 'exchangeCodeForSession falló');
       return NextResponse.redirect(`${origin}/login?error=callback_failed`);
     }
+    // T-016 PARADA #3: refresh post-signup-confirm garantiza que el JWT
+    // emitido tras el exchange traiga el claim consultora_id. Race posible:
+    // si el RPC create_consultora_and_owner (T-012) corrio recien, el primer
+    // JWT del exchange puede haberse firmado antes que el hook viera la
+    // membership. Refresh fuerza re-issue post-membership. Fallback T-013
+    // cubre si refresh falla — no bounceamos, solo log para observability.
+    const { error: refreshErr } = await supabase.auth.refreshSession();
+    if (refreshErr) {
+      logger.warn({ refreshErr }, 'refresh_session_post_callback_failed');
+    }
   } else if (tokenHash) {
     // token_hash flow: verify the OTP token. Requires a valid `type` from the
     // allowlist (otherwise possible attack vector + Supabase tira con `email`

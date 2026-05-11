@@ -105,6 +105,16 @@ export async function loginAction(input: unknown): Promise<LoginActionResult> {
     };
   }
 
+  // T-016 PARADA #3: refresh post-signin garantiza JWT con claim consultora_id
+  // para users creados pre-T-016 (cuyo JWT inicial no pasaba por el hook
+  // porque el hook todavia no estaba enchufado). Sin refresh, dependeriamos
+  // del proximo expiry natural (1h). Fallback T-013 cubre si refresh falla —
+  // no bounceamos, solo log para observability.
+  const { error: refreshErr } = await supabase.auth.refreshSession();
+  if (refreshErr) {
+    logger.warn({ refreshErr, email }, 'refresh_session_post_signin_failed');
+  }
+
   logger.info({ userId: data.user?.id, email, method: 'password' }, 'signin_completed');
 
   return { ok: true, redirectTo: '/dashboard' };

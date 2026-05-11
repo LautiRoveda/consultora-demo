@@ -167,6 +167,7 @@ export type Database = {
         }[];
       };
       current_consultora_id: { Args: never; Returns: string };
+      custom_access_token_hook: { Args: { event: Json }; Returns: Json };
       is_member_of_consultora: {
         Args: { p_consultora_id: string };
         Returns: boolean;
