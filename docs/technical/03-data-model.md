@@ -103,6 +103,19 @@ create policy consultora_members_select_self on public.consultora_members
 
 **`mp_subscription_id`:** NO está en T-011. Se suma vía ALTER TABLE en T-029 (Mercado Pago).
 
+### M2.1 · RPC `create_consultora_and_owner` (T-012)
+
+Función `security definer + search_path = ''` invocada desde la server action de signup tras `supabase.auth.signUp()`. Crea consultora (trial 7d, slug normalizado con `unaccent` + sufijo random 4 hex, retry-on-collision hasta 5 intentos) + membership `owner`, en una transacción.
+
+```sql
+public.create_consultora_and_owner(p_user_id uuid, p_name text)
+  returns table (consultora_id uuid, slug text)
+```
+
+Permisos: `revoke from public, anon` + `grant execute to authenticated, service_role`. El caller pasa su propio `user_id` (que coincide con su `auth.uid()` recién creado por signUp).
+
+Implementación completa en `supabase/migrations/20260511004933_signup_function.sql`. Tests: `src/tests/integration/signup.test.ts` (8 tests: trial 7d, owner role, slug normalization de acentos + fallback + colisión + truncate, anon denied).
+
 ### M3 · Auditoría
 
 ```sql

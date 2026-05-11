@@ -106,25 +106,58 @@ where extname in ('uuid-ossp', 'pgcrypto', 'vector', 'pg_cron')
 order by extname;
 ```
 
-## Test data residual (T-011)
+## Extensiones adicionales por ticket
 
-`pnpm test:integration` (RLS cross-tenant) crea consultoras + users + audit_log con slug `t011-test-*-<runId>`. El `afterAll` borra users (cascada limpia memberships), pero el trigger inmutable del `audit_log` impide DELETE de sus filas — y la FK `audit_log.consultora_id → consultoras` con `on delete restrict` impide borrar las consultoras. Resultado: cada run deja 2 consultoras + 2 audit_log rows orphan en `sa-east-1`.
+| Extensión | Habilitada en | Para qué |
+|---|---|---|
+| `uuid-ossp` | T-005 | `uuid_generate_v4()`. Hoy preferimos `gen_random_uuid()` de pgcrypto. |
+| `pgcrypto` | T-005 | `gen_random_uuid()` + `crypt()`/`gen_salt()` para hashing futuro. |
+| `vector` (pgvector) | T-005 | Fase 4: búsqueda semántica de documentos. |
+| `pg_cron` | T-005 | Sprint 2: jobs programados (alertas calendario). |
+| `unaccent` | T-012 | Normalización de slug en `create_consultora_and_owner` (acentos español). |
 
-Es aceptable para Sprint 1 (developer-discipline local). Limpieza manual periódica vía SQL Editor (cuando se acumulen muchos rows o cuando se quiera resetear):
+## Funciones SQL del dominio
+
+- `public.current_consultora_id()` (T-011) — extrae `app_metadata.consultora_id` del JWT.
+- `public.set_updated_at()` (T-011) — trigger compartido para `updated_at`.
+- `public.audit_log_immutable()` (T-011) — trigger BEFORE UPDATE/DELETE que rechaza modificaciones.
+- `public.create_consultora_and_owner(uuid, text)` (T-012) — RPC atómica de signup: crea consultora (trial 7d, slug normalizado) + membership owner.
+
+## Test data residual (T-011 + T-012)
+
+`pnpm test:integration` crea data de test contra Supabase remoto:
+
+- **T-011 (RLS):** consultoras + users + audit_log con slug `t011-test-*-<runId>`. El `afterAll` borra users (cascada limpia memberships), pero el trigger inmutable del `audit_log` impide DELETE de sus filas — y la FK `audit_log.consultora_id → consultoras` con `on delete restrict` impide borrar las consultoras.
+- **T-012 (signup RPC):** consultoras + users con slug `t012-test-*-<runId>`. Misma situación: users limpios, consultoras orphan.
+
+Es aceptable para Sprint 1 (developer-discipline local). Limpieza manual periódica vía SQL Editor:
 
 ```sql
 -- Disable trigger inmutable temporalmente para limpiar test data.
 alter table public.audit_log disable trigger audit_log_no_delete;
 
 delete from public.audit_log
-where consultora_id in (select id from public.consultoras where slug like 't011-test-%');
+where consultora_id in (
+  select id from public.consultoras where slug like 't011-test-%' or slug like 't012-test-%'
+);
 
-delete from public.consultoras where slug like 't011-test-%';
+delete from public.consultoras where slug like 't011-test-%' or slug like 't012-test-%';
 
 alter table public.audit_log enable trigger audit_log_no_delete;
 ```
 
 Cuando T-018 (cierre Sprint 1) configure CI con Supabase secrets, evaluar limpiar tests para que sean self-cleaning end-to-end.
+
+## Supabase Auth config (T-012)
+
+Configuración no versionada (vive en el dashboard, no en el repo):
+
+- **Authentication → URL Configuration:**
+  - Site URL: `https://consultora-demo.vercel.app`
+  - Redirect URLs allow-list: `https://consultora-demo.vercel.app/auth/callback`, `http://localhost:3000/auth/callback`.
+- **Authentication → Sign In / Up:** "Enable signups" ON · "Confirm email" ON.
+- **Authentication → Emails → Templates → "Confirm signup":** subject + body en español rioplatense (ver T-012 PR para wording final).
+- **Rate limits:** default Supabase (~30 signUp/h por IP). Si vemos abuse, evaluar middleware o Upstash Redis.
 
 ## Troubleshooting
 

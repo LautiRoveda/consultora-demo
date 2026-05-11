@@ -2,10 +2,13 @@
 
 import type { LoginInput } from './schema';
 import { zodResolver } from '@hookform/resolvers/zod';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
+import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/shared/ui/form';
@@ -15,6 +18,10 @@ import { loginAction } from './actions';
 import { loginInputSchema } from './schema';
 
 export function LoginForm() {
+  const searchParams = useSearchParams();
+  const confirmed = searchParams.get('confirmed');
+  const callbackError = searchParams.get('error');
+
   const [isPending, setIsPending] = useState(false);
 
   const form = useForm<LoginInput>({
@@ -48,10 +55,24 @@ export function LoginForm() {
       <CardHeader>
         <CardTitle className="text-2xl">Iniciar sesión</CardTitle>
         <p className="text-muted-foreground text-sm">
-          Email y contraseña. Auth real llega en el próximo sprint.
+          Email y contraseña. Login real llega en T-013.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
+        {confirmed === '1' && (
+          <Alert>
+            <AlertTitle>Cuenta confirmada</AlertTitle>
+            <AlertDescription>Ingresá con tu email y contraseña.</AlertDescription>
+          </Alert>
+        )}
+        {callbackError === 'callback_failed' && (
+          <Alert variant="destructive">
+            <AlertTitle>Link expirado</AlertTitle>
+            <AlertDescription>
+              El link de confirmación expiró o ya fue usado. Si no podés iniciar sesión, escribinos.
+            </AlertDescription>
+          </Alert>
+        )}
         <Form {...form}>
           <form
             onSubmit={(e) => void form.handleSubmit(onSubmit)(e)}
@@ -102,8 +123,9 @@ export function LoginForm() {
 
         <p className="text-muted-foreground border-t pt-4 text-center text-sm">
           ¿Todavía no tenés cuenta?{' '}
-          <span className="text-foreground font-medium">Empezá tu prueba de 7 días</span>{' '}
-          <span className="text-xs">(disponible desde T-012)</span>.
+          <Link href="/signup" className="text-foreground font-medium hover:underline">
+            Crear cuenta
+          </Link>
         </p>
       </CardContent>
     </Card>

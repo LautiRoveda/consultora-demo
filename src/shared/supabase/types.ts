@@ -159,7 +159,15 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      create_consultora_and_owner: {
+        Args: { p_name: string; p_user_id: string };
+        Returns: {
+          consultora_id: string;
+          slug: string;
+        }[];
+      };
       current_consultora_id: { Args: never; Returns: string };
+      unaccent: { Args: { '': string }; Returns: string };
     };
     Enums: {
       [_ in never]: never;
