@@ -123,12 +123,27 @@ order by extname;
 - `public.audit_log_immutable()` (T-011) — trigger BEFORE UPDATE/DELETE que rechaza modificaciones.
 - `public.create_consultora_and_owner(uuid, text)` (T-012) — RPC atómica de signup: crea consultora (trial 7d, slug normalizado) + membership owner.
 
+## Policies RLS adicionales por ticket
+
+- `consultoras_select_own` + `consultoras_update_own_owner` (T-011) — basadas en `current_consultora_id()`.
+- `consultora_members_select_own` + `consultora_members_select_self` (T-011) — la 2da es defensiva pre-T-016.
+- `audit_log_select_own` (T-011).
+- `consultoras_select_own_member` (T-013) — defensiva pre-T-016: espejo de `consultora_members_select_self`, permite al dashboard leer la propia consultora vía JOIN sin depender del custom claim.
+
+## Supabase Auth Email Templates (T-012 + T-013)
+
+Configuración no versionada (vive en el dashboard, no en el repo):
+
+- **"Confirm signup"** (T-012) — subject + body en español rioplatense. Wording final en el PR de T-012.
+- **"Magic Link"** (T-013) — subject + body en español rioplatense. Wording final en el PR de T-013.
+
 ## Test data residual (T-011 + T-012)
 
 `pnpm test:integration` crea data de test contra Supabase remoto:
 
 - **T-011 (RLS):** consultoras + users + audit_log con slug `t011-test-*-<runId>`. El `afterAll` borra users (cascada limpia memberships), pero el trigger inmutable del `audit_log` impide DELETE de sus filas — y la FK `audit_log.consultora_id → consultoras` con `on delete restrict` impide borrar las consultoras.
 - **T-012 (signup RPC):** consultoras + users con slug `t012-test-*-<runId>`. Misma situación: users limpios, consultoras orphan.
+- **T-013 (signin + dashboard):** consultoras + users con slug `t013-test-*-<runId>`. Misma situación.
 
 Es aceptable para Sprint 1 (developer-discipline local). Limpieza manual periódica vía SQL Editor:
 
@@ -138,10 +153,12 @@ alter table public.audit_log disable trigger audit_log_no_delete;
 
 delete from public.audit_log
 where consultora_id in (
-  select id from public.consultoras where slug like 't011-test-%' or slug like 't012-test-%'
+  select id from public.consultoras
+  where slug like 't011-test-%' or slug like 't012-test-%' or slug like 't013-test-%'
 );
 
-delete from public.consultoras where slug like 't011-test-%' or slug like 't012-test-%';
+delete from public.consultoras
+where slug like 't011-test-%' or slug like 't012-test-%' or slug like 't013-test-%';
 
 alter table public.audit_log enable trigger audit_log_no_delete;
 ```
