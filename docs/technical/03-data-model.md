@@ -184,6 +184,26 @@ create policy audit_log_select_own on public.audit_log
 - SELECT policy abierta a todos los miembros (era solo admin).
 - Sin policy de INSERT (era con check) — INSERT solo via service-role / triggers, default-deny.
 
+### M2.2 · RLS helpers (T-015)
+
+A partir de T-015, las policies usan **helpers SQL reusables** en lugar de duplicar subqueries inline. 4 funciones `stable security definer set search_path = ''` con `grant execute to authenticated, service_role`:
+
+| Helper | Returns | Equivale a |
+|---|---|---|
+| `is_member_of_consultora(id)` | `boolean` | `exists (select 1 from consultora_members where user_id = auth.uid() and consultora_id = id)` |
+| `is_owner_of_consultora(id)` | `boolean` | idem + `and role = 'owner'` |
+| `role_on_consultora(id)` | `text` (`owner`/`member`/`null`) | rol de auth.uid() en la consultora |
+| `my_consultora_ids()` | `setof uuid` | consultoras donde auth.uid() es member |
+
+**Regla forward (T-015):** las policies NUEVAS de tablas del dominio (T-019+ clientes, empleados, informes, EPP, ...) deben usar los helpers, NO subqueries inline. Las policies pre-T-015 (`consultoras_update_own_owner` T-011, `consultoras_select_own_member` T-013) ya fueron refactorizadas en `20260511131522_rls_use_helpers.sql` — comportamiento semánticamente idéntico, solo legibilidad.
+
+Las policies basadas en `current_consultora_id()` (T-011) NO usan los helpers porque comparan contra el custom claim del JWT, no contra membership directa. Cómo conviven con los helpers:
+
+- **SELECT (permissive):** Postgres combina policies SELECT con OR. `consultoras_select_own` (via claim) **OR** `consultoras_select_own_member` (via helper) → user ve la consultora si CUALQUIERA matchea. Pre-T-016 solo matchea la del helper; post-T-016 matchean ambas (defense-in-depth inocuo).
+- **UPDATE (restrictivo):** `consultoras_update_own_owner` combina las DOS condiciones con AND en su `USING`: `id = current_consultora_id() AND is_owner_of_consultora(id)`. El user debe tener el claim correcto Y ser owner — fail-closed pre-T-016 (sin claim → 0 rows actualizables).
+
+Migration: `supabase/migrations/20260511130757_rls_helpers.sql` define los helpers · `20260511131522_rls_use_helpers.sql` refactoriza las policies pre-existentes · ver `supabase/README.md` para ejemplos de uso.
+
 ### M4 · Notificaciones
 
 ```sql

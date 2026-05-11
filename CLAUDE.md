@@ -121,12 +121,28 @@ Roadmap detallado por tickets en `docs/technical/10-roadmap.md`.
   - **T-008** ✅ Theme shadcn alineado al prototipo (indigo brand + 4 severity tokens) + 7 componentes base + `/styleguide` dev tool.
   - **T-009** ✅ Landing pública productiva (`/`) + `/login` UI (auth real T-012) + páginas legales `/terminos` y `/privacidad` con noindex + `robots.txt` + `sitemap.xml`. Lighthouse 97/100/100/100.
   - **T-010** ✅ Vercel deploy desde main con 9 env vars (Production + Preview) + `SENTRY_AUTH_TOKEN` activo (source maps automáticos) + ADR-0005 + runbook `docs/technical/06-deployment.md`. **URL productiva: <https://consultora-demo.vercel.app>**.
-- **Sprint 1 — Auth + Tenancy + base multi-tenant** 🚧 (4/8)
+- **Sprint 1 — Auth + Tenancy + base multi-tenant** 🚧 (5/8)
   - **T-011** ✅ Migration `tenancy.sql`: 3 tablas (`consultoras`, `consultora_members`, `audit_log`) + función `current_consultora_id()` + triggers + 5 RLS policies default-deny + ADR-0006.
   - **T-012** ✅ Signup flow productivo: `/signup` → `auth.signUp` + RPC `create_consultora_and_owner` (atómico, trial 7d, slug `unaccent`) → `/check-email` → email confirm → `/auth/callback?next=/login` → `/login?confirmed=1`.
   - **T-013** ✅ Login real (password) + magic link (botón secondary) + `/dashboard` stub (server-protected). `/auth/callback` con `?next=` allowlisted. Migration `dashboard_rls.sql` suma policy defensiva `consultoras_select_own_member`. `signOutAction` server-side.
   - **T-014** ✅ Password recovery completo + logout formalizado: `/recuperar-password` (form anti-enumeration) + `/cambiar-password` (server-protected) + `updatePasswordAction` con flujo `resetPasswordForEmail` → `/auth/callback?next=/cambiar-password` → `/dashboard?reset=ok`. Banner "Contraseña actualizada" en dashboard. Link "¿Olvidaste tu contraseña?" en LoginForm. 7 integration tests recovery + 6 E2E.
-  - **T-015** 🔜 helpers RLS · **T-016** 🔜 custom claim `consultora_id` · **T-017** 🔜 layout autenticado · **T-018** 🔜 E2E auth flow.
+  - **T-015** ✅ RLS helpers SQL reusables: 4 funciones `stable security definer` en schema `public` (`is_member_of_consultora`, `is_owner_of_consultora`, `role_on_consultora`, `my_consultora_ids`). Policies pre-existentes refactorizadas (`consultoras_update_own_owner`, `consultoras_select_own_member`) — semántica idéntica, sin regresiones. 5 integration tests nuevos (13 → 18 RLS, 48/48 total). Migrations `20260511130757_rls_helpers.sql` + `20260511131522_rls_use_helpers.sql`. Dev tool `pnpm dev:smoke-rls-helpers`.
+  - **T-016** 🔜 custom claim `consultora_id` · **T-017** 🔜 layout autenticado · **T-018** 🔜 E2E auth flow.
+
+### RLS / multi-tenancy
+
+**Estrategia:** ADR-0006 (shared DB + RLS + custom claim en JWT). Decisión técnica completa con tradeoffs en `docs/adr/0006-multi-tenant-rls-strategy.md`.
+
+**Helpers SQL reusables (T-015)** en schema `public`, todas `stable security definer set search_path = ''` con grants a `authenticated` + `service_role`:
+
+- `is_member_of_consultora(uuid) → boolean` — true si `auth.uid()` es member de la consultora.
+- `is_owner_of_consultora(uuid) → boolean` — idem + `role = 'owner'`.
+- `role_on_consultora(uuid) → text` — rol del user en la consultora (`'owner'` | `'member'` | `null`).
+- `my_consultora_ids() → setof uuid` — consultoras donde el user es member (MVP single-tenant per user, schema soporta m2m).
+
+**Regla forward (no negociable):** TODA policy NUEVA de tablas del dominio (T-019+ clientes, empleados, informes, EPP, …) debe usar estos helpers, NO subqueries inline a `consultora_members`. Las policies pre-T-015 ya fueron refactorizadas en `supabase/migrations/20260511131522_rls_use_helpers.sql`.
+
+Detalle + ejemplo de uso en `supabase/README.md` sección "RLS helpers". Definición en `supabase/migrations/20260511130757_rls_helpers.sql`.
 
 ## Cómo arrancar a construir
 

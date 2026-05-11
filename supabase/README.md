@@ -123,6 +123,34 @@ order by extname;
 - `public.audit_log_immutable()` (T-011) — trigger BEFORE UPDATE/DELETE que rechaza modificaciones.
 - `public.create_consultora_and_owner(uuid, text)` (T-012) — RPC atómica de signup: crea consultora (trial 7d, slug normalizado) + membership owner.
 
+### RLS helpers (T-015)
+
+4 helpers `stable security definer set search_path = ''` que las policies invocan en lugar de duplicar subqueries inline. Grant `execute` a `authenticated` + `service_role`; `revoke from anon`.
+
+| Helper | Returns | Uso típico en policy |
+|---|---|---|
+| `public.is_member_of_consultora(p_consultora_id uuid)` | `boolean` | `using (public.is_member_of_consultora(consultora_id))` |
+| `public.is_owner_of_consultora(p_consultora_id uuid)` | `boolean` | `using (public.is_owner_of_consultora(consultora_id))` para `UPDATE`/`DELETE` restringidas a owner |
+| `public.role_on_consultora(p_consultora_id uuid)` | `text` (`'owner' \| 'member'` o `NULL`) | checks condicionales por rol granular |
+| `public.my_consultora_ids()` | `setof uuid` | `using (consultora_id in (select public.my_consultora_ids()))` (multi-tenant per user futuro) |
+
+**Ejemplo de policy con helper:**
+
+```sql
+-- Tabla de dominio futura (T-019+): clientes
+alter table public.clientes enable row level security;
+
+create policy clientes_select_own on public.clientes
+  for select using (public.is_member_of_consultora(consultora_id));
+
+create policy clientes_update_own_owner on public.clientes
+  for update using (public.is_owner_of_consultora(consultora_id));
+```
+
+**Regla forward (T-015):** policies NUEVAS deben usar los helpers, NO subqueries inline a `consultora_members`. Las existentes (`consultoras_update_own_owner`, `consultoras_select_own_member`) ya fueron refactorizadas en `20260511131522_rls_use_helpers.sql`.
+
+**Performance:** el planner Postgres inlinea funciones `sql + stable + security definer` directamente en la query — no hay overhead vs subquery escrita a mano. El `unique (user_id, consultora_id)` de T-011 da auto-index óptimo para los 4 helpers (columna líder `user_id`).
+
 ## Policies RLS adicionales por ticket
 
 - `consultoras_select_own` + `consultoras_update_own_owner` (T-011) — basadas en `current_consultora_id()`.

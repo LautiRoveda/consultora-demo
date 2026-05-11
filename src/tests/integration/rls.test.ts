@@ -36,6 +36,9 @@ const slugA = `t011-test-a-${runId}`;
 const slugB = `t011-test-b-${runId}`;
 const emailA = `t011-test-a-${runId}@example.com`;
 const emailB = `t011-test-b-${runId}@example.com`;
+// T-015: user member (no-owner) de cA y user sin ningún membership.
+const emailM = `t011-test-m-${runId}@example.com`;
+const emailC = `t011-test-c-${runId}@example.com`;
 const password = 'TestPassword123!';
 
 const admin = createSbClient<Database>(url, serviceKey, {
@@ -46,9 +49,13 @@ let cAId: string;
 let cBId: string;
 let userAId: string;
 let userBId: string;
+let userMId: string;
+let userCId: string;
 let auditAId: string;
 let clientA: SupabaseClient<Database>;
 let clientB: SupabaseClient<Database>;
+let clientM: SupabaseClient<Database>;
+let clientC: SupabaseClient<Database>;
 
 beforeAll(async () => {
   // 1. Crear 2 consultoras (service-role bypasa RLS).
@@ -61,20 +68,40 @@ beforeAll(async () => {
   cAId = cA.id;
   cBId = cB.id;
 
-  // 2. Crear 2 users con auth.admin (email_confirm: true para skip de verificación).
-  const [{ data: uA, error: euA }, { data: uB, error: euB }] = await Promise.all([
+  // 2. Crear 4 users con auth.admin (email_confirm: true para skip de verificación).
+  //    - userA: owner de cA.
+  //    - userB: owner de cB (cross-tenant).
+  //    - userM: member (no-owner) de cA (T-015: cubrir role='member' en helpers).
+  //    - userC: sin ningún membership (T-015: cubrir caso non-member).
+  const [
+    { data: uA, error: euA },
+    { data: uB, error: euB },
+    { data: uM, error: euM },
+    { data: uC, error: euC },
+  ] = await Promise.all([
     admin.auth.admin.createUser({ email: emailA, password, email_confirm: true }),
     admin.auth.admin.createUser({ email: emailB, password, email_confirm: true }),
+    admin.auth.admin.createUser({ email: emailM, password, email_confirm: true }),
+    admin.auth.admin.createUser({ email: emailC, password, email_confirm: true }),
   ]);
   if (euA || !uA.user) throw new Error(`crear user A falló: ${euA?.message}`);
   if (euB || !uB.user) throw new Error(`crear user B falló: ${euB?.message}`);
+  if (euM || !uM.user) throw new Error(`crear user M falló: ${euM?.message}`);
+  if (euC || !uC.user) throw new Error(`crear user C falló: ${euC?.message}`);
   userAId = uA.user.id;
   userBId = uB.user.id;
+  userMId = uM.user.id;
+  userCId = uC.user.id;
 
-  // 3. Crear memberships.
+  // 3. Crear memberships:
+  //    - userA + cA → owner
+  //    - userB + cB → owner
+  //    - userM + cA → member (T-015, no-owner)
+  //    - userC: SIN membership (intencional)
   const { error: emErr } = await admin.from('consultora_members').insert([
     { user_id: userAId, consultora_id: cAId, role: 'owner' },
     { user_id: userBId, consultora_id: cBId, role: 'owner' },
+    { user_id: userMId, consultora_id: cAId, role: 'member' },
   ]);
   if (emErr) throw new Error(`crear memberships falló: ${emErr.message}`);
 
@@ -99,17 +126,26 @@ beforeAll(async () => {
   if (!aRow) throw new Error('no se encontró audit row de consultora A');
   auditAId = aRow.id;
 
-  // 6. Sign-in para obtener JWTs CON la claim recién seteada.
+  // 6. Sign-in para obtener JWTs. userA y userB con app_metadata.consultora_id;
+  //    userM y userC sin claim (T-015 tests del helper validan auth.uid() solo).
   const sbA = createSbClient<Database>(url, anonKey, { auth: { persistSession: false } });
   const sbB = createSbClient<Database>(url, anonKey, { auth: { persistSession: false } });
-  const [{ error: esA }, { error: esB }] = await Promise.all([
+  const sbM = createSbClient<Database>(url, anonKey, { auth: { persistSession: false } });
+  const sbC = createSbClient<Database>(url, anonKey, { auth: { persistSession: false } });
+  const [{ error: esA }, { error: esB }, { error: esM }, { error: esC }] = await Promise.all([
     sbA.auth.signInWithPassword({ email: emailA, password }),
     sbB.auth.signInWithPassword({ email: emailB, password }),
+    sbM.auth.signInWithPassword({ email: emailM, password }),
+    sbC.auth.signInWithPassword({ email: emailC, password }),
   ]);
   if (esA) throw new Error(`sign in A falló: ${esA.message}`);
   if (esB) throw new Error(`sign in B falló: ${esB.message}`);
+  if (esM) throw new Error(`sign in M falló: ${esM.message}`);
+  if (esC) throw new Error(`sign in C falló: ${esC.message}`);
   clientA = sbA;
   clientB = sbB;
+  clientM = sbM;
+  clientC = sbC;
 });
 
 afterAll(async () => {
@@ -117,6 +153,8 @@ afterAll(async () => {
   // quedan orphan por el trigger inmutable — limpieza manual periódica.
   if (userAId) await admin.auth.admin.deleteUser(userAId);
   if (userBId) await admin.auth.admin.deleteUser(userBId);
+  if (userMId) await admin.auth.admin.deleteUser(userMId);
+  if (userCId) await admin.auth.admin.deleteUser(userCId);
 });
 
 describe('RLS: consultoras', () => {
@@ -228,5 +266,91 @@ describe('service-role bypass', () => {
     const { data, error } = await admin.from('consultoras').select('id').in('id', [cAId, cBId]);
     expect(error).toBeNull();
     expect(data).toHaveLength(2);
+  });
+});
+
+/**
+ * T-015 · Helpers RLS reusables.
+ *
+ * Validamos los 4 helpers (is_member_of_consultora, is_owner_of_consultora,
+ * role_on_consultora, my_consultora_ids) con 4 sesiones distintas:
+ * - userA: owner de cA.
+ * - userM: member (no-owner) de cA.
+ * - userC: sin ningún membership.
+ * - anon: sin sesión (debe rebotar por `revoke from anon`).
+ */
+describe('RLS helpers (T-015)', () => {
+  it('owner: is_member=true, is_owner=true, role="owner", my_ids=[cAId]', async () => {
+    const isMember = await clientA.rpc('is_member_of_consultora', { p_consultora_id: cAId });
+    expect(isMember.error).toBeNull();
+    expect(isMember.data).toBe(true);
+
+    const isOwner = await clientA.rpc('is_owner_of_consultora', { p_consultora_id: cAId });
+    expect(isOwner.error).toBeNull();
+    expect(isOwner.data).toBe(true);
+
+    const role = await clientA.rpc('role_on_consultora', { p_consultora_id: cAId });
+    expect(role.error).toBeNull();
+    expect(role.data).toBe('owner');
+
+    const ids = await clientA.rpc('my_consultora_ids');
+    expect(ids.error).toBeNull();
+    expect(ids.data).toEqual([cAId]);
+  });
+
+  it('member (no-owner): is_member=true, is_owner=false, role="member", my_ids=[cAId]', async () => {
+    const isMember = await clientM.rpc('is_member_of_consultora', { p_consultora_id: cAId });
+    expect(isMember.data).toBe(true);
+
+    const isOwner = await clientM.rpc('is_owner_of_consultora', { p_consultora_id: cAId });
+    expect(isOwner.data).toBe(false);
+
+    const role = await clientM.rpc('role_on_consultora', { p_consultora_id: cAId });
+    expect(role.data).toBe('member');
+
+    const ids = await clientM.rpc('my_consultora_ids');
+    expect(ids.data).toEqual([cAId]);
+  });
+
+  it('user sin membership: is_member=false, is_owner=false, role=null, my_ids=[]', async () => {
+    const isMember = await clientC.rpc('is_member_of_consultora', { p_consultora_id: cAId });
+    expect(isMember.data).toBe(false);
+
+    const isOwner = await clientC.rpc('is_owner_of_consultora', { p_consultora_id: cAId });
+    expect(isOwner.data).toBe(false);
+
+    const role = await clientC.rpc('role_on_consultora', { p_consultora_id: cAId });
+    expect(role.data).toBeNull();
+
+    const ids = await clientC.rpc('my_consultora_ids');
+    expect(ids.data).toEqual([]);
+  });
+
+  it('userA pregunta por consultora ajena (cB): is_member=false, is_owner=false, role=null', async () => {
+    const isMember = await clientA.rpc('is_member_of_consultora', { p_consultora_id: cBId });
+    expect(isMember.data).toBe(false);
+
+    const isOwner = await clientA.rpc('is_owner_of_consultora', { p_consultora_id: cBId });
+    expect(isOwner.data).toBe(false);
+
+    const role = await clientA.rpc('role_on_consultora', { p_consultora_id: cBId });
+    expect(role.data).toBeNull();
+  });
+
+  it('anon SIN sesión: permission denied en los 4 helpers', async () => {
+    const anonClient = createSbClient<Database>(url, anonKey, {
+      auth: { persistSession: false },
+    });
+    const r1 = await anonClient.rpc('is_member_of_consultora', { p_consultora_id: cAId });
+    expect(r1.error?.message).toMatch(/permission denied/i);
+
+    const r2 = await anonClient.rpc('is_owner_of_consultora', { p_consultora_id: cAId });
+    expect(r2.error?.message).toMatch(/permission denied/i);
+
+    const r3 = await anonClient.rpc('role_on_consultora', { p_consultora_id: cAId });
+    expect(r3.error?.message).toMatch(/permission denied/i);
+
+    const r4 = await anonClient.rpc('my_consultora_ids');
+    expect(r4.error?.message).toMatch(/permission denied/i);
   });
 });
