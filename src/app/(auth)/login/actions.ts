@@ -50,6 +50,6 @@ export async function loginAction(input: unknown): Promise<LoginActionResult> {
   return {
     ok: false,
     code: 'AUTH_NOT_IMPLEMENTED',
-    message: 'Login estará disponible desde T-012. Estamos terminando el módulo de autenticación.',
+    message: 'Login real llega en T-013. Por ahora podés crear tu cuenta.',
   };
 }

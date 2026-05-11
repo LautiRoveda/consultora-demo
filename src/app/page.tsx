@@ -120,7 +120,7 @@ export default function HomePage() {
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button asChild size="lg">
-                <Link href="/login">Empezar prueba de 7 días</Link>
+                <Link href="/signup">Empezar prueba de 7 días</Link>
               </Button>
               <Button asChild size="lg" variant="outline">
                 <Link href="/prototipo">Ver demo</Link>
@@ -223,7 +223,7 @@ export default function HomePage() {
                 ))}
               </ul>
               <Button asChild className="w-full" size="lg">
-                <Link href="/login">Empezar prueba de 7 días</Link>
+                <Link href="/signup">Empezar prueba de 7 días</Link>
               </Button>
             </CardContent>
           </Card>

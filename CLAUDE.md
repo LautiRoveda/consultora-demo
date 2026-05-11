@@ -121,9 +121,10 @@ Roadmap detallado por tickets en `docs/technical/10-roadmap.md`.
   - **T-008** ✅ Theme shadcn alineado al prototipo (indigo brand + 4 severity tokens) + 7 componentes base + `/styleguide` dev tool.
   - **T-009** ✅ Landing pública productiva (`/`) + `/login` UI (auth real T-012) + páginas legales `/terminos` y `/privacidad` con noindex + `robots.txt` + `sitemap.xml`. Lighthouse 97/100/100/100.
   - **T-010** ✅ Vercel deploy desde main con 9 env vars (Production + Preview) + `SENTRY_AUTH_TOKEN` activo (source maps automáticos) + ADR-0005 + runbook `docs/technical/06-deployment.md`. **URL productiva: <https://consultora-demo.vercel.app>**.
-- **Sprint 1 — Auth + Tenancy + base multi-tenant** 🚧 (1/8)
-  - **T-011** ✅ Migration `tenancy.sql` aplicada al remote: 3 tablas (`consultoras`, `consultora_members`, `audit_log`) + función `current_consultora_id()` + triggers (`set_updated_at` × 2, `audit_log_immutable`) + 5 RLS policies default-deny + types TS autogen + ADR-0006 + 12 integration tests cross-tenant verde local.
-  - **T-012** 🔜 signup · **T-013** 🔜 login + magic link · **T-014** 🔜 logout + recovery · **T-015** 🔜 helpers RLS · **T-016** 🔜 custom claim `consultora_id` · **T-017** 🔜 layout autenticado · **T-018** 🔜 E2E auth flow.
+- **Sprint 1 — Auth + Tenancy + base multi-tenant** 🚧 (2/8)
+  - **T-011** ✅ Migration `tenancy.sql` aplicada al remote: 3 tablas (`consultoras`, `consultora_members`, `audit_log`) + función `current_consultora_id()` + triggers (`set_updated_at` × 2, `audit_log_immutable`) + 5 RLS policies default-deny + types TS autogen + ADR-0006 + 13 integration tests cross-tenant verde local.
+  - **T-012** ✅ Signup flow productivo: `/signup` form (email + password + nombre consultora) → `supabase.auth.signUp` + RPC `create_consultora_and_owner` (atómico, trial 7d, slug auto con `unaccent`) → `/check-email` → email confirm → `/auth/callback` (exchangeCodeForSession) → `/login?confirmed=1` con banner. Banners `?confirmed=1` y `?error=callback_failed` en `LoginForm`. 8 integration tests del RPC + 9 E2E (signup form + check-email + login banners).
+  - **T-013** 🔜 login + magic link · **T-014** 🔜 logout + recovery · **T-015** 🔜 helpers RLS · **T-016** 🔜 custom claim `consultora_id` · **T-017** 🔜 layout autenticado · **T-018** 🔜 E2E auth flow.
 
 ## Cómo arrancar a construir
 
