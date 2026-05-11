@@ -1,3 +1,4 @@
+import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 
@@ -13,9 +14,21 @@ import { signOutAction } from './actions';
  * UX: informativo + opción de cerrar sesión. NO redirect automático ni
  * logout forzado.
  */
-export function DashboardEmpty({ email }: { email: string }) {
+export function DashboardEmpty({
+  email,
+  showResetSuccess,
+}: {
+  email: string;
+  showResetSuccess?: boolean;
+}) {
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
+    <div className="mx-auto max-w-2xl space-y-4 px-4 py-12">
+      {showResetSuccess && (
+        <Alert>
+          <AlertTitle>Contraseña actualizada</AlertTitle>
+          <AlertDescription>Tu nueva contraseña ya está activa.</AlertDescription>
+        </Alert>
+      )}
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Hola, {email}</CardTitle>

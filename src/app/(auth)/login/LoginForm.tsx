@@ -166,6 +166,15 @@ export function LoginForm() {
           </form>
         </Form>
 
+        <div className="text-center text-sm">
+          <Link
+            href="/recuperar-password"
+            className="text-muted-foreground hover:text-foreground hover:underline"
+          >
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
+
         <div className="relative my-2 flex items-center">
           <div className="bg-border h-px flex-1" />
           <span className="text-muted-foreground px-3 text-xs uppercase">o</span>
