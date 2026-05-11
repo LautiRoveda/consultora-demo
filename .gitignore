@@ -60,3 +60,7 @@ next-env.d.ts
 /.vitest-cache/
 /blob-report/
 /playwright/.cache/
+/.playwright-mcp/
+
+# Lighthouse local runs (artefactos de smoke manual, no van al repo)
+/lighthouse-*.json

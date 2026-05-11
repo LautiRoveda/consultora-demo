@@ -118,6 +118,14 @@ export function LoginForm() {
             </AlertDescription>
           </Alert>
         )}
+        {callbackError === 'no_consultora' && (
+          <Alert variant="destructive">
+            <AlertTitle>Cuenta sin consultora asociada</AlertTitle>
+            <AlertDescription>
+              Tu cuenta no tiene una consultora vinculada. Contactanos para resolverlo.
+            </AlertDescription>
+          </Alert>
+        )}
         <Form {...form}>
           <form
             onSubmit={(e) => void form.handleSubmit(onSubmit)(e)}
