@@ -56,3 +56,17 @@ test('/login?error=callback_failed muestra banner destructive "Link expirado"', 
   await expect(page.getByText('Link expirado')).toBeVisible();
   await expect(page.getByText(/El link de confirmación expiró/)).toBeVisible();
 });
+
+test('/login submit con email inválido + password corta → errors zod específicos', async ({
+  page,
+}) => {
+  // T-018: complementa el test de submit vacío con valores concretos que
+  // disparan cada validación. Garantiza que los mensajes del schema
+  // (`src/app/(auth)/login/schema.ts`) lleguen al DOM por separado.
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('asdf');
+  await page.getByLabel('Contraseña').fill('12345');
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await expect(page.getByText('Ingresá un email válido.')).toBeVisible();
+  await expect(page.getByText('Mínimo 8 caracteres.')).toBeVisible();
+});

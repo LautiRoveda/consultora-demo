@@ -34,17 +34,6 @@ test('/dashboard?reset=ok sin sesión → redirect a /login (no muestra banner s
   await expect(page).toHaveURL(/\/login$/);
 });
 
-// Happy path completo requiere flujo email real + sesión recovery.
-// Lo cubre el smoke manual de PARADA #2 + integration test con admin.generateLink.
-const runE2ERecovery = process.env.E2E_SUPABASE_RECOVERY === '1';
-
-test.describe('recovery happy path (requires real Supabase + opt-in)', () => {
-  test.skip(!runE2ERecovery, 'Opt-in via E2E_SUPABASE_RECOVERY=1');
-
-  test('submit recover form con email válido dispara toast', async ({ page }) => {
-    await page.goto('/recuperar-password');
-    await page.getByLabel('Email').fill(`recovery-e2e-${Date.now()}@example.com`);
-    await page.getByRole('button', { name: 'Enviar link de recuperación' }).click();
-    await expect(page.getByText(/Si el email/)).toBeVisible({ timeout: 10000 });
-  });
-});
+// El happy path completo (recover → callback → cambiar-password → P1 falla →
+// P2 entra) vive en `auth-flows.spec.ts` (T-018): crea su propio user con
+// admin.createUser + bypass de email via admin.generateLink, sin opt-in flags.
