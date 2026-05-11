@@ -23,6 +23,13 @@ test('/login muestra botón "Enviar magic link al email"', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Enviar magic link al email' })).toBeVisible();
 });
 
+test('/login link "¿Olvidaste tu contraseña?" navega a /recuperar-password', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByRole('link', { name: /Olvidaste tu contraseña/ }).click();
+  await expect(page).toHaveURL(/\/recuperar-password$/);
+  await expect(page.getByRole('button', { name: 'Enviar link de recuperación' })).toBeVisible();
+});
+
 test('/login click magic link con email vacío → error en email field', async ({ page }) => {
   await page.goto('/login');
   await page.getByRole('button', { name: 'Enviar magic link al email' }).click();

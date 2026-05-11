@@ -121,11 +121,12 @@ Roadmap detallado por tickets en `docs/technical/10-roadmap.md`.
   - **T-008** ✅ Theme shadcn alineado al prototipo (indigo brand + 4 severity tokens) + 7 componentes base + `/styleguide` dev tool.
   - **T-009** ✅ Landing pública productiva (`/`) + `/login` UI (auth real T-012) + páginas legales `/terminos` y `/privacidad` con noindex + `robots.txt` + `sitemap.xml`. Lighthouse 97/100/100/100.
   - **T-010** ✅ Vercel deploy desde main con 9 env vars (Production + Preview) + `SENTRY_AUTH_TOKEN` activo (source maps automáticos) + ADR-0005 + runbook `docs/technical/06-deployment.md`. **URL productiva: <https://consultora-demo.vercel.app>**.
-- **Sprint 1 — Auth + Tenancy + base multi-tenant** 🚧 (3/8)
-  - **T-011** ✅ Migration `tenancy.sql` aplicada al remote: 3 tablas (`consultoras`, `consultora_members`, `audit_log`) + función `current_consultora_id()` + triggers + 5 RLS policies default-deny + ADR-0006 + 13 integration tests cross-tenant verde local.
-  - **T-012** ✅ Signup flow productivo: `/signup` form → `supabase.auth.signUp` + RPC `create_consultora_and_owner` (atómico, trial 7d, slug auto con `unaccent`) → `/check-email` → email confirm → `/auth/callback?next=/login` (T-013 unificó routing) → `/login?confirmed=1`. 8 integration tests del RPC.
-  - **T-013** ✅ Login real (password) + magic link (botón secondary en `/login`) + `/dashboard` stub (server-protected, muestra email + slug + plan + trial). `loginAction` y `magicLinkAction` con discriminated union. `/auth/callback` extendido con `?next=` allowlisted (`/login` | `/dashboard`). Migration `dashboard_rls.sql` suma policy defensiva `consultoras_select_own_member` (espejo de `consultora_members_select_self` T-011) para que el dashboard lea su consultora pre-T-016. `signOutAction` server-side stub. 8 integration tests (signin password + signOut + dashboard query + magic link + isolation).
-  - **T-014** 🔜 logout + recovery · **T-015** 🔜 helpers RLS · **T-016** 🔜 custom claim `consultora_id` · **T-017** 🔜 layout autenticado · **T-018** 🔜 E2E auth flow.
+- **Sprint 1 — Auth + Tenancy + base multi-tenant** 🚧 (4/8)
+  - **T-011** ✅ Migration `tenancy.sql`: 3 tablas (`consultoras`, `consultora_members`, `audit_log`) + función `current_consultora_id()` + triggers + 5 RLS policies default-deny + ADR-0006.
+  - **T-012** ✅ Signup flow productivo: `/signup` → `auth.signUp` + RPC `create_consultora_and_owner` (atómico, trial 7d, slug `unaccent`) → `/check-email` → email confirm → `/auth/callback?next=/login` → `/login?confirmed=1`.
+  - **T-013** ✅ Login real (password) + magic link (botón secondary) + `/dashboard` stub (server-protected). `/auth/callback` con `?next=` allowlisted. Migration `dashboard_rls.sql` suma policy defensiva `consultoras_select_own_member`. `signOutAction` server-side.
+  - **T-014** ✅ Password recovery completo + logout formalizado: `/recuperar-password` (form anti-enumeration) + `/cambiar-password` (server-protected) + `updatePasswordAction` con flujo `resetPasswordForEmail` → `/auth/callback?next=/cambiar-password` → `/dashboard?reset=ok`. Banner "Contraseña actualizada" en dashboard. Link "¿Olvidaste tu contraseña?" en LoginForm. 7 integration tests recovery + 6 E2E.
+  - **T-015** 🔜 helpers RLS · **T-016** 🔜 custom claim `consultora_id` · **T-017** 🔜 layout autenticado · **T-018** 🔜 E2E auth flow.
 
 ## Cómo arrancar a construir
 

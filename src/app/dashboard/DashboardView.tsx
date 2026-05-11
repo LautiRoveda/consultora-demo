@@ -1,3 +1,4 @@
+import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 
@@ -15,6 +16,7 @@ interface DashboardViewProps {
   email: string;
   role: string;
   consultora: ConsultoraSummary;
+  showResetSuccess?: boolean;
 }
 
 /**
@@ -24,7 +26,7 @@ interface DashboardViewProps {
  * Server Component — el botón de logout invoca `signOutAction` via form
  * action, sin necesitar interactividad cliente.
  */
-export function DashboardView({ email, role, consultora }: DashboardViewProps) {
+export function DashboardView({ email, role, consultora, showResetSuccess }: DashboardViewProps) {
   const trialEnds = consultora.trial_ends_at ? new Date(consultora.trial_ends_at) : null;
   const trialEndsLabel = trialEnds
     ? trialEnds.toLocaleDateString('es-AR', {
@@ -35,7 +37,13 @@ export function DashboardView({ email, role, consultora }: DashboardViewProps) {
     : null;
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
+    <div className="mx-auto max-w-2xl space-y-4 px-4 py-12">
+      {showResetSuccess && (
+        <Alert>
+          <AlertTitle>Contraseña actualizada</AlertTitle>
+          <AlertDescription>Tu nueva contraseña ya está activa.</AlertDescription>
+        </Alert>
+      )}
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Hola, {email}</CardTitle>
