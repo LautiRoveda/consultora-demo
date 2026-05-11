@@ -18,16 +18,15 @@ test('/login submit vacío muestra errores de validación', async ({ page }) => 
   await expect(page.getByText('Mínimo 8 caracteres.')).toBeVisible();
 });
 
-test('/login submit con datos válidos dispara toast "Login real llega en T-013"', async ({
-  page,
-}) => {
+test('/login muestra botón "Enviar magic link al email"', async ({ page }) => {
   await page.goto('/login');
+  await expect(page.getByRole('button', { name: 'Enviar magic link al email' })).toBeVisible();
+});
 
-  await page.getByLabel('Email').fill('lautaro@consultorademo.com.ar');
-  await page.getByLabel('Contraseña').fill('password-test');
-  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
-
-  await expect(page.getByText(/Login real llega en T-013/)).toBeVisible({ timeout: 5000 });
+test('/login click magic link con email vacío → error en email field', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByRole('button', { name: 'Enviar magic link al email' }).click();
+  await expect(page.getByText('Ingresá un email válido.')).toBeVisible();
 });
 
 test('/login footer link "Crear cuenta" navega a /signup', async ({ page }) => {

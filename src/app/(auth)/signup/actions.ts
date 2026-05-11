@@ -63,7 +63,9 @@ export async function signupAction(input: unknown): Promise<SignupActionResult> 
     email,
     password,
     options: {
-      emailRedirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      // El callback handler usa `?next=` para decidir dónde redirigir post-exchange.
+      // signup → /login?confirmed=1 (T-013). `from=signup` es metadata para analytics.
+      emailRedirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/login&from=signup`,
     },
   });
 
@@ -111,7 +113,18 @@ export async function signupAction(input: unknown): Promise<SignupActionResult> 
     };
   }
 
-  const { error: rpcError } = await supabase.rpc('create_consultora_and_owner', {
+  // **Crítico (bugfix T-012/T-013):** invocar la RPC con service-role en vez
+  // del cookie-based server client. La sesión que setea signUp() escribe
+  // cookies en la response, pero esas cookies NO están disponibles dentro de
+  // la misma request — `supabase.rpc(...)` se evalúa con role 'anon' efectivo
+  // y Postgres devuelve `permission denied for function` (42501) porque la
+  // RPC tiene `revoke from anon`.
+  //
+  // service-role bypassea RLS y tiene EXECUTE en todas las funciones. El
+  // user_id que le pasamos viene de signUp() que ya creó la row en auth.users
+  // → no hay nuevo attack surface.
+  const admin = createServiceRoleClient();
+  const { error: rpcError } = await admin.rpc('create_consultora_and_owner', {
     p_user_id: userId,
     p_name: consultoraName,
   });
@@ -121,7 +134,6 @@ export async function signupAction(input: unknown): Promise<SignupActionResult> 
       { rpcError, userId, email },
       'create_consultora_and_owner falló — limpiando auth.users huérfano',
     );
-    const admin = createServiceRoleClient();
     const { error: delErr } = await admin.auth.admin.deleteUser(userId);
     if (delErr) {
       logger.error(

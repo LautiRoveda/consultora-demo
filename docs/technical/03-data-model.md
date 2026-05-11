@@ -97,6 +97,18 @@ create policy consultora_members_select_own on public.consultora_members
 -- Policy defensiva pre-T-016 (el user puede leer su propia membership sin custom claim).
 create policy consultora_members_select_self on public.consultora_members
   for select using (user_id = auth.uid());
+
+-- Policy defensiva pre-T-016 sobre consultoras (T-013, espejo de la anterior):
+-- permite que el dashboard lea SU consultora vía JOIN consultora_members → consultoras
+-- sin depender del custom claim del JWT. Combinada con consultoras_select_own via OR.
+create policy consultoras_select_own_member on public.consultoras
+  for select using (
+    exists (
+      select 1 from public.consultora_members
+      where consultora_members.consultora_id = consultoras.id
+        and consultora_members.user_id = auth.uid()
+    )
+  );
 ```
 
 **Roles:** `owner` (control total: cambiar plan, invitar/expulsar) | `member` (acceso operativo).

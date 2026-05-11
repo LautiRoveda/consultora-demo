@@ -20,7 +20,20 @@
  */
 import type { Database } from '@/shared/supabase/types';
 import { createClient as createSbClient } from '@supabase/supabase-js';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
+
+// Mocks para poder importar la server action `signupAction` desde un test Node:
+// - `server-only` tira si se importa fuera de Next.js — neutralizar.
+// - `next/headers` no existe sin Next.js context — stub mínimo del cookie store
+//   (signupAction llama setAll en signUp; con setters no-op pasa sin error).
+vi.mock('server-only', () => ({}));
+vi.mock('next/headers', () => ({
+  cookies: () =>
+    Promise.resolve({
+      getAll: () => [],
+      set: () => {},
+    }),
+}));
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -171,5 +184,67 @@ describe('RPC create_consultora_and_owner: security', () => {
       .from('consultoras')
       .insert({ name: 'Bypass attempt', slug: `bypass-${runId}` });
     expect(error).not.toBeNull();
+  });
+});
+
+/**
+ * Regression test del bug T-012 descubierto durante smoke manual de T-013:
+ * el RPC `create_consultora_and_owner` fallaba con `permission denied`
+ * (Postgres 42501) cuando `signupAction` lo invocaba via cookie-based server
+ * client — la sesión de signUp() no se propaga en cookies dentro de la misma
+ * request, así que el RPC corre con role 'anon' efectivo (que está revokeado).
+ *
+ * Fix: signupAction ahora invoca la RPC via service-role client.
+ *
+ * Este test ejecuta el flow REAL (`supabase.auth.signUp` + RPC vía service-role
+ * dentro de signupAction). Consume 1 email send por run (rate limit Supabase
+ * ~30/h). Acceptable para una suite local pre-PR.
+ */
+describe('signupAction (regression bug T-012/T-013)', () => {
+  it('signupAction completo crea user en auth.users + consultora + membership owner', async () => {
+    const { signupAction } = await import('@/app/(auth)/signup/actions');
+
+    const email = `t012-fix-${runId}@example.com`;
+    const result = await signupAction({
+      email,
+      password: 'TestPassword123!',
+      consultoraName: `Test Fix ${runId}`,
+    });
+
+    // Rate limit Supabase: signUp 429 antes de llegar a la RPC. No podemos
+    // verificar el fix en este run, pero NO es regresión — passthrough con
+    // warning. Cuando el rate limit se libera (~1h) el test corre el flow real.
+    if (!result.ok && result.code === 'RATE_LIMITED') {
+      console.warn(
+        '[skip] signupAction regression: Supabase rate-limited el signUp. Re-correr en ~1h.',
+      );
+      return;
+    }
+
+    // Cualquier OTRO fallo (en particular `INTERNAL_ERROR`) indica regresión:
+    // muy probable que el RPC haya vuelto a invocarse desde el cookie-based
+    // client → permission denied → INTERNAL_ERROR. Hacer fallar el suite.
+    expect(result.ok).toBe(true);
+    if (!result.ok) return; // type guard
+
+    expect(result.redirectTo).toBe(`/check-email?email=${encodeURIComponent(email)}`);
+
+    // Verificar row en auth.users (vía admin).
+    const { data: users } = await admin.auth.admin.listUsers();
+    const user = users?.users.find((u) => u.email === email);
+    expect(user).toBeTruthy();
+    if (user) createdUserIds.push(user.id);
+
+    // Verificar consultora + membership (vía admin, RLS bypass para verificación).
+    const { data: member } = await admin
+      .from('consultora_members')
+      .select('role, consultoras(slug, name, plan_tier, trial_ends_at)')
+      .eq('user_id', user!.id)
+      .single();
+
+    expect(member?.role).toBe('owner');
+    expect(member?.consultoras?.name).toBe(`Test Fix ${runId}`);
+    expect(member?.consultoras?.plan_tier).toBe('trial');
+    expect(member?.consultoras?.slug).toMatch(/^test-fix-[a-z0-9-]+-[a-f0-9]{4}$/);
   });
 });

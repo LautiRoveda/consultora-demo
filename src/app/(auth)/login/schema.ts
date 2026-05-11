@@ -1,13 +1,12 @@
 import { z } from 'zod';
 
 /**
- * Schema de input compartido entre client (RHF + zodResolver) y server action.
+ * Schemas de input compartidos entre el client (RHF + zodResolver) y las
+ * server actions de /login.
  *
- * **Vive en su propio archivo NO `'use server'`** porque cuando un Client
+ * **Viven en su propio archivo NO `'use server'`** porque cuando un Client
  * Component importa de un módulo `'use server'`, Next.js convierte los
- * exports en proxies de RSC. Un proxy no es un Zod schema válido para
- * `zodResolver` — el build prerender de `/login` rompe con
- * "Invalid input: not a Zod schema".
+ * exports en proxies de RSC y `zodResolver` rompe.
  */
 export const loginInputSchema = z.object({
   email: z.string().email({ message: 'Ingresá un email válido.' }),
@@ -15,3 +14,13 @@ export const loginInputSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof loginInputSchema>;
+
+/**
+ * Magic link solo necesita el email. La validación min(8) de password no
+ * aplica acá — el user se autentica con el link que llega al inbox.
+ */
+export const magicLinkInputSchema = z.object({
+  email: z.string().email({ message: 'Ingresá un email válido.' }),
+});
+
+export type MagicLinkInput = z.infer<typeof magicLinkInputSchema>;
