@@ -13,6 +13,8 @@ Schema completo de Postgres en Supabase. Todas las tablas, todos los índices, t
 - **JSON fields:** `jsonb` siempre (nunca `json`). Schemas Zod en código validan estructura.
 - **Indexes obligatorios:** `consultora_id`, todas las FK, columnas usadas en RLS policies.
 
+> **Nota sobre idioma (T-011, 2026-05-10):** los módulos M2 (Tenancy) y M3 (Auditoría) ya están implementados en inglés (ver migración `supabase/migrations/20260511000615_tenancy.sql`). El resto del documento (M4-M14) sigue en español por compatibilidad histórica con el diseño de T-005. **Convención forward: inglés para todos los schemas nuevos.** Cada módulo migra a inglés cuando se implementa (T-019 audit triggers de dominio, T-021 notificaciones, T-024 calendario, etc.). Ver también [ADR-0006 · Multi-tenant RLS strategy](../adr/0006-multi-tenant-rls-strategy.md).
+
 ## Esquema SQL completo
 
 ### Extensiones requeridas
@@ -26,90 +28,136 @@ create extension if not exists "pg_cron";   -- jobs programados
 
 ### M2 · Tenancy
 
+Schema implementado en `supabase/migrations/20260511000615_tenancy.sql` (T-011). Naming en inglés. Multi-tenant via custom claim `app_metadata.consultora_id` en JWT (poblado por Auth Hook T-016) → función SQL `current_consultora_id()`. Ver [ADR-0006](../adr/0006-multi-tenant-rls-strategy.md).
+
 ```sql
-create table consultoras (
-  id              uuid primary key default gen_random_uuid(),
-  nombre          text not null,
-  cuit            text not null,
-  plan            text not null default 'trial',  -- trial | pro | team | enterprise
-  trial_ends_at   timestamptz,
-  mp_subscription_id text,
-  created_at      timestamptz not null default now(),
-  updated_at      timestamptz not null default now()
+-- Tenant root.
+create table public.consultoras (
+  id            uuid primary key default gen_random_uuid(),
+  name          text not null,
+  slug          text not null unique check (slug ~ '^[a-z0-9-]+$' and length(slug) between 3 and 60),
+  cuit          text,                       -- nullable hasta primera facturación (T-029)
+  plan_tier     text not null default 'trial'
+                check (plan_tier in ('trial', 'pro', 'team', 'enterprise')),
+  trial_ends_at timestamptz,
+  archived_at   timestamptz,                -- soft delete
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
 );
 
-create index idx_consultoras_plan on consultoras(plan);
+create index idx_consultoras_plan_tier on public.consultoras(plan_tier);
+create index idx_consultoras_archived on public.consultoras(archived_at) where archived_at is null;
 
-create table consultora_users (
-  id              uuid primary key default gen_random_uuid(),
-  consultora_id   uuid not null references consultoras(id) on delete cascade,
-  user_id         uuid not null references auth.users(id) on delete cascade,
-  rol             text not null check (rol in ('admin', 'consultor', 'asistente')),
-  invited_by      uuid references auth.users(id),
-  invited_at      timestamptz,
-  joined_at       timestamptz default now(),
-  created_at      timestamptz not null default now(),
-  unique(consultora_id, user_id)
+-- Membresía user ↔ consultora (m2m, MVP single-tenant per user pero schema lo soporta).
+create table public.consultora_members (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references auth.users(id) on delete cascade,
+  consultora_id uuid not null references public.consultoras(id) on delete cascade,
+  role          text not null check (role in ('owner', 'member')),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  unique (user_id, consultora_id)
 );
 
-create index idx_consultora_users_user on consultora_users(user_id);
-create index idx_consultora_users_consultora on consultora_users(consultora_id);
+create index idx_consultora_members_consultora on public.consultora_members(consultora_id);
 
--- Habilitar RLS
-alter table consultoras enable row level security;
-alter table consultora_users enable row level security;
+-- Función helper: extrae el tenant id del JWT (app_metadata, inyectado por Auth Hook T-016).
+-- Devuelve NULL si no hay claim — comportamiento intencional pre-T-016.
+create or replace function public.current_consultora_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select nullif(coalesce(auth.jwt() -> 'app_metadata' ->> 'consultora_id', ''), '')::uuid
+$$;
 
--- Policy: el usuario ve solo consultoras de las que es miembro
-create policy consultoras_select on consultoras for select
-  using (id in (select consultora_id from consultora_users where user_id = auth.uid()));
+-- RLS (default-deny: solo SELECT explícito; mutations via service-role).
+alter table public.consultoras enable row level security;
+alter table public.consultora_members enable row level security;
 
-create policy consultora_users_select on consultora_users for select
-  using (consultora_id in (select consultora_id from consultora_users where user_id = auth.uid()));
+create policy consultoras_select_own on public.consultoras
+  for select using (id = public.current_consultora_id());
+
+create policy consultoras_update_own_owner on public.consultoras
+  for update using (
+    id = public.current_consultora_id()
+    and exists (
+      select 1 from public.consultora_members
+      where consultora_members.consultora_id = consultoras.id
+        and consultora_members.user_id = auth.uid()
+        and consultora_members.role = 'owner'
+    )
+  );
+
+create policy consultora_members_select_own on public.consultora_members
+  for select using (consultora_id = public.current_consultora_id());
+
+-- Policy defensiva pre-T-016 (el user puede leer su propia membership sin custom claim).
+create policy consultora_members_select_self on public.consultora_members
+  for select using (user_id = auth.uid());
 ```
+
+**Roles:** `owner` (control total: cambiar plan, invitar/expulsar) | `member` (acceso operativo).
+
+**`mp_subscription_id`:** NO está en T-011. Se suma vía ALTER TABLE en T-029 (Mercado Pago).
 
 ### M3 · Auditoría
 
 ```sql
-create table audit_log (
-  id              bigserial primary key,
-  consultora_id   uuid not null references consultoras(id),
-  user_id         uuid references auth.users(id),
-  accion          text not null,
-  entidad_tipo   text,
-  entidad_id     uuid,
-  datos_json      jsonb,
-  ip              inet,
-  user_agent      text,
-  created_at      timestamptz not null default now()
+-- Bitácora inmutable de eventos por tenant. INSERT-only (triggers AFTER en tablas
+-- del dominio desde T-019 o service-role para eventos custom).
+create table public.audit_log (
+  id            uuid primary key default gen_random_uuid(),
+  consultora_id uuid not null references public.consultoras(id) on delete restrict,
+  actor_user_id uuid references auth.users(id) on delete set null,
+  action        text not null,                              -- 'created' | 'updated' | 'login_succeeded' | ...
+  entity_type   text,
+  entity_id     uuid,
+  before_data   jsonb,                                       -- snapshot pre-cambio (NULL en CREATE)
+  after_data    jsonb,                                       -- snapshot post-cambio (NULL en DELETE)
+  ip            inet,
+  user_agent    text,
+  created_at    timestamptz not null default now()
 );
 
-create index idx_audit_consultora_created on audit_log(consultora_id, created_at desc);
-create index idx_audit_entidad on audit_log(entidad_tipo, entidad_id);
+create index idx_audit_log_consultora_created on public.audit_log(consultora_id, created_at desc);
+create index idx_audit_log_entity on public.audit_log(entity_type, entity_id) where entity_type is not null;
 
--- Trigger: prohibir update y delete (append-only)
-create or replace function audit_log_no_modify()
-returns trigger language plpgsql as $$
+-- Trigger inmutable: rechaza UPDATE y DELETE (incluso desde service-role).
+create or replace function public.audit_log_immutable()
+returns trigger language plpgsql security invoker set search_path = '' as $$
 begin
-  raise exception 'audit_log es append-only';
+  raise exception 'audit_log es inmutable: % no permitido', tg_op;
 end;
 $$;
 
-create trigger audit_log_no_update
-  before update on audit_log
-  for each row execute function audit_log_no_modify();
+create trigger audit_log_no_update before update on public.audit_log
+  for each row execute function public.audit_log_immutable();
+create trigger audit_log_no_delete before delete on public.audit_log
+  for each row execute function public.audit_log_immutable();
 
-create trigger audit_log_no_delete
-  before delete on audit_log
-  for each row execute function audit_log_no_modify();
+alter table public.audit_log enable row level security;
 
-alter table audit_log enable row level security;
+-- SELECT: todos los miembros de una consultora ven su propio audit_log.
+-- (En T-005 era solo admin; T-011 lo abre porque el principio "auditoría como
+-- transparencia interna" pesa más que el de "compartimentación por rol" en MVP.)
+create policy audit_log_select_own on public.audit_log
+  for select using (consultora_id = public.current_consultora_id());
 
-create policy audit_log_select on audit_log for select
-  using (consultora_id in (select consultora_id from consultora_users where user_id = auth.uid() and rol = 'admin'));
-
-create policy audit_log_insert on audit_log for insert
-  with check (consultora_id in (select consultora_id from consultora_users where user_id = auth.uid()));
+-- INTENCIONAL: sin policy de INSERT. INSERT solo via service-role o triggers AFTER
+-- en tablas del dominio (T-019). Default-deny para clientes authenticated/anon.
 ```
+
+**Diferencias respecto a T-005:**
+
+- `id` es UUID (era `bigserial`) — consistencia con el resto del schema, soporta distribución.
+- `actor_user_id` (era `user_id`) con `on delete set null` — preserva el log si el user se borra.
+- `before_data` + `after_data` (era `datos_json` único) — diff semántico explícito.
+- `action`, `entity_type`, `entity_id` en inglés (era `accion`, `entidad_tipo`, `entidad_id`).
+- SELECT policy abierta a todos los miembros (era solo admin).
+- Sin policy de INSERT (era con check) — INSERT solo via service-role / triggers, default-deny.
 
 ### M4 · Notificaciones
 

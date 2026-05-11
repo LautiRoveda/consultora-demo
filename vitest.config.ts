@@ -39,6 +39,19 @@ export default defineConfig({
           setupFiles: ['./src/tests/setup.ts'],
         },
       },
+      {
+        extends: true,
+        test: {
+          name: 'integration',
+          include: ['src/tests/integration/**/*.test.ts'],
+          environment: 'node',
+          setupFiles: [],
+          // Tests hablan con Supabase remoto: setup/cleanup crean users + consultoras.
+          // Timeouts generosos por latencia de sa-east-1 + creación de users via auth.admin.
+          testTimeout: 30000,
+          hookTimeout: 60000,
+        },
+      },
     ],
   },
 });
