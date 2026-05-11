@@ -31,6 +31,13 @@ describe('AppSidebarNav', () => {
     expect(link).toHaveAttribute('href', '/dashboard');
   });
 
+  it('renderiza Informes como link live (T-019) — sin aria-current por default', () => {
+    renderNav();
+    const link = screen.getByRole('link', { name: /Informes/i });
+    expect(link).toHaveAttribute('href', '/informes');
+    expect(link).not.toHaveAttribute('aria-current', 'page');
+  });
+
   it('los items "soon" están deshabilitados y muestran sus labels', () => {
     renderNav();
     // Iteramos directamente sobre los <li> del nav y testeamos uno por uno.
@@ -40,18 +47,11 @@ describe('AppSidebarNav', () => {
     const items = nav.querySelectorAll('li');
     expect(items.length).toBe(7);
 
-    const expectedSoonLabels = [
-      'Informes',
-      'Clientes',
-      'Empleados',
-      'EPP',
-      'Calendario',
-      'Notificaciones',
-    ];
+    const expectedSoonLabels = ['Clientes', 'Empleados', 'EPP', 'Calendario', 'Notificaciones'];
     const soonButtons = nav.querySelectorAll<HTMLButtonElement>(
       'button[aria-disabled="true"][disabled]',
     );
-    expect(soonButtons.length).toBe(6);
+    expect(soonButtons.length).toBe(expectedSoonLabels.length);
 
     for (const expected of expectedSoonLabels) {
       const match = Array.from(soonButtons).find((btn) => btn.textContent?.includes(expected));
