@@ -22,7 +22,7 @@ export type NavItem = {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: Home, status: 'live' },
-  { href: '/informes', label: 'Informes', icon: FileText, status: 'soon', ticket: 'T-019' },
+  { href: '/informes', label: 'Informes', icon: FileText, status: 'live' },
   { href: '/clientes', label: 'Clientes', icon: Users, status: 'soon', ticket: 'T-020' },
   { href: '/empleados', label: 'Empleados', icon: UserCheck, status: 'soon', ticket: 'T-021' },
   { href: '/epp', label: 'EPP', icon: HardHat, status: 'soon', ticket: 'T-022' },

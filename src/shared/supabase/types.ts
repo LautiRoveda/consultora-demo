@@ -154,6 +154,50 @@ export type Database = {
         };
         Relationships: [];
       };
+      informes: {
+        Row: {
+          consultora_id: string;
+          contenido: string | null;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          status: string;
+          tipo: string;
+          titulo: string;
+          updated_at: string;
+        };
+        Insert: {
+          consultora_id: string;
+          contenido?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          status?: string;
+          tipo: string;
+          titulo: string;
+          updated_at?: string;
+        };
+        Update: {
+          consultora_id?: string;
+          contenido?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          status?: string;
+          tipo?: string;
+          titulo?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'informes_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
