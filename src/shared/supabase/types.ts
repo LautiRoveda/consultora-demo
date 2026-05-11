@@ -33,13 +33,133 @@ export type Database = {
   };
   public: {
     Tables: {
-      [_ in never]: never;
+      audit_log: {
+        Row: {
+          action: string;
+          actor_user_id: string | null;
+          after_data: Json | null;
+          before_data: Json | null;
+          consultora_id: string;
+          created_at: string;
+          entity_id: string | null;
+          entity_type: string | null;
+          id: string;
+          ip: unknown;
+          user_agent: string | null;
+        };
+        Insert: {
+          action: string;
+          actor_user_id?: string | null;
+          after_data?: Json | null;
+          before_data?: Json | null;
+          consultora_id: string;
+          created_at?: string;
+          entity_id?: string | null;
+          entity_type?: string | null;
+          id?: string;
+          ip?: unknown;
+          user_agent?: string | null;
+        };
+        Update: {
+          action?: string;
+          actor_user_id?: string | null;
+          after_data?: Json | null;
+          before_data?: Json | null;
+          consultora_id?: string;
+          created_at?: string;
+          entity_id?: string | null;
+          entity_type?: string | null;
+          id?: string;
+          ip?: unknown;
+          user_agent?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'audit_log_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      consultora_members: {
+        Row: {
+          consultora_id: string;
+          created_at: string;
+          id: string;
+          role: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          consultora_id: string;
+          created_at?: string;
+          id?: string;
+          role: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          consultora_id?: string;
+          created_at?: string;
+          id?: string;
+          role?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'consultora_members_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      consultoras: {
+        Row: {
+          archived_at: string | null;
+          created_at: string;
+          cuit: string | null;
+          id: string;
+          name: string;
+          plan_tier: string;
+          slug: string;
+          trial_ends_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          archived_at?: string | null;
+          created_at?: string;
+          cuit?: string | null;
+          id?: string;
+          name: string;
+          plan_tier?: string;
+          slug: string;
+          trial_ends_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          created_at?: string;
+          cuit?: string | null;
+          id?: string;
+          name?: string;
+          plan_tier?: string;
+          slug?: string;
+          trial_ends_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      current_consultora_id: { Args: never; Returns: string };
     };
     Enums: {
       [_ in never]: never;
