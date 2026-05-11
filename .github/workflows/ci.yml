@@ -16,24 +16,20 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Placeholders para vars que valida Zod en `src/env.ts`. El build estático
-    # de Next.js no las usa en runtime; solo necesitamos pasar la validación.
-    # Cuando T-012 monte signup/login, reemplazar Supabase keys por GitHub
-    # Secrets reales. Cuando T-010 monte Vercel deploy, agregar SENTRY_AUTH_TOKEN
-    # como secret real para subir source maps. Hoy: enabled: NODE_ENV ===
-    # 'production' en cada sentry.*.config.ts hace que estos placeholders no
-    # envíen nada a Sentry desde CI.
+    # Supabase keys vienen de GitHub Secrets (configuradas en T-018) — son
+    # necesarias para que los tests E2E con sesión real (`auth-flows.spec.ts`)
+    # creen users via admin.createUser + bypass de email rate limit.
+    # Sentry y SITE_URL siguen placeholders: `enabled: NODE_ENV === 'production'`
+    # en cada sentry.*.config.ts hace que no envíen nada a Sentry desde CI; el
+    # site URL solo afecta sitemap/robots, no hay scope T-018 para configurarlo.
+    # SENTRY_AUTH_TOKEN (source maps en Vercel) se gestiona desde Vercel, no acá.
     env:
-      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
-      SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       NEXT_PUBLIC_SENTRY_DSN: https://placeholder@o0.ingest.sentry.io/0
       SENTRY_ORG: placeholder-org
       SENTRY_PROJECT: placeholder-project
-      # Site URL placeholder — el .default() del schema Zod cubre si se omite,
-      # pero lo seteamos explícito para que sitemap.xml/robots.txt generados en
-      # CI no tengan el default hardcodeado. T-010 lo reemplaza por el dominio
-      # real cuando Vercel deploye a prod.
       NEXT_PUBLIC_SITE_URL: https://placeholder.example.com
     steps:
       - name: Checkout
@@ -51,7 +47,11 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: 20
+          # Node 22 LTS: necesario para `@supabase/realtime-js` que requiere
+          # WebSocket nativo (en Node 20 falla con "Node.js 20 detected
+          # without native WebSocket support"). El admin client de los
+          # tests E2E lo dispara eagermente en el constructor.
+          node-version: 22
 
       - name: Get pnpm store directory
         shell: bash
