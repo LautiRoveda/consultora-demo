@@ -30,6 +30,7 @@
     "db:migration:new": "supabase migration new",
     "db:types": "supabase gen types typescript --linked > src/shared/supabase/types.ts",
     "dev:recovery-link": "tsx --env-file=.env.local scripts/dev-generate-recovery-link.ts",
+    "dev:smoke-rls-helpers": "tsx --env-file=.env.local scripts/dev-smoke-rls-helpers.ts",
     "prepare": "husky"
   },
   "dependencies": {

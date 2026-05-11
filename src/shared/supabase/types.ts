@@ -167,6 +167,16 @@ export type Database = {
         }[];
       };
       current_consultora_id: { Args: never; Returns: string };
+      is_member_of_consultora: {
+        Args: { p_consultora_id: string };
+        Returns: boolean;
+      };
+      is_owner_of_consultora: {
+        Args: { p_consultora_id: string };
+        Returns: boolean;
+      };
+      my_consultora_ids: { Args: never; Returns: string[] };
+      role_on_consultora: { Args: { p_consultora_id: string }; Returns: string };
       unaccent: { Args: { '': string }; Returns: string };
     };
     Enums: {
