@@ -154,6 +154,35 @@ export type Database = {
         };
         Relationships: [];
       };
+      informe_metadata: {
+        Row: {
+          created_at: string;
+          data: Json;
+          informe_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          data?: Json;
+          informe_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          data?: Json;
+          informe_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'informe_metadata_informe_id_fkey';
+            columns: ['informe_id'];
+            isOneToOne: true;
+            referencedRelation: 'informes';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       informes: {
         Row: {
           consultora_id: string;

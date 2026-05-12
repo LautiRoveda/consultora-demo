@@ -47,6 +47,13 @@ export const createInformeSchema = z.object({
     .trim()
     .min(3, { message: 'Mínimo 3 caracteres.' })
     .max(200, { message: 'Máximo 200 caracteres.' }),
+  /**
+   * T-021 · Metadata opcional para tipos con template estructurado.
+   * Por ahora solo RGRL. El action valida el shape con `rgrlMetadataSchema`
+   * cuando viene. Si la validacion falla, el informe se crea igual y el
+   * user completa los datos despues en /editar (no bloqueante).
+   */
+  metadata: z.unknown().optional(),
 });
 
 export type CreateInformeInput = z.infer<typeof createInformeSchema>;

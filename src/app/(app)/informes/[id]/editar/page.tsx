@@ -3,12 +3,14 @@ import { notFound, redirect } from 'next/navigation';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { createClient } from '@/shared/supabase/server';
 
-import { getInformeById } from '../../queries';
+import { getInformeById, getInformeMetadata } from '../../queries';
 import { type InformeTipo } from '../../schema';
 import { EditorView } from './EditorView';
 
 /**
  * T-020 · Editor de informe.
+ * T-021 · Fetcha metadata para tipo='rgrl' y la pasa al EditorView para el
+ *         panel Collapsible arriba del editor de contenido.
  *
  * Server component que valida acceso y delega al EditorView client.
  *
@@ -35,12 +37,17 @@ export default async function InformeEditarPage({ params }: { params: Promise<{ 
     redirect(`/informes/${informe.id}`);
   }
 
+  // T-021: solo cargar metadata para tipo='rgrl'. Los otros 4 tipos no tienen
+  // template parametrizado todavia (T-022 los suma).
+  const metadata = informe.tipo === 'rgrl' ? await getInformeMetadata(supabase, informe.id) : null;
+
   return (
     <EditorView
       informeId={informe.id}
       tipo={informe.tipo as InformeTipo}
       titulo={informe.titulo}
       initialContent={informe.contenido}
+      initialMetadata={metadata}
     />
   );
 }
