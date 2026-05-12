@@ -1,0 +1,94 @@
+# syntax=docker/dockerfile:1.7
+# Multi-stage build para Next.js 16 standalone — T-022.5, ADR-0007.
+#
+# Stage 1 (deps): resuelve dependencies con pnpm contra el lockfile.
+# Stage 2 (builder): corre `pnpm build` con todas las env vars necesarias.
+# Stage 3 (runner): imagen final mínima (Node 22 alpine + .next/standalone).
+#
+# Node 22 LTS alpine matchea CI (.github/workflows/ci.yml). pnpm 11.0.9
+# fijado para matchear package.json packageManager field.
+
+# ─── Stage 1: dependencias ──────────────────────────────────────────────────
+FROM node:22-alpine AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+# pnpm via corepack (viene con Node 22). Versión fijada al packageManager
+# field de package.json para evitar drift.
+RUN corepack enable && corepack prepare pnpm@11.0.9 --activate
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# ─── Stage 2: build ─────────────────────────────────────────────────────────
+FROM node:22-alpine AS builder
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@11.0.9 --activate
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Env vars necesarias en build-time:
+# - NEXT_PUBLIC_* se inlinean en el bundle del cliente.
+# - SUPABASE_SERVICE_ROLE_KEY + ANTHROPIC_API_KEY: src/env.ts las valida al
+#   load (zod schema), aunque el bundle del cliente no las contiene gracias
+#   a `import 'server-only'` en env.ts.
+# - SENTRY_* se usan para upload de source maps si SENTRY_AUTH_TOKEN está
+#   presente. Sin token, el plugin omite silenciosamente.
+# - SENTRY_RELEASE: el deploy webhook lo pasa con el SHA del commit.
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG SUPABASE_SERVICE_ROLE_KEY
+ARG NEXT_PUBLIC_SENTRY_DSN
+ARG SENTRY_ORG
+ARG SENTRY_PROJECT
+ARG SENTRY_AUTH_TOKEN
+ARG NEXT_PUBLIC_SITE_URL
+ARG ANTHROPIC_API_KEY
+ARG SENTRY_RELEASE
+
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
+    SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY \
+    NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN \
+    SENTRY_ORG=$SENTRY_ORG \
+    SENTRY_PROJECT=$SENTRY_PROJECT \
+    SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN \
+    NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
+    ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+    SENTRY_RELEASE=$SENTRY_RELEASE \
+    NEXT_TELEMETRY_DISABLED=1
+
+RUN pnpm build
+
+# ─── Stage 3: runner ────────────────────────────────────────────────────────
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+
+# User no-root: defensa estándar contra container escape + cumple PoLP.
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser --system --uid 1001 nextjs
+
+# `output: 'standalone'` (next.config.ts) emite server.js + node_modules
+# mínimos en .next/standalone. .next/static y public se copian aparte.
+# Ver https://nextjs.org/docs/app/api-reference/config/next-config-js/output
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+USER nextjs
+
+EXPOSE 3000
+
+# Healthcheck definido a nivel EasyPanel (HTTP GET /, no acá). Razón: el
+# healthcheck de Docker compite con el de EasyPanel y suma latencia sin
+# beneficio — la fuente de verdad es Traefik upstream.
+
+CMD ["node", "server.js"]
