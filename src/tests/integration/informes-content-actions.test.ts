@@ -302,7 +302,7 @@ describe('generateInformeContentAction', () => {
     expect(mockMessagesCreate).toHaveBeenCalledOnce();
     const call = mockMessagesCreate.mock.calls[0]![0];
     expect(call.model).toBe('claude-sonnet-4-6');
-    expect(call.max_tokens).toBe(4096);
+    expect(call.max_tokens).toBe(8192);
     expect(call.system[0].cache_control).toEqual({ type: 'ephemeral' });
   });
 

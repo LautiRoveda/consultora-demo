@@ -1,0 +1,56 @@
+# T-022.5: build context chico → builds rápidos en VPS Hostinger.
+# Apunta a <50 MB de context (vs ~500 MB sin filtrar por node_modules + .next).
+
+# Dependencies y artifacts de build
+node_modules
+.next
+out
+dist
+.turbo
+.swc
+
+# Git (el SHA viene como build arg SENTRY_RELEASE, no necesitamos .git en el build)
+.git
+.gitignore
+.github
+
+# Tests + artifacts
+src/tests/e2e
+playwright-report
+test-results
+coverage
+playwright.config.ts
+vitest.config.ts
+
+# Docs (no se necesitan en runtime — el container no los serve)
+docs
+
+# Env files (NUNCA copiar — vienen como ARG/ENV en runtime)
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# Logs locales
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Husky (no se necesita en imagen prod)
+.husky
+
+# Supabase local artifacts (las migrations en supabase/migrations/ SÍ se copian
+# por si futuro server action las usa en runtime; el folder supabase/.temp y
+# logs locales no)
+supabase/.temp
+supabase/.branches
+
+# Plan files + memory (Claude local state)
+.claude

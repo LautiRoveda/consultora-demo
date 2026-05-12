@@ -56,7 +56,7 @@ export type GenerateInformeResult =
  *    preservado. Defensivo: metadata invalida cae al comportamiento sin
  *    contexto en lugar de bloquear.
  * 7. Build prompt: system del tipo + user message.
- * 8. Call Anthropic (single-turn, no streaming, max_tokens=4096).
+ * 8. Call Anthropic (single-turn, no streaming, max_tokens=8192).
  * 9. Manejo de stop_reason (refusal → CONTENT_FILTER).
  * 10. Extract text + log usage.
  */
@@ -185,14 +185,15 @@ export async function generateInformeContentAction(
   const userMessage = buildUserMessage({ promptContext, userNotes, tipo });
 
   // 8. Call Anthropic.
-  // max_tokens=4096 para fit en Vercel Hobby timeout de 10s. Subir a 8192
-  // cuando upgrademos a Pro (issue T-020-FU1).
+  // max_tokens=8192 desde T-022.5 (VPS Hostinger sin timeout de plataforma).
+  // Cap teórico de claude-sonnet-4-6 es 64k output tokens — 8192 deja margen
+  // sobrado para los 5 tipos de informe (T-022 medía 4-6k para los más largos).
   const client = getAnthropicClient();
   let response: Anthropic.Message;
   try {
     response = await client.messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 4096,
+      max_tokens: 8192,
       system: [
         {
           type: 'text',

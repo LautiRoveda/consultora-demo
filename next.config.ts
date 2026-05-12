@@ -3,6 +3,10 @@ import path from 'node:path';
 import { withSentryConfig } from '@sentry/nextjs';
 
 const nextConfig: NextConfig = {
+  // Self-host VPS Hostinger (T-022.5, ADR-0007). Genera .next/standalone con
+  // server.js + node_modules necesarios para correr Node 22 alpine. Imagen
+  // Docker resultante ~150 MB vs ~1.2 GB sin standalone.
+  output: 'standalone',
   turbopack: {
     root: path.resolve(__dirname),
   },
