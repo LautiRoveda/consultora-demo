@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
   // server.js + node_modules necesarios para correr Node 22 alpine. Imagen
   // Docker resultante ~150 MB vs ~1.2 GB sin standalone.
   output: 'standalone',
+  // T-023: puppeteer-core usa child_process + net + WebSocket nativos del
+  // protocolo DevTools. Bundlearlo con webpack/turbopack rompe estos
+  // bindings — debe quedarse externo y resolverse a runtime via node_modules.
+  serverExternalPackages: ['puppeteer-core'],
   turbopack: {
     root: path.resolve(__dirname),
   },

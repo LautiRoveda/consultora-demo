@@ -83,10 +83,38 @@ RUN pnpm build
 FROM node:22-alpine AS runner
 WORKDIR /app
 
+# Chromium para generación de PDFs (T-023). puppeteer-core usa este binario
+# vía CHROMIUM_PATH — NO descarga su propio Chromium en npm install
+# (PUPPETEER_SKIP_DOWNDLOAD=true).
+#
+# Paquetes:
+#   - chromium: el binario (~150 MB instalado).
+#   - nss: bibliotecas crypto que Chromium usa para TLS.
+#   - freetype + harfbuzz: rendering de fuentes.
+#   - ttf-freefont + ttf-dejavu + font-noto: fuentes mínimas para Latin
+#     (acentos español en informes argentinos) + fallback Noto para CJK.
+#   - ca-certificates: presente en alpine base, lo declaramos explícito.
+#
+# Impacto en tamaño imagen: +~250 MB sobre la base post-T-022.5 (~350 MB) →
+# imagen final ~600 MB. VPS Hostinger tiene 8 GB RAM + 100 GB disco — no es
+# bloqueante. EasyPanel pull-rebuild tarda ~30s más.
+RUN apk add --no-cache \
+      chromium \
+      nss \
+      freetype \
+      harfbuzz \
+      ca-certificates \
+      ttf-freefont \
+      ttf-dejavu \
+      font-noto
+
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
-    HOSTNAME=0.0.0.0
+    HOSTNAME=0.0.0.0 \
+    PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    CHROMIUM_PATH=/usr/bin/chromium-browser
 
 # User no-root: defensa estándar contra container escape + cumple PoLP.
 RUN addgroup --system --gid 1001 nodejs \

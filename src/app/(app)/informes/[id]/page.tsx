@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/shared/ui/card';
 
 import { getInformeById, getInformeMetadata } from '../queries';
 import { INFORME_STATUS_LABELS, INFORME_TIPO_LABELS } from '../schema';
+import { DownloadPdfButton } from './DownloadPdfButton';
 import { MarkdownPreview } from './MarkdownPreview';
 
 /**
@@ -64,11 +65,17 @@ export default async function InformeDetallePage({ params }: { params: Promise<{
             {tipoLabel} · {statusLabel} · Creado {createdAt}
           </p>
         </div>
-        {canEdit && (
-          <Button asChild>
-            <Link href={`/informes/${informe.id}/editar`}>Editar</Link>
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <DownloadPdfButton
+            informeId={informe.id}
+            hasContent={!!informe.contenido && informe.contenido.trim() !== ''}
+          />
+          {canEdit && (
+            <Button asChild>
+              <Link href={`/informes/${informe.id}/editar`}>Editar</Link>
+            </Button>
+          )}
+        </div>
       </div>
       {metadataRow && SummaryComponent && (
         <SummaryComponent metadata={metadataRow.data as FieldValues} />
