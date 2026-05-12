@@ -28,6 +28,11 @@ export const envSchema = z.object({
   // src/app/sitemap.ts para generar URLs absolutas. En T-010 se setea como
   // env var en Vercel con el dominio real; mientras tanto, default placeholder.
   NEXT_PUBLIC_SITE_URL: z.string().url().default('https://consultorademo.com.ar'),
+
+  // Anthropic Claude API (T-020). Server-only — NUNCA prefix NEXT_PUBLIC.
+  // Leak = facturación ajena. El bundler de Next falla si `env.ts` se importa
+  // client-side gracias al `server-only` del tope.
+  ANTHROPIC_API_KEY: z.string().min(1),
 });
 
 const parsed = envSchema.safeParse(process.env);
