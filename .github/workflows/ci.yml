@@ -143,32 +143,8 @@ jobs:
           path: test-results/
           retention-days: 7
 
-  # T-022.5: deploy a VPS Hostinger via webhook EasyPanel.
-  # Solo corre en push a main (no en PRs). Gate de CI verde garantizado por
-  # `needs: ci` — sin tests pasando, no hay deploy. Secret EASYPANEL_DEPLOY_WEBHOOK_URL
-  # se genera desde EasyPanel UI (Service consultora-demo → Deploy → Webhook).
-  # Ver `docs/adr/0007-vps-hostinger-easypanel.md` y `docs/technical/06-deployment.md`.
-  deploy:
-    name: Deploy to EasyPanel
-    needs: ci
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Trigger EasyPanel deploy webhook
-        env:
-          WEBHOOK_URL: ${{ secrets.EASYPANEL_DEPLOY_WEBHOOK_URL }}
-        run: |
-          if [ -z "${WEBHOOK_URL}" ]; then
-            echo "::error::EASYPANEL_DEPLOY_WEBHOOK_URL secret no configurado."
-            exit 1
-          fi
-          # `-f` falla si HTTP >= 400. `--retry 3` cubre flakes de red transitoria.
-          # `-sS` silencia progress pero muestra errores. `-o /dev/null` descarta body
-          # (no queremos logs del webhook que puedan filtrar tokens accidentalmente).
-          # POST sin body — EasyPanel webhook solo necesita el hit para fetchear el
-          # HEAD del branch configurado en el Service (main).
-          HTTP_CODE=$(curl -sS -f -X POST --retry 3 --retry-delay 5 \
-            -o /dev/null -w "%{http_code}" \
-            "${WEBHOOK_URL}")
-          echo "Webhook trigger OK (HTTP ${HTTP_CODE}, SHA ${GITHUB_SHA})"
+  # NOTA T-022.5: el deploy a VPS Hostinger lo dispara **EasyPanel Auto Deploy
+  # nativo** (PAT GitHub + listener en push a main) — sin job en este workflow.
+  # Gate de CI: por convención (no merge a main sin CI verde) + opcionalmente
+  # branch protection rule en Settings → Branches → main → "Require status
+  # checks". Ver `docs/technical/06-deployment.md` y ADR-0007.

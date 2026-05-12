@@ -82,7 +82,7 @@ Aceptamos como tradeoffs: pérdida de preview deploys automáticos, responsabili
 - **Node version**: **22 LTS alpine** matcheando `.github/workflows/ci.yml`. `@supabase/realtime-js` requiere WS nativo de Node 22.
 - **Next.js output**: **`'standalone'`** en `next.config.ts`. Reduce imagen de ~1.2 GB a ~150 MB.
 - **Build location**: **dentro de EasyPanel** (no en GitHub Actions + push GHCR). Más simple para Sprint 2; fallback documentado si OOM.
-- **Deploy trigger**: **GitHub Actions webhook** (no EasyPanel git polling). Garantiza gate de CI antes del deploy.
+- **Deploy trigger**: **EasyPanel Auto Deploy nativo** (Personal Access Token GitHub + listener en push a main). Sin job custom en `.github/workflows/ci.yml` — la conexión GitHub → EasyPanel es directa. Gate de CI verde se mantiene por convención operacional (no merge a main sin CI verde) + opcionalmente branch protection rule.
 - **`max_tokens`**: **hardcode 8192** en `actions.ts` (no env var). 1 fuente de verdad, requiere PR para cambiar.
 - **EasyPanel project placement**: dentro del project existente **`agendalo`** (no project nuevo) — política de Lautaro para evitar fragmentación. Cotenants intocables.
 - **Hot backup Vercel**: 4 semanas post-cutover, auto-deploy pausado (no Disconnect). Cubre ciclo recovery + margen para regresiones tardías.
@@ -110,7 +110,7 @@ Esta sección es **operacional** — Lautaro la sigue campo por campo en EasyPan
 | Source type | GitHub |
 | Repository | `LautiRoveda/consultora-demo` |
 | Branch | `chore/T-022.5-vps-migration` (inicial, para smoke pre-merge) → cambiar a `main` después de PARADA #2 verde |
-| Auto deploy on push | **OFF** (lo dispara GitHub Actions webhook) |
+| Auto deploy on push | **ON** (EasyPanel Auto Deploy nativo vía PAT GitHub — sin job custom en `.github/workflows/ci.yml`) |
 
 ### Build
 
@@ -171,14 +171,15 @@ NEXT_PUBLIC_SITE_URL=https://consultora-demo.test-ia.cloud
 ANTHROPIC_API_KEY=<key>
 ```
 
-### Webhook deploy
+### Auto Deploy (PAT GitHub)
 
-1. EasyPanel → Service consultora-demo → Deploy → tab **Webhook** (o equivalente).
-2. Generar URL (formato típico: `https://easypanel.<host>/api/deploy/<service-uuid>?token=<token>`).
-3. **GitHub repo → Settings → Secrets → Actions → New secret**:
-   - Name: `EASYPANEL_DEPLOY_WEBHOOK_URL`.
-   - Value: la URL completa con token embebido.
-4. (Opcional) si EasyPanel soporta Bearer separado: crear secret adicional `EASYPANEL_DEPLOY_TOKEN`. Por ahora el job `deploy` en ci.yml asume URL con token embebido.
+1. **GitHub → Settings → Developer settings → Personal access tokens**: generar token con scopes mínimos:
+   - `repo:status` + `contents:read` para repos privados (caso actual).
+   - `public_repo` si fuera público (no aplica).
+2. **EasyPanel → Service consultora-demo → Source → GitHub**: pegar el PAT en el campo correspondiente y activar **Auto Deploy**.
+3. EasyPanel auto-registra un webhook en el repo (GitHub → Settings → Webhooks lo muestra) que dispara redeploy en cada push al branch configurado (`main`).
+4. **No se agregan secrets en GitHub Actions** para deploy — la conexión es GitHub → EasyPanel directa, fuera del workflow `ci.yml`.
+5. **Gate de CI verde** se mantiene por convención operacional (no merge a main sin CI verde). Opcionalmente reforzar con branch protection rule: Settings → Branches → main → "Require status checks to pass before merging" → check `CI` workflow.
 
 ### Validación post-creación
 

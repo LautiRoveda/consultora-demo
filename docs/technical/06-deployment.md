@@ -25,8 +25,9 @@ Cualquier cambio operacional sobre deploy se refleja acá.
 ## Flow de deploy
 
 1. **PR abierto contra `main`** → GitHub Actions corre CI (213+ tests). **No hay preview deploy automático en VPS** — los preview deploys de Vercel quedaron descartados para T-022.5; si se necesita un preview, EasyPanel permite levantar un service apuntando temporalmente a la branch desde la UI (manual).
-2. **Merge a `main`** → CI vuelve a correr → si verde, el job `deploy` (`.github/workflows/ci.yml`) dispara el webhook EasyPanel → EasyPanel hace `docker build` + redeploy.
-3. **Sin intervención manual** en el flow normal. Único trigger no-automatizado: cambios de env vars o de config de Service (UI EasyPanel).
+2. **Merge a `main`** → **EasyPanel Auto Deploy nativo** detecta el push (via Personal Access Token GitHub + listener configurado en el Service) → EasyPanel hace `docker build` + redeploy automático. **No hay job de deploy en `.github/workflows/ci.yml`** — la conexión es GitHub → EasyPanel directa.
+3. **Gate de CI verde**: convención operacional (no merge a main sin CI verde) + opcionalmente branch protection rule (Settings → Branches → main → "Require status checks to pass before merging" → check `CI` workflow).
+4. **Sin intervención manual** en el flow normal. Único trigger no-automatizado: cambios de env vars o de config de Service (UI EasyPanel).
 
 ## Environment variables (T-022.5+)
 
@@ -44,7 +45,7 @@ Las 9 variables se cargan en **EasyPanel → Project agendalo → Service consul
 | `NEXT_PUBLIC_SITE_URL` | ✅ | ✅ | `https://consultora-demo.test-ia.cloud` |
 | `ANTHROPIC_API_KEY` | ✅ | ✅ | console.anthropic.com → Settings → Keys |
 
-**`SENTRY_RELEASE`** se inyecta como build arg desde el deploy webhook (no es env var persistente). Default: SHA del commit que dispara el deploy.
+**`SENTRY_RELEASE`** se inyecta como build arg desde EasyPanel Auto Deploy (no es env var persistente). Default: SHA del commit que dispara el redeploy. Si EasyPanel no lo pasa automáticamente, configurar el build arg en Service → Build args con el placeholder de SHA que EasyPanel exponga (depende de versión).
 
 ### Cómo cambiar una variable
 
@@ -81,7 +82,7 @@ gh pr create --base main --title "T-XYZ · ..."
 # 4. Esperar CI verde + review.
 gh pr checks --watch
 
-# 5. Merge squash. CI vuelve a correr en main + dispara webhook EasyPanel.
+# 5. Merge squash. CI vuelve a correr en main + EasyPanel Auto Deploy dispara redeploy.
 gh pr merge --squash --delete-branch
 
 # 6. (Opcional) ver build en vivo en EasyPanel UI → Service → Deployments.
@@ -132,10 +133,14 @@ EasyPanel mantiene historial de deploys. Para volver a uno anterior:
 5. Update en GitHub Secrets (workflows futuros).
 6. Update `.env.local`.
 
-### `EASYPANEL_DEPLOY_WEBHOOK_URL`
+### EasyPanel GitHub Personal Access Token (PAT)
 
-1. EasyPanel → Service consultora-demo → Deploy → regenerar webhook URL.
-2. GitHub repo → Settings → Secrets → Actions → actualizar `EASYPANEL_DEPLOY_WEBHOOK_URL`.
+T-022.5 usa Auto Deploy nativo de EasyPanel, no un webhook custom. El PAT vive del lado EasyPanel (no en GitHub Secrets).
+
+1. GitHub → Settings → Developer settings → Personal access tokens → generar token nuevo con scope mínimo (`repo:status` + `contents:read` para repos privados; `public_repo` si fuera público).
+2. Revocar token viejo en GitHub.
+3. EasyPanel → Service consultora-demo → Source → re-cargar el PAT nuevo en la integración GitHub.
+4. Verificar que el Service sigue detectando pushes a `main` (commit trivial + ver historial de Implementaciones).
 
 ### Cuando regenerar (triggers obligatorios)
 
@@ -198,11 +203,13 @@ EasyPanel acumula images viejas con cada build. Mitigación:
 - Build logs de EasyPanel deben mostrar mensaje "Successfully uploaded" de Sentry plugin.
 - Verificar que `SENTRY_RELEASE` build arg llegó al builder stage (es el SHA del commit; sin él, el release no se crea en Sentry).
 
-### Webhook deploy no dispara
+### Auto Deploy no dispara tras push a main
 
-- GitHub repo → Settings → Secrets → confirmar `EASYPANEL_DEPLOY_WEBHOOK_URL` está cargado.
-- GitHub Actions → último run del CI en push a main → ver step `deploy` → output debería mostrar HTTP 200 al webhook.
-- Si HTTP 401/403: la URL caducó o se regeneró. Re-generar en EasyPanel y re-cargar el Secret.
+- EasyPanel → Service consultora-demo → Source → verificar que la integración GitHub está activa (PAT no expiró).
+- EasyPanel → Service → Implementaciones (Deploy history) → confirmar si aparece el commit reciente. Si NO aparece, el listener no recibió el evento.
+- GitHub repo → Settings → Webhooks → buscar el webhook que EasyPanel registró al activar Auto Deploy. Click → tab "Recent Deliveries" → confirmar entrega con HTTP 200. Si HTTP 401/403/410: el PAT caducó — regenerar (sección "EasyPanel GitHub Personal Access Token (PAT)").
+- Si el webhook está OK pero EasyPanel no buildeó: chequear logs del Service para errores de fetch del repo.
+- Fallback manual: EasyPanel → Service → botón **Deploy** (trigger manual del mismo flow).
 
 ### Rollback urgente
 
@@ -226,4 +233,4 @@ Plan de cierre del hot backup Vercel:
 - [supabase/README.md](../../supabase/README.md) — proyecto remoto y secrets.
 - [src/shared/observability/README.md](../../src/shared/observability/README.md) — Sentry config + `SENTRY_AUTH_TOKEN`.
 - [Dockerfile](../../Dockerfile) — build pipeline.
-- [.github/workflows/ci.yml](../../.github/workflows/ci.yml) — job `deploy` con webhook.
+- [.github/workflows/ci.yml](../../.github/workflows/ci.yml) — workflow CI (sin deploy job; EasyPanel Auto Deploy fuera del workflow).
