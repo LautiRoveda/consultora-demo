@@ -19,6 +19,7 @@ vi.hoisted(() => {
   process.env.NEXT_PUBLIC_SENTRY_DSN = 'https://hoisted@o0.ingest.sentry.io/0';
   process.env.SENTRY_ORG = 'hoisted-org';
   process.env.SENTRY_PROJECT = 'hoisted-project';
+  process.env.ANTHROPIC_API_KEY = 'hoisted-anthropic-key';
 });
 
 describe('envSchema', () => {
@@ -29,6 +30,7 @@ describe('envSchema', () => {
     NEXT_PUBLIC_SENTRY_DSN: 'https://abc@o0.ingest.sentry.io/0',
     SENTRY_ORG: 'lautaro-96',
     SENTRY_PROJECT: 'consultora-demo',
+    ANTHROPIC_API_KEY: 'anthropic-key',
   };
 
   it('acepta vars válidas', () => {
@@ -118,6 +120,14 @@ describe('envSchema', () => {
 
   it('rechaza objeto sin las claves requeridas', () => {
     const result = envSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza ANTHROPIC_API_KEY vacía (T-020)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      ANTHROPIC_API_KEY: '',
+    });
     expect(result.success).toBe(false);
   });
 });

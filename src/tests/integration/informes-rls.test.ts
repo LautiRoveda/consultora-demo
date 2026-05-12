@@ -388,7 +388,14 @@ describe('T-019 audit triggers: informes → audit_log', () => {
     expect(audit?.entity_type).toBe('informes');
     expect(audit?.consultora_id).toBe(cAId);
     expect(audit?.before_data).toBeNull();
-    expect(audit?.after_data).toEqual({ tipo: 'rgrl', titulo, status: 'draft' });
+    // T-020: payload extendido con contenido_size + contenido_preview.
+    expect(audit?.after_data).toEqual({
+      tipo: 'rgrl',
+      titulo,
+      status: 'draft',
+      contenido_size: 0,
+      contenido_preview: null,
+    });
   });
 
   it('UPDATE con cambio auditable crea audit row con before/after data', async () => {
@@ -417,15 +424,19 @@ describe('T-019 audit triggers: informes → audit_log', () => {
       tipo: 'otros',
       titulo: 'Antes update',
       status: 'draft',
+      contenido_size: 0,
+      contenido_preview: null,
     });
     expect(audit?.after_data).toEqual({
       tipo: 'otros',
       titulo: 'Despues update',
       status: 'draft',
+      contenido_size: 0,
+      contenido_preview: null,
     });
   });
 
-  it('UPDATE sin cambio en campos auditables NO crea audit row (diff guard)', async () => {
+  it('UPDATE sin cambio en ningun campo auditable NO crea audit row (diff guard)', async () => {
     const { data: informe } = await admin
       .from('informes')
       .insert({
@@ -437,11 +448,10 @@ describe('T-019 audit triggers: informes → audit_log', () => {
       .select('id')
       .single();
 
-    // UPDATE que solo toca contenido (no auditable en T-019) → sin row.
-    await admin
-      .from('informes')
-      .update({ contenido: 'cuerpo nuevo (no auditado)' })
-      .eq('id', informe!.id);
+    // T-020: contenido ahora ES auditable. Para validar el diff guard, hacemos
+    // un UPDATE que re-setea titulo al mismo valor — ningun campo auditable
+    // cambia, `is distinct from` da false, trigger no inserta row.
+    await admin.from('informes').update({ titulo: 'No-op target' }).eq('id', informe!.id);
 
     const { count } = await admin
       .from('audit_log')
@@ -480,6 +490,8 @@ describe('T-019 audit triggers: informes → audit_log', () => {
       tipo: 'accidente',
       titulo: 'Para borrar',
       status: 'draft',
+      contenido_size: 0,
+      contenido_preview: null,
     });
     expect(audit?.after_data).toBeNull();
   });

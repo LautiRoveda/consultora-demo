@@ -31,6 +31,11 @@ jobs:
       SENTRY_ORG: placeholder-org
       SENTRY_PROJECT: placeholder-project
       NEXT_PUBLIC_SITE_URL: https://placeholder.example.com
+      # T-020: env.ts valida ANTHROPIC_API_KEY al cargar (es required). El
+      # build de Next la necesita aunque ningun test live pegue a la API —
+      # los integration tests mockean el SDK (vi.mock) y los E2E NO disparan
+      # "Generar con IA" para evitar costo en CI.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
