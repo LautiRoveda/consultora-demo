@@ -25,9 +25,10 @@ Cualquier cambio operacional sobre deploy se refleja acá.
 ## Flow de deploy
 
 1. **PR abierto contra `main`** → GitHub Actions corre CI (213+ tests). **No hay preview deploy automático en VPS** — los preview deploys de Vercel quedaron descartados para T-022.5; si se necesita un preview, EasyPanel permite levantar un service apuntando temporalmente a la branch desde la UI (manual).
-2. **Merge a `main`** → **EasyPanel Auto Deploy nativo** detecta el push (via Personal Access Token GitHub + listener configurado en el Service) → EasyPanel hace `docker build` + redeploy automático. **No hay job de deploy en `.github/workflows/ci.yml`** — la conexión es GitHub → EasyPanel directa.
-3. **Gate de CI verde**: convención operacional (no merge a main sin CI verde) + opcionalmente branch protection rule (Settings → Branches → main → "Require status checks to pass before merging" → check `CI` workflow).
-4. **Sin intervención manual** en el flow normal. Único trigger no-automatizado: cambios de env vars o de config de Service (UI EasyPanel).
+2. **Merge a `main`** → Lautaro entra a **EasyPanel UI → Service consultora-demo → botón "Implementar"** → EasyPanel hace `docker build` + redeploy. Build toma 2-5 min.
+3. **Rationale del deploy manual**: EasyPanel v2.30.0 Self-Hosted **no expone Auto Deploy** ni webhook URL custom en la UI. Para MVP aceptamos el click manual; tracking en T-022.5-FU3 (revisitar Auto Deploy en upgrade EasyPanel). Ver `docs/adr/0007-vps-hostinger-easypanel.md`.
+4. **Gate de CI verde**: implícito por convención operacional (no clickear "Implementar" sin CI verde) + opcionalmente reforzable con branch protection rule (Settings → Branches → main → "Require status checks to pass before merging" → check `CI` workflow).
+5. **Intervención manual mínima**: además del click "Implementar", el otro trigger no-automatizado son cambios de env vars o de config de Service (UI EasyPanel).
 
 ## Environment variables (T-022.5+)
 
@@ -45,7 +46,7 @@ Las 9 variables se cargan en **EasyPanel → Project agendalo → Service consul
 | `NEXT_PUBLIC_SITE_URL` | ✅ | ✅ | `https://consultora-demo.test-ia.cloud` |
 | `ANTHROPIC_API_KEY` | ✅ | ✅ | console.anthropic.com → Settings → Keys |
 
-**`SENTRY_RELEASE`** se inyecta como build arg desde EasyPanel Auto Deploy (no es env var persistente). Default: SHA del commit que dispara el redeploy. Si EasyPanel no lo pasa automáticamente, configurar el build arg en Service → Build args con el placeholder de SHA que EasyPanel exponga (depende de versión).
+**`SENTRY_RELEASE`** se inyecta como build arg en el `docker build` que dispara EasyPanel al click "Implementar". Default ideal: SHA del commit. EasyPanel v2.30.0 puede no pasarlo automáticamente — en ese caso, configurar el build arg explícito en Service → Build args (o aceptar que el release Sentry se nombre con el timestamp del build en lugar del SHA, lo cual sigue siendo útil pero menos preciso).
 
 ### Cómo cambiar una variable
 
@@ -82,7 +83,7 @@ gh pr create --base main --title "T-XYZ · ..."
 # 4. Esperar CI verde + review.
 gh pr checks --watch
 
-# 5. Merge squash. CI vuelve a correr en main + EasyPanel Auto Deploy dispara redeploy.
+# 5. Merge squash. CI vuelve a correr en main. **Click manual** en EasyPanel UI → Service → "Implementar" para deployar (no es automático en v2.30.0).
 gh pr merge --squash --delete-branch
 
 # 6. (Opcional) ver build en vivo en EasyPanel UI → Service → Deployments.
@@ -133,14 +134,14 @@ EasyPanel mantiene historial de deploys. Para volver a uno anterior:
 5. Update en GitHub Secrets (workflows futuros).
 6. Update `.env.local`.
 
-### EasyPanel GitHub Personal Access Token (PAT)
+### EasyPanel GitHub connection (Source)
 
-T-022.5 usa Auto Deploy nativo de EasyPanel, no un webhook custom. El PAT vive del lado EasyPanel (no en GitHub Secrets).
+EasyPanel necesita acceso al repo para fetchear el código en cada click "Implementar". La conexión es **Source** del Service (vía Personal Access Token o GitHub App connection, según versión de EasyPanel). NO confundir con Auto Deploy — eso no está expuesto en v2.30.0.
 
 1. GitHub → Settings → Developer settings → Personal access tokens → generar token nuevo con scope mínimo (`repo:status` + `contents:read` para repos privados; `public_repo` si fuera público).
 2. Revocar token viejo en GitHub.
 3. EasyPanel → Service consultora-demo → Source → re-cargar el PAT nuevo en la integración GitHub.
-4. Verificar que el Service sigue detectando pushes a `main` (commit trivial + ver historial de Implementaciones).
+4. Validación: triggerear "Implementar" desde EasyPanel UI → el fetch del repo debe pasar OK.
 
 ### Cuando regenerar (triggers obligatorios)
 
@@ -203,13 +204,14 @@ EasyPanel acumula images viejas con cada build. Mitigación:
 - Build logs de EasyPanel deben mostrar mensaje "Successfully uploaded" de Sentry plugin.
 - Verificar que `SENTRY_RELEASE` build arg llegó al builder stage (es el SHA del commit; sin él, el release no se crea en Sentry).
 
-### Auto Deploy no dispara tras push a main
+### Click "Implementar" no buildeó tras merge
 
-- EasyPanel → Service consultora-demo → Source → verificar que la integración GitHub está activa (PAT no expiró).
-- EasyPanel → Service → Implementaciones (Deploy history) → confirmar si aparece el commit reciente. Si NO aparece, el listener no recibió el evento.
-- GitHub repo → Settings → Webhooks → buscar el webhook que EasyPanel registró al activar Auto Deploy. Click → tab "Recent Deliveries" → confirmar entrega con HTTP 200. Si HTTP 401/403/410: el PAT caducó — regenerar (sección "EasyPanel GitHub Personal Access Token (PAT)").
-- Si el webhook está OK pero EasyPanel no buildeó: chequear logs del Service para errores de fetch del repo.
-- Fallback manual: EasyPanel → Service → botón **Deploy** (trigger manual del mismo flow).
+- Recordá que en T-022.5 (EasyPanel v2.30.0) **el deploy es manual** — no se dispara solo después del merge. Si esperabas que ocurriera automáticamente: clickeá "Implementar" en EasyPanel UI → Service consultora-demo.
+- Si clickeaste "Implementar" pero el build no arranca o falla:
+  - EasyPanel → Service → Implementaciones (Deploy history) → ver el último intento + logs.
+  - Verificar que la Source connection (PAT GitHub) no expiró — sección "EasyPanel GitHub connection (Source)" arriba.
+  - Si el fetch del repo falla con 401/403: regenerar PAT y re-cargar en Source.
+  - Si el build falla en `pnpm install` u otro step del Dockerfile: leer logs del build en EasyPanel UI.
 
 ### Rollback urgente
 
@@ -233,4 +235,4 @@ Plan de cierre del hot backup Vercel:
 - [supabase/README.md](../../supabase/README.md) — proyecto remoto y secrets.
 - [src/shared/observability/README.md](../../src/shared/observability/README.md) — Sentry config + `SENTRY_AUTH_TOKEN`.
 - [Dockerfile](../../Dockerfile) — build pipeline.
-- [.github/workflows/ci.yml](../../.github/workflows/ci.yml) — workflow CI (sin deploy job; EasyPanel Auto Deploy fuera del workflow).
+- [.github/workflows/ci.yml](../../.github/workflows/ci.yml) — workflow CI (sin deploy job; deploy se dispara con click manual en EasyPanel UI).

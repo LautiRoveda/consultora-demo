@@ -143,8 +143,10 @@ jobs:
           path: test-results/
           retention-days: 7
 
-  # NOTA T-022.5: el deploy a VPS Hostinger lo dispara **EasyPanel Auto Deploy
-  # nativo** (PAT GitHub + listener en push a main) — sin job en este workflow.
-  # Gate de CI: por convención (no merge a main sin CI verde) + opcionalmente
-  # branch protection rule en Settings → Branches → main → "Require status
-  # checks". Ver `docs/technical/06-deployment.md` y ADR-0007.
+  # NOTA T-022.5: el deploy a VPS Hostinger se dispara **manualmente** desde
+  # EasyPanel UI (Service consultora-demo → botón "Implementar") tras cada
+  # merge a `main`. EasyPanel v2.30.0 Self-Hosted no expone Auto Deploy ni
+  # webhook URL en la UI. Gate de CI verde: implícito por convención (no
+  # clickear Implementar sin CI verde) + opcional branch protection rule.
+  # Tracking de revisita en upgrade EasyPanel: T-022.5-FU3 (ADR-0007).
+  # Ver `docs/technical/06-deployment.md` y `docs/adr/0007-vps-hostinger-easypanel.md`.
