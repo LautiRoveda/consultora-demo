@@ -1,9 +1,11 @@
 import 'server-only';
 
 import type { Database } from '@/shared/supabase/types';
+import type { RgrlMetadata } from '@/shared/templates/rgrl/schema';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { logger } from '@/shared/observability/logger';
+import { rgrlMetadataSchema } from '@/shared/templates/rgrl/schema';
 
 /**
  * T-019 · Queries server-only del modulo Informes.
@@ -45,4 +47,43 @@ export async function getInformeById(
     return null;
   }
   return data;
+}
+
+/**
+ * T-021 · Fetcha el metadata RGRL parseado y validado para un informe.
+ *
+ * Devuelve null cuando:
+ *  - No hay fila (informe pre-T-021 sin metadata, o tipo != rgrl, o RLS filtra).
+ *  - La fila existe pero `data` no parsea contra `rgrlMetadataSchema`
+ *    (schema drift post-T-022). Comportamiento defensivo: el caller renderiza
+ *    el fallback "sin datos" en lugar de tirar.
+ *
+ * El error de DB se loguea pero tambien devuelve null — UX no debe bloquearse
+ * por un fail transitorio del fetch de metadata.
+ */
+export async function getInformeMetadata(
+  supabase: SupabaseClient<Database>,
+  informeId: string,
+): Promise<RgrlMetadata | null> {
+  const { data, error } = await supabase
+    .from('informe_metadata')
+    .select('data')
+    .eq('informe_id', informeId)
+    .maybeSingle();
+
+  if (error) {
+    logger.error({ err: error, informeId }, 'getInformeMetadata: select fallo');
+    return null;
+  }
+  if (!data?.data) return null;
+
+  const parsed = rgrlMetadataSchema.safeParse(data.data);
+  if (!parsed.success) {
+    logger.warn(
+      { informeId, issueCount: parsed.error.issues.length },
+      'getInformeMetadata: schema drift, devolviendo null',
+    );
+    return null;
+  }
+  return parsed.data;
 }

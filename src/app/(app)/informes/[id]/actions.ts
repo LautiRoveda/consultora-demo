@@ -10,9 +10,15 @@ import { getSystemPromptForTipo } from '@/shared/ai/prompts';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
+import { renderRgrlMetadataAsPromptContext } from '@/shared/templates/rgrl/render';
+import { normalizeRgrlMetadata, rgrlMetadataSchema } from '@/shared/templates/rgrl/schema';
 
 import { INFORME_TIPOS } from '../schema';
-import { generateInformeInputSchema, updateInformeInputSchema } from './schema';
+import {
+  generateInformeInputSchema,
+  updateInformeInputSchema,
+  updateInformeMetadataInputSchema,
+} from './schema';
 
 /**
  * T-020 · Server actions del editor de contenido de informes.
@@ -134,12 +140,52 @@ export async function generateInformeContentAction(
     return { ok: false, code: 'INTERNAL_ERROR', message: 'Tipo de informe invalido.' };
   }
 
+  // 5.5. (T-021) Si tipo === 'rgrl', cargar metadata e inyectar como prompt
+  // context al user message. system prompt NO cambia → cache hit preservado.
+  // Defensivo: si la metadata no parsea (drift post-T-022) caemos al
+  // comportamiento sin contexto en lugar de bloquear al usuario.
+  let promptContext = '';
+  let hasMetadata = false;
+  if (informe.tipo === 'rgrl') {
+    const { data: metaRow, error: metaErr } = await supabase
+      .from('informe_metadata')
+      .select('data')
+      .eq('informe_id', informeId)
+      .maybeSingle();
+
+    if (metaErr) {
+      logger.warn(
+        { err: metaErr, informeId, consultoraId: consultora.id, userId: user.id },
+        'rgrl_metadata_load_failed',
+      );
+      // No bloqueante: caer a prosa libre.
+    } else if (metaRow?.data) {
+      const parsedMeta = rgrlMetadataSchema.safeParse(metaRow.data);
+      if (parsedMeta.success) {
+        promptContext = renderRgrlMetadataAsPromptContext(parsedMeta.data);
+        hasMetadata = true;
+      } else {
+        logger.warn(
+          {
+            informeId,
+            consultoraId: consultora.id,
+            userId: user.id,
+            issueCount: parsedMeta.error.issues.length,
+          },
+          'rgrl_metadata_schema_drift',
+        );
+      }
+    }
+  }
+
   // 6. Build prompt.
   const systemPrompt = getSystemPromptForTipo(informe.tipo as InformeTipo);
-  const userMessage =
-    parsed.data.userPrompt && parsed.data.userPrompt.length > 0
-      ? parsed.data.userPrompt
-      : `Generá un borrador genérico de informe tipo "${informe.tipo}".`;
+  const userNotes = parsed.data.userPrompt?.trim() ?? '';
+  const userMessage = buildUserMessage({
+    promptContext,
+    userNotes,
+    tipo: informe.tipo as InformeTipo,
+  });
 
   // 7. Call Anthropic.
   // max_tokens=4096 para fit en Vercel Hobby timeout de 10s. Subir a 8192
@@ -198,12 +244,35 @@ export async function generateInformeContentAction(
       userId: user.id,
       model: response.model,
       stopReason: response.stop_reason,
+      hasMetadata,
       ...usage,
     },
     'informe_content_generated',
   );
 
   return { ok: true, content, usage };
+}
+
+/**
+ * Combina prompt context (renderizado de metadata RGRL) y user notes (textarea
+ * libre) en un único user message. Reglas:
+ * - Ambos presentes → context + separador + sección "Notas adicionales".
+ * - Solo context (form sin notas) → context puro.
+ * - Solo notes (informe sin metadata o no-rgrl) → notes solos.
+ * - Ninguno → fallback genérico por tipo.
+ */
+function buildUserMessage(args: {
+  promptContext: string;
+  userNotes: string;
+  tipo: InformeTipo;
+}): string {
+  const { promptContext, userNotes, tipo } = args;
+  if (promptContext && userNotes) {
+    return `${promptContext}\n\n---\n\n## Notas adicionales del consultor\n\n${userNotes}`;
+  }
+  if (promptContext) return promptContext;
+  if (userNotes) return userNotes;
+  return `Generá un borrador genérico de informe tipo "${tipo}".`;
 }
 
 /**
@@ -368,6 +437,156 @@ export async function updateInformeContentAction(
       contentSize: parsed.data.content.length,
     },
     'informe_content_updated',
+  );
+
+  return { ok: true };
+}
+
+// =============================================================================
+// updateInformeMetadataAction (T-021)
+// =============================================================================
+
+export type UpdateInformeMetadataResult =
+  | { ok: true }
+  | { ok: false; code: 'INVALID_INPUT'; fieldErrors: Record<string, string[]>; message: string }
+  | {
+      ok: false;
+      code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'FORBIDDEN' | 'NOT_FOUND' | 'INTERNAL_ERROR';
+      message: string;
+    };
+
+/**
+ * Persiste el form RGRL en `public.informe_metadata` via UPSERT por
+ * informe_id (PK=FK 1:1 con informes).
+ *
+ * Permission gate: creator del informe O owner de la consultora — mismo
+ * gate que update de contenido (T-020). RLS WITH CHECK confirma del lado
+ * DB; el chequeo pre-UPSERT distingue NOT_FOUND vs FORBIDDEN para UX
+ * mejor que el silent RLS filter.
+ *
+ * Solo acepta tipo='rgrl' por ahora. T-022 va a convertir esto en un
+ * dispatch por tipo cuando se sumen los otros 4 templates.
+ *
+ * El audit_log queda cubierto por el trigger `audit_informe_metadata` —
+ * diff guard ya filtra UPDATEs sin cambio real en data.
+ */
+export async function updateInformeMetadataAction(
+  informeId: string,
+  input: unknown,
+): Promise<UpdateInformeMetadataResult> {
+  // 1. Zod validate.
+  const parsed = updateInformeMetadataInputSchema.safeParse(input);
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string[]> = {};
+    for (const issue of parsed.error.issues) {
+      const key = issue.path.join('.') || '_';
+      (fieldErrors[key] ??= []).push(issue.message);
+    }
+    return {
+      ok: false,
+      code: 'INVALID_INPUT',
+      fieldErrors,
+      message: 'Revisá los datos del establecimiento.',
+    };
+  }
+
+  // 2-3. Auth + consultora.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false, code: 'UNAUTHENTICATED', message: 'Iniciá sesión.' };
+  }
+
+  const consultora = await getCurrentConsultora(supabase, user.id);
+  if (!consultora) {
+    return {
+      ok: false,
+      code: 'NO_CONSULTORA',
+      message: 'Tu cuenta no tiene una consultora vinculada.',
+    };
+  }
+
+  // 4. Cargar informe para distinguir NOT_FOUND vs FORBIDDEN y validar tipo.
+  const { data: informe, error: loadErr } = await supabase
+    .from('informes')
+    .select('id, tipo, created_by')
+    .eq('id', informeId)
+    .maybeSingle();
+
+  if (loadErr) {
+    logger.error(
+      { err: loadErr, informeId, userId: user.id, consultoraId: consultora.id },
+      'updateInformeMetadataAction: load fallo',
+    );
+    return { ok: false, code: 'INTERNAL_ERROR', message: 'Error cargando el informe.' };
+  }
+
+  if (!informe) {
+    return { ok: false, code: 'NOT_FOUND', message: 'Informe no encontrado.' };
+  }
+
+  // Solo RGRL acepta metadata en T-021 — defensa server-side (UI no permite).
+  if (informe.tipo !== 'rgrl') {
+    logger.error(
+      { informeId, tipo: informe.tipo, userId: user.id, consultoraId: consultora.id },
+      'updateInformeMetadataAction: tipo no soporta metadata',
+    );
+    return {
+      ok: false,
+      code: 'INTERNAL_ERROR',
+      message: 'Este tipo de informe no acepta datos estructurados.',
+    };
+  }
+
+  // 5. Permission gate (defensivo; RLS WITH CHECK hace el gate real).
+  const isCreator = informe.created_by === user.id;
+  const isOwner = consultora.role === 'owner';
+  if (!isCreator && !isOwner) {
+    return {
+      ok: false,
+      code: 'FORBIDDEN',
+      message: 'Solo el creador del informe o un owner pueden editarlo.',
+    };
+  }
+
+  // 6. UPSERT. RLS WITH CHECK confirma el permission gate del lado DB.
+  const cleaned = normalizeRgrlMetadata(parsed.data);
+  const { data, error } = await supabase
+    .from('informe_metadata')
+    .upsert({ informe_id: informeId, data: cleaned }, { onConflict: 'informe_id' })
+    .select('informe_id');
+
+  if (error) {
+    logger.error(
+      { err: error, informeId, userId: user.id, consultoraId: consultora.id },
+      'updateInformeMetadataAction: upsert fallo',
+    );
+    return { ok: false, code: 'INTERNAL_ERROR', message: 'Error guardando los datos.' };
+  }
+
+  if (!data || data.length === 0) {
+    // RLS filtro la fila — race con permisos despues del gate pre-UPSERT.
+    return {
+      ok: false,
+      code: 'FORBIDDEN',
+      message: 'No tenés permiso para editar este informe.',
+    };
+  }
+
+  revalidatePath(`/informes/${informeId}`);
+  revalidatePath(`/informes/${informeId}/editar`);
+
+  logger.info(
+    {
+      informeId,
+      consultoraId: consultora.id,
+      userId: user.id,
+      tipo: informe.tipo,
+      fieldCount: Object.keys(parsed.data).length,
+    },
+    'informe_metadata_updated',
   );
 
   return { ok: true };

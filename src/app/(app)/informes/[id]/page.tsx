@@ -4,10 +4,11 @@ import { notFound, redirect } from 'next/navigation';
 
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { createClient } from '@/shared/supabase/server';
+import { RgrlMetadataSummary } from '@/shared/templates/rgrl/RgrlMetadataSummary';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 
-import { getInformeById } from '../queries';
+import { getInformeById, getInformeMetadata } from '../queries';
 import { INFORME_STATUS_LABELS, INFORME_TIPO_LABELS } from '../schema';
 import { MarkdownPreview } from './MarkdownPreview';
 
@@ -32,6 +33,10 @@ export default async function InformeDetallePage({ params }: { params: Promise<{
   const consultora = await getCurrentConsultora(supabase, user.id);
   const canEdit =
     consultora !== null && (informe.created_by === user.id || consultora.role === 'owner');
+
+  // T-021: render el summary RGRL si el informe es tipo='rgrl' y tiene metadata.
+  // Fallback compat: informes pre-T-021 o tipos sin template muestran solo markdown.
+  const metadata = informe.tipo === 'rgrl' ? await getInformeMetadata(supabase, informe.id) : null;
 
   const tipoLabel = INFORME_TIPO_LABELS[informe.tipo as InformeTipo] ?? informe.tipo;
   const statusLabel = INFORME_STATUS_LABELS[informe.status as InformeStatus] ?? informe.status;
@@ -60,6 +65,7 @@ export default async function InformeDetallePage({ params }: { params: Promise<{
           </Button>
         )}
       </div>
+      {metadata && <RgrlMetadataSummary metadata={metadata} />}
       <Card>
         <CardContent className="px-6 py-6">
           <MarkdownPreview content={informe.contenido} />

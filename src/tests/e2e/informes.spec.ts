@@ -43,9 +43,12 @@ test.describe('Informes · crear + listar (T-019)', () => {
     await page.getByRole('link', { name: 'Crear primer informe' }).click();
     await expect(page).toHaveURL(/\/informes\/nuevo$/);
 
-    // Form: el default del tipo es 'relevamiento'; cambiamos a RGRL para validar Select.
+    // Form: el default del tipo es 'relevamiento'; cambiamos a Capacitación para
+    // validar el Select. NOTA T-021: el path RGRL se ramifica en wizard 2-step
+    // (boton "Siguiente"), cubierto por informes-rgrl-template.spec.ts. Acá
+    // testeamos el "quick path" de tipos sin template parametrizado.
     await page.getByRole('combobox').click();
-    await page.getByRole('option', { name: 'RGRL' }).click();
+    await page.getByRole('option', { name: 'Capacitación' }).click();
 
     const titulo = `Informe E2E ${Date.now().toString(36)}`;
     await page.getByLabel('Título').fill(titulo);
@@ -55,7 +58,7 @@ test.describe('Informes · crear + listar (T-019)', () => {
     await expect(page).toHaveURL(/\/informes\/[0-9a-f-]+$/, { timeout: 10_000 });
     await expect(page.getByRole('heading', { name: titulo })).toBeVisible();
     await expect(page.getByText('Contenido pendiente')).toBeVisible();
-    await expect(page.getByText(/RGRL · Borrador/)).toBeVisible();
+    await expect(page.getByText(/Capacitación · Borrador/)).toBeVisible();
   });
 
   test('crear via UI → row aparece en la lista', async ({ page }) => {

@@ -1,7 +1,8 @@
 /**
  * T-020 · Tests de `generateInformeContentAction` y `updateInformeContentAction`.
+ * T-021 · Suma 4 tests de inyeccion de metadata RGRL al user message.
  *
- * Cubre los 9 paths criticos del discriminated union:
+ * Cubre los paths criticos del discriminated union:
  *  1. generate: input invalido (userPrompt > 2000) → INVALID_INPUT.
  *  2. generate: sin session cookie → UNAUTHENTICATED.
  *  3. generate: informe de OTRA consultora (RLS scope) → NOT_FOUND.
@@ -11,6 +12,10 @@
  *  7. generate: stop_reason='refusal' → CONTENT_FILTER.
  *  8. update: happy path → ok:true + audit_log con before_data.contenido_preview.
  *  9. update: content > 200k → INVALID_INPUT.
+ *  10. (T-021) generate con metadata RGRL → user message contiene los valores.
+ *  11. (T-021) shape: assertea estructura completa del prompt context renderizado.
+ *  12. (T-021) combina prompt context + userPrompt cuando ambos estan.
+ *  13. (T-021) metadata invalida → fallback sin contexto, no bloquea generacion.
  *
  * Patron de mocks heredado de informes-actions.test.ts:
  *   - server-only no-op.
@@ -23,7 +28,8 @@
  *
  * Correr local: `set -a && source .env.local && set +a && pnpm test:integration`.
  */
-import type { Database } from '@/shared/supabase/types';
+import type { Database, Json } from '@/shared/supabase/types';
+import type { RgrlMetadata } from '@/shared/templates/rgrl/schema';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient as createSbClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -167,12 +173,29 @@ beforeEach(() => {
 /**
  * Helper: signin del user via el server client mockeado. Popula cookieStore
  * con los tokens de sesion para que la accion vea getUser() != null.
+ *
+ * Cache por email: el primer signin real hace `signInWithPassword`; los
+ * siguientes restauran los cookies snapshot. Mitiga el rate limit
+ * `over_request_rate_limit` (30/hr default) cuando la suite hace muchos
+ * cambios de user — sin sacrificar la cobertura por test individual.
  */
+const sessionCache = new Map<string, Array<{ name: string; value: string }>>();
+
 async function signInAs(email: string): Promise<void> {
+  cookieStore.length = 0;
+  const cached = sessionCache.get(email);
+  if (cached) {
+    for (const c of cached) cookieStore.push({ ...c });
+    return;
+  }
   const { createClient: createServerClient } = await import('@/shared/supabase/server');
   const sb = await createServerClient();
   const { error } = await sb.auth.signInWithPassword({ email, password });
   expect(error).toBeNull();
+  sessionCache.set(
+    email,
+    cookieStore.map((c) => ({ ...c })),
+  );
 }
 
 /**
@@ -371,5 +394,156 @@ describe('updateInformeContentAction', () => {
     expect(result.code).toBe('INVALID_INPUT');
     if (result.code !== 'INVALID_INPUT') throw new Error('unreachable');
     expect(result.fieldErrors.content?.[0]).toMatch(/200/);
+  });
+});
+
+// =============================================================================
+// T-021 · Tests de inyeccion de metadata RGRL al user message
+// =============================================================================
+
+/** Fixture RGRL valido — cubre todos los obligatorios + omite 2 opcionales. */
+const rgrlFixture: RgrlMetadata = {
+  razon_social: 'Metalúrgica del Sur SA',
+  cuit: '30-12345678-9',
+  domicilio: 'Av. Industrial 1234',
+  localidad: 'Tigre',
+  provincia: 'BA',
+  actividad_principal: 'Fabricación de estructuras metálicas',
+  cantidad_empleados: 80,
+  distribucion_turno: 'doble',
+  modalidad_operativa: 'industrial',
+  art_contratada: 'La Segunda',
+  servicio_hys_modalidad: 'externo',
+  areas_relevadas: ['Oficinas administrativas', 'Producción / planta', 'Depósito / almacén'],
+  fecha_relevamiento: '2026-05-12',
+  // codigo_ciiu, riesgos_pre_detectados → omitidos (opcionales).
+};
+
+describe('generateInformeContentAction · T-021 inyeccion metadata RGRL', () => {
+  /**
+   * Crea un informe RGRL en cA + (opcional) fila de metadata. Devuelve el id.
+   * Cada test usa su propio informe para evitar interferencia con el fixture
+   * compartido `informeOwnerAInCa` (que NO tiene metadata).
+   */
+  async function createInformeWithMetadata(data: Record<string, unknown> | null): Promise<string> {
+    const { data: i } = await admin
+      .from('informes')
+      .insert({
+        consultora_id: cAId,
+        tipo: 'rgrl',
+        titulo: 'T021 inyeccion test',
+        created_by: ownerAId,
+      })
+      .select('id')
+      .single();
+    const id = i!.id;
+    if (data !== null) {
+      await admin.from('informe_metadata').insert({ informe_id: id, data: data as Json });
+    }
+    return id;
+  }
+
+  it('10. inyecta prompt context al user message cuando hay metadata RGRL', async () => {
+    const id = await createInformeWithMetadata(rgrlFixture);
+    await signInAs(emailOwnerA);
+    mockMessagesCreate.mockResolvedValueOnce(makeAnthropicResponse({ text: '# RGRL\n...' }));
+    const { generateInformeContentAction } = await import('@/app/(app)/informes/[id]/actions');
+    const result = await generateInformeContentAction(id, { userPrompt: '' });
+
+    expect(result.ok).toBe(true);
+    expect(mockMessagesCreate).toHaveBeenCalledOnce();
+
+    const call = mockMessagesCreate.mock.calls[0]![0];
+    const userMsg: string = call.messages[0].content;
+
+    expect(userMsg).toContain('## Datos del establecimiento');
+    expect(userMsg).toContain('Metalúrgica del Sur SA');
+    expect(userMsg).toContain('CUIT: 30-12345678-9');
+    expect(userMsg).toContain('La Segunda');
+
+    // system prompt sin tocar → cache hit preservado.
+    expect(typeof call.system[0].text).toBe('string');
+    expect(call.system[0].text.length).toBeGreaterThan(100);
+    expect(call.system[0].cache_control).toEqual({ type: 'ephemeral' });
+  });
+
+  /**
+   * Shape end-to-end de renderRgrlMetadataAsPromptContext. Valida que el
+   * helper produce la estructura esperada (header + un line por campo
+   * obligatorio + ausencia de null/undefined en opcionales + footer de
+   * re-anclaje) al pasar por todo el pipeline accion → render → SDK call.
+   */
+  it('11. shape del user message renderizado (header + campos + footer)', async () => {
+    const id = await createInformeWithMetadata(rgrlFixture);
+    await signInAs(emailOwnerA);
+    mockMessagesCreate.mockResolvedValueOnce(makeAnthropicResponse({ text: '# RGRL\n...' }));
+    const { generateInformeContentAction } = await import('@/app/(app)/informes/[id]/actions');
+    await generateInformeContentAction(id, { userPrompt: '' });
+
+    const userMsg: string = mockMessagesCreate.mock.calls[0]![0].messages[0].content;
+
+    // Header presente.
+    expect(userMsg.startsWith('## Datos del establecimiento')).toBe(true);
+
+    // Cada campo obligatorio renderizado con su label esperado.
+    expect(userMsg).toMatch(/- Razón social: Metalúrgica del Sur SA/);
+    expect(userMsg).toMatch(/- CUIT: 30-12345678-9/);
+    expect(userMsg).toMatch(/- Domicilio: Av\. Industrial 1234/);
+    expect(userMsg).toMatch(/- Localidad: Tigre/);
+    expect(userMsg).toMatch(/- Provincia: Buenos Aires \(BA\)/);
+    expect(userMsg).toMatch(/- Actividad principal: Fabricación de estructuras metálicas/);
+    expect(userMsg).toMatch(/- Cantidad de empleados: 80/);
+    expect(userMsg).toMatch(/- Distribución de turnos: Dos turnos/);
+    expect(userMsg).toMatch(/- Modalidad operativa: Industrial \/ manufactura/);
+    expect(userMsg).toMatch(/- ART contratada: La Segunda/);
+    expect(userMsg).toMatch(/- Servicio HyS: Externo/);
+    expect(userMsg).toMatch(/- Fecha: 2026-05-12/);
+    expect(userMsg).toMatch(/- Áreas relevadas \(3\):/);
+
+    // Campos opcionales NO presentes → no aparecen como "null" o "undefined".
+    expect(userMsg).not.toMatch(/CIIU: null/);
+    expect(userMsg).not.toMatch(/CIIU: undefined/);
+    expect(userMsg).not.toContain('Riesgos pre-detectados');
+
+    // Footer de re-anclaje.
+    expect(userMsg).toMatch(/Generá el RGRL siguiendo la estructura/);
+  });
+
+  it('12. combina prompt context + userPrompt cuando ambos estan', async () => {
+    const id = await createInformeWithMetadata(rgrlFixture);
+    await signInAs(emailOwnerA);
+    mockMessagesCreate.mockResolvedValueOnce(makeAnthropicResponse({ text: '# RGRL\n...' }));
+    const { generateInformeContentAction } = await import('@/app/(app)/informes/[id]/actions');
+    const result = await generateInformeContentAction(id, {
+      userPrompt: 'Notas: hay riesgo de incendio extra en depósito.',
+    });
+
+    expect(result.ok).toBe(true);
+    const userMsg: string = mockMessagesCreate.mock.calls[0]![0].messages[0].content;
+    expect(userMsg).toContain('## Datos del establecimiento');
+    expect(userMsg).toContain('## Notas adicionales del consultor');
+    expect(userMsg).toContain('Notas: hay riesgo de incendio extra en depósito.');
+
+    // El context viene ANTES que las notas (orden importa para el modelo).
+    expect(userMsg.indexOf('Datos del establecimiento')).toBeLessThan(
+      userMsg.indexOf('Notas adicionales'),
+    );
+  });
+
+  it('13. metadata invalida (schema drift) → fallback sin contexto, no bloquea', async () => {
+    // Metadata con shape rota — schema drift simulado.
+    const id = await createInformeWithMetadata({ campo_random: 'x' });
+    await signInAs(emailOwnerA);
+    mockMessagesCreate.mockResolvedValueOnce(makeAnthropicResponse({ text: '# RGRL\n...' }));
+    const { generateInformeContentAction } = await import('@/app/(app)/informes/[id]/actions');
+    const result = await generateInformeContentAction(id, {
+      userPrompt: 'Contexto manual del consultor.',
+    });
+
+    expect(result.ok).toBe(true);
+    const userMsg: string = mockMessagesCreate.mock.calls[0]![0].messages[0].content;
+    // Cae al comportamiento de T-020: solo el userPrompt, sin context block.
+    expect(userMsg).not.toContain('## Datos del establecimiento');
+    expect(userMsg).toBe('Contexto manual del consultor.');
   });
 });

@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
+import { normalizeRgrlMetadata, rgrlMetadataSchema } from '@/shared/templates/rgrl/schema';
 
 import { createInformeSchema } from './schema';
 
@@ -16,7 +17,13 @@ import { createInformeSchema } from './schema';
  */
 
 export type CreateInformeResult =
-  | { ok: true; redirectTo: string; informeId: string }
+  | {
+      ok: true;
+      redirectTo: string;
+      informeId: string;
+      /** T-021: true si metadata RGRL se persistio junto con el informe. */
+      metadataPersisted: boolean;
+    }
   | { ok: false; code: 'INVALID_INPUT'; fieldErrors: Record<string, string[]>; message: string }
   | {
       ok: false;
@@ -99,15 +106,62 @@ export async function createInformeAction(input: unknown): Promise<CreateInforme
     };
   }
 
+  // T-021 · Si tipo='rgrl' y vino metadata, intentar persistirla. No
+  // bloqueante: si falla (Zod o RLS race), el informe queda creado sin
+  // metadata y el user la completa en /editar. UX: redirect a /editar
+  // cuando hay metadata (con o sin persistirse) para que el user vea
+  // el form pre-poblado o vacio segun el resultado.
+  let metadataPersisted = false;
+  if (parsed.data.tipo === 'rgrl' && parsed.data.metadata !== undefined) {
+    const parsedMeta = rgrlMetadataSchema.safeParse(parsed.data.metadata);
+    if (!parsedMeta.success) {
+      logger.warn(
+        {
+          informeId: data.id,
+          userId: user.id,
+          consultoraId: consultora.id,
+          issueCount: parsedMeta.error.issues.length,
+        },
+        'createInformeAction: metadata rgrl invalida, informe creado sin datos',
+      );
+    } else {
+      const cleaned = normalizeRgrlMetadata(parsedMeta.data);
+      const { error: metaErr } = await supabase
+        .from('informe_metadata')
+        .insert({ informe_id: data.id, data: cleaned });
+
+      if (metaErr) {
+        logger.warn(
+          { err: metaErr, informeId: data.id, userId: user.id, consultoraId: consultora.id },
+          'createInformeAction: metadata insert fallo, informe creado sin datos',
+        );
+      } else {
+        metadataPersisted = true;
+      }
+    }
+  }
+
   revalidatePath('/informes');
   logger.info(
-    { informeId: data.id, userId: user.id, consultoraId: consultora.id, tipo: parsed.data.tipo },
+    {
+      informeId: data.id,
+      userId: user.id,
+      consultoraId: consultora.id,
+      tipo: parsed.data.tipo,
+      metadataPersisted,
+    },
     'informe_created',
   );
 
+  // Si vino metadata RGRL, redirect a /editar (con datos pre-pobladas o
+  // form vacio si fallo). Si no, redirect a la vista del informe.
+  const wantsEditor = parsed.data.tipo === 'rgrl' && parsed.data.metadata !== undefined;
+  const redirectTo = wantsEditor ? `/informes/${data.id}/editar` : `/informes/${data.id}`;
+
   return {
     ok: true,
-    redirectTo: `/informes/${data.id}`,
+    redirectTo,
     informeId: data.id,
+    metadataPersisted,
   };
 }

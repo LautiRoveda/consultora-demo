@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
+import { rgrlMetadataSchema } from '@/shared/templates/rgrl/schema';
+
 /**
  * T-020 · Schemas de input para las actions del editor de informes.
+ * T-021 · Suma `updateInformeMetadataInputSchema` para el form estructurado
+ * por tipo de informe (RGRL piloto).
  *
  * NO `'use server'` — se importan desde Client Components (RHF + zodResolver).
  */
@@ -37,3 +41,14 @@ export const updateInformeInputSchema = z.object({
 });
 
 export type UpdateInformeContentInput = z.infer<typeof updateInformeInputSchema>;
+
+/**
+ * T-021 · Input de `updateInformeMetadataAction`.
+ *
+ * Por ahora solo RGRL — el action chequea defensivamente que el informe sea
+ * tipo='rgrl' antes de aceptar el payload. T-022 va a transformar esto en
+ * un discriminated union por `tipo` cuando se sumen los otros 4 templates.
+ */
+export const updateInformeMetadataInputSchema = rgrlMetadataSchema;
+
+export type UpdateInformeMetadataInput = z.infer<typeof updateInformeMetadataInputSchema>;
