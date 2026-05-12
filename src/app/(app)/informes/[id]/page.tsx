@@ -1,10 +1,11 @@
+import type { FieldValues } from 'react-hook-form';
 import type { InformeStatus, InformeTipo } from '../schema';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { createClient } from '@/shared/supabase/server';
-import { RgrlMetadataSummary } from '@/shared/templates/rgrl/RgrlMetadataSummary';
+import { TEMPLATE_CLIENT_REGISTRY } from '@/shared/templates/registry/client';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 
@@ -14,6 +15,7 @@ import { MarkdownPreview } from './MarkdownPreview';
 
 /**
  * T-020 · Detalle de informe (read-only).
+ * T-022 · Summary renderizado dinamicamente via TEMPLATE_CLIENT_REGISTRY[tipo].
  *
  * Render del `contenido` via MarkdownPreview (react-markdown + remark-gfm +
  * rehype-sanitize). Boton "Editar" visible solo si el user es creator del
@@ -34,11 +36,14 @@ export default async function InformeDetallePage({ params }: { params: Promise<{
   const canEdit =
     consultora !== null && (informe.created_by === user.id || consultora.role === 'owner');
 
-  // T-021: render el summary RGRL si el informe es tipo='rgrl' y tiene metadata.
-  // Fallback compat: informes pre-T-021 o tipos sin template muestran solo markdown.
-  const metadata = informe.tipo === 'rgrl' ? await getInformeMetadata(supabase, informe.id) : null;
+  // T-022: getInformeMetadata es generico. Renderizamos el SummaryComponent
+  // del tipo activo si hay metadata. Cero UI si no la hay (fallback al
+  // markdown puro como pre-T-021).
+  const tipo = informe.tipo as InformeTipo;
+  const metadataRow = await getInformeMetadata(supabase, informe.id, tipo);
+  const SummaryComponent = TEMPLATE_CLIENT_REGISTRY[tipo]?.SummaryComponent;
 
-  const tipoLabel = INFORME_TIPO_LABELS[informe.tipo as InformeTipo] ?? informe.tipo;
+  const tipoLabel = INFORME_TIPO_LABELS[tipo] ?? informe.tipo;
   const statusLabel = INFORME_STATUS_LABELS[informe.status as InformeStatus] ?? informe.status;
   const createdAt = new Date(informe.created_at).toLocaleString('es-AR', {
     dateStyle: 'medium',
@@ -65,7 +70,9 @@ export default async function InformeDetallePage({ params }: { params: Promise<{
           </Button>
         )}
       </div>
-      {metadata && <RgrlMetadataSummary metadata={metadata} />}
+      {metadataRow && SummaryComponent && (
+        <SummaryComponent metadata={metadataRow.data as FieldValues} />
+      )}
       <Card>
         <CardContent className="px-6 py-6">
           <MarkdownPreview content={informe.contenido} />

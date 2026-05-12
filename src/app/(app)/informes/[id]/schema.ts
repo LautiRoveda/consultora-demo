@@ -1,11 +1,17 @@
 import { z } from 'zod';
 
+import { accidenteMetadataSchema } from '@/shared/templates/accidente/schema';
+import { capacitacionMetadataSchema } from '@/shared/templates/capacitacion/schema';
+import { otrosMetadataSchema } from '@/shared/templates/otros/schema';
+import { relevamientoMetadataSchema } from '@/shared/templates/relevamiento/schema';
 import { rgrlMetadataSchema } from '@/shared/templates/rgrl/schema';
 
 /**
  * T-020 · Schemas de input para las actions del editor de informes.
  * T-021 · Suma `updateInformeMetadataInputSchema` para el form estructurado
  * por tipo de informe (RGRL piloto).
+ * T-022 · Convierte `updateInformeMetadataInputSchema` en discriminated union
+ * por `tipo` ahora que los 5 tipos tienen template.
  *
  * NO `'use server'` — se importan desde Client Components (RHF + zodResolver).
  */
@@ -44,11 +50,21 @@ export type UpdateInformeContentInput = z.infer<typeof updateInformeInputSchema>
 
 /**
  * T-021 · Input de `updateInformeMetadataAction`.
+ * T-022 · Discriminated union por `tipo`. Cada variante valida `data` contra
+ * el schema del template correspondiente. El action server-side verifica que
+ * `input.tipo` coincida con `informe.tipo` (defensa contra un wizard mal
+ * sincronizado), y luego narrowea typesafe via `parsed.data.tipo`.
  *
- * Por ahora solo RGRL — el action chequea defensivamente que el informe sea
- * tipo='rgrl' antes de aceptar el payload. T-022 va a transformar esto en
- * un discriminated union por `tipo` cuando se sumen los otros 4 templates.
+ * El cliente arma `{ tipo, data: values }` antes de llamar al action. RHF
+ * trabaja sobre `data` puro (uno de los 5 schemas Metadata), el wrapper se
+ * adjunta justo antes del invoke.
  */
-export const updateInformeMetadataInputSchema = rgrlMetadataSchema;
+export const updateInformeMetadataInputSchema = z.discriminatedUnion('tipo', [
+  z.object({ tipo: z.literal('rgrl'), data: rgrlMetadataSchema }),
+  z.object({ tipo: z.literal('capacitacion'), data: capacitacionMetadataSchema }),
+  z.object({ tipo: z.literal('relevamiento'), data: relevamientoMetadataSchema }),
+  z.object({ tipo: z.literal('accidente'), data: accidenteMetadataSchema }),
+  z.object({ tipo: z.literal('otros'), data: otrosMetadataSchema }),
+]);
 
 export type UpdateInformeMetadataInput = z.infer<typeof updateInformeMetadataInputSchema>;

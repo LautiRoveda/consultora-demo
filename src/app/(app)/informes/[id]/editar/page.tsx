@@ -37,17 +37,19 @@ export default async function InformeEditarPage({ params }: { params: Promise<{ 
     redirect(`/informes/${informe.id}`);
   }
 
-  // T-021: solo cargar metadata para tipo='rgrl'. Los otros 4 tipos no tienen
-  // template parametrizado todavia (T-022 los suma).
-  const metadata = informe.tipo === 'rgrl' ? await getInformeMetadata(supabase, informe.id) : null;
+  // T-022: getInformeMetadata es generico — devuelve `{ tipo, data: unknown }`
+  // o null si no hay metadata o schema drift. El EditorView (Client) usa el
+  // registry cliente para renderizar el form correcto a partir del tipo.
+  const tipo = informe.tipo as InformeTipo;
+  const metadataRow = await getInformeMetadata(supabase, informe.id, tipo);
 
   return (
     <EditorView
       informeId={informe.id}
-      tipo={informe.tipo as InformeTipo}
+      tipo={tipo}
       titulo={informe.titulo}
       initialContent={informe.contenido}
-      initialMetadata={metadata}
+      initialMetadata={metadataRow?.data ?? null}
     />
   );
 }

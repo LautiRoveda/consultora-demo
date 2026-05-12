@@ -1,6 +1,6 @@
 'use client';
 
-import type { RgrlMetadata } from '@/shared/templates/rgrl/schema';
+import type { FieldValues, UseFormReturn } from 'react-hook-form';
 import type { InformeTipo } from '../../schema';
 import type { UpdateInformeContentInput } from '../schema';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,9 +10,24 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+/**
+ * Schema por tipo para `useForm(resolver: zodResolver(...))`. El tipo del
+ * informe esta fijo en /editar (a diferencia del wizard), asi que un solo
+ * useForm tipado al schema del tipo activo es suficiente.
+ *
+ * Cast a `ZodType<FieldValues, FieldValues>`: necesario para que zodResolver
+ * encaje en `Resolver<FieldValues>`. Las metadata concretas son
+ * `Record<string, unknown>` por construccion, asi que el cast es seguro pero
+ * TS no puede inferirlo (variance del schema generico).
+ */
+import { type ZodType } from 'zod';
 
 import { useMediaQuery } from '@/shared/lib/use-media-query';
-import { rgrlMetadataDefaults, RgrlMetadataForm } from '@/shared/templates/rgrl/RgrlMetadataForm';
+import { accidenteMetadataSchema } from '@/shared/templates/accidente/schema';
+import { capacitacionMetadataSchema } from '@/shared/templates/capacitacion/schema';
+import { otrosMetadataSchema } from '@/shared/templates/otros/schema';
+import { TEMPLATE_CLIENT_REGISTRY } from '@/shared/templates/registry/client';
+import { relevamientoMetadataSchema } from '@/shared/templates/relevamiento/schema';
 import { rgrlMetadataSchema } from '@/shared/templates/rgrl/schema';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
@@ -48,6 +63,22 @@ const USER_PROMPT_PLACEHOLDERS: Record<InformeTipo, string> = {
     'Ej: Auditoría interna del sistema de gestión HyS contra ISO 45001, alcance: planta principal, foco en jerarquía de controles y matriz de riesgos.',
 };
 
+const SCHEMA_BY_TIPO: Record<InformeTipo, ZodType<FieldValues, FieldValues>> = {
+  rgrl: rgrlMetadataSchema,
+  capacitacion: capacitacionMetadataSchema,
+  relevamiento: relevamientoMetadataSchema,
+  accidente: accidenteMetadataSchema,
+  otros: otrosMetadataSchema,
+};
+
+const SUMMARY_TITLE_BY_TIPO: Record<InformeTipo, string> = {
+  rgrl: 'Datos del relevamiento',
+  capacitacion: 'Datos de la capacitación',
+  relevamiento: 'Datos del relevamiento',
+  accidente: 'Datos del accidente',
+  otros: 'Datos del informe',
+};
+
 export function EditorView({
   informeId,
   tipo,
@@ -59,8 +90,12 @@ export function EditorView({
   tipo: InformeTipo;
   titulo: string;
   initialContent: string | null;
-  /** T-021: metadata RGRL pre-cargado por el server. null si no existe. */
-  initialMetadata: RgrlMetadata | null;
+  /**
+   * T-022: payload typesafe es `unknown` en la signature publica — el server
+   * page.tsx valida via el schema del registry antes de pasarlo aca, asi que
+   * estructuralmente coincide con el shape esperado.
+   */
+  initialMetadata: unknown;
 }) {
   const router = useRouter();
   const [state, setState] = useState<EditorState>('idle');
@@ -71,11 +106,16 @@ export function EditorView({
     defaultValues: { content: initialContent ?? '' },
   });
 
-  // T-021: form RGRL del panel arriba. Solo se inicializa para tipo='rgrl'.
-  // Para tipos sin metadata, este form queda sin uso (no se renderiza).
-  const metadataForm = useForm<RgrlMetadata>({
-    resolver: zodResolver(rgrlMetadataSchema),
-    defaultValues: initialMetadata ?? rgrlMetadataDefaults(),
+  // T-022: form del tipo activo. Schema y defaults vienen del registry +
+  // SCHEMA_BY_TIPO. useForm con generic FieldValues para evitar variance
+  // issues — el resolver garantiza shape correcto en runtime.
+  const tipoEntry = TEMPLATE_CLIENT_REGISTRY[tipo];
+  const metadataForm = useForm<FieldValues>({
+    resolver: zodResolver(SCHEMA_BY_TIPO[tipo]),
+    defaultValues:
+      initialMetadata && typeof initialMetadata === 'object'
+        ? initialMetadata
+        : tipoEntry.defaults(),
   });
 
   // Collapsible default open behavior: si data vacia, siempre abierto (el
@@ -85,16 +125,13 @@ export function EditorView({
   const [metadataOpen, setMetadataOpen] = useState<boolean | undefined>(undefined);
   const metadataOpenEffective = metadataOpen ?? (initialMetadata ? isDesktop : true);
 
-  // RHF `watch()` no es memoizable safely (lo dice react-hooks/incompatible-library).
-  // Es el patron oficial de RHF para preview live — el lint lo flaggea pero
-  // no hay alternativa sin re-implementar el subscriber.
   // eslint-disable-next-line react-hooks/incompatible-library
   const watchedContent = form.watch('content');
   const isPending = state === 'generating' || state === 'saving' || state === 'saving_metadata';
-  const showMetadataPanel = tipo === 'rgrl';
+
+  const FormComponent = tipoEntry.FormComponent;
 
   async function onGenerate() {
-    // Confirmar overwrite cuando hay contenido sin guardar.
     if (form.formState.isDirty && watchedContent.trim().length > 0) {
       const ok = window.confirm(
         '¿Reemplazar el contenido actual con el nuevo borrador generado? Tus cambios sin guardar se van a perder.',
@@ -191,19 +228,18 @@ export function EditorView({
   }
 
   /**
-   * T-021 · Submit del form RGRL. Persiste via updateInformeMetadataAction;
-   * mantiene el panel abierto post-save para que el user pueda continuar
-   * editando si quiere (toast confirma el save).
+   * T-022 · Submit del form de metadata. El action espera discriminated
+   * union {tipo, data} — wrapeamos con el tipo activo del informe.
    */
-  async function onSaveMetadata(values: RgrlMetadata) {
+  async function onSaveMetadata(values: FieldValues) {
     setState('saving_metadata');
-    const result = await updateInformeMetadataAction(informeId, values);
+    const result = await updateInformeMetadataAction(informeId, {
+      tipo,
+      data: values,
+    });
 
     if (result.ok) {
       toast.success('Datos guardados');
-      // No colapsamos el panel — el user decide.
-      // Refresh para que la prxima visita a /editar vea los valores desde el
-      // server (el form ya tiene los values en memoria).
       router.refresh();
       setState('idle');
       return;
@@ -213,8 +249,7 @@ export function EditorView({
 
     if (result.code === 'INVALID_INPUT') {
       for (const [field, messages] of Object.entries(result.fieldErrors)) {
-        // RHF acepta nested paths con dot notation — mapeamos directo.
-        metadataForm.setError(field as keyof RgrlMetadata, { message: messages[0] });
+        metadataForm.setError(field, { message: messages[0] });
       }
       toast.error('Datos inválidos', { description: result.message });
       return;
@@ -252,55 +287,58 @@ export function EditorView({
         <p className="text-muted-foreground text-sm">Tipo: {INFORME_TIPO_LABELS[tipo]}</p>
       </div>
 
-      {showMetadataPanel && (
-        <Card>
-          <CardContent className="pt-6">
-            <Collapsible open={metadataOpenEffective} onOpenChange={setMetadataOpen}>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-base font-semibold tracking-tight">Datos del relevamiento</h2>
-                  <p className="text-muted-foreground mt-1 text-sm">
-                    Se inyectan al prompt de la IA para reducir placeholders.
-                  </p>
-                </div>
-                <CollapsibleTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="shrink-0"
-                    aria-label={metadataOpenEffective ? 'Ocultar datos' : 'Mostrar datos'}
-                  >
-                    <ChevronDown
-                      className={`size-4 transition-transform ${
-                        metadataOpenEffective ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </Button>
-                </CollapsibleTrigger>
+      <Card>
+        <CardContent className="pt-6">
+          <Collapsible open={metadataOpenEffective} onOpenChange={setMetadataOpen}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-base font-semibold tracking-tight">
+                  {SUMMARY_TITLE_BY_TIPO[tipo]}
+                </h2>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Se inyectan al prompt de la IA para reducir placeholders.
+                </p>
               </div>
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  aria-label={metadataOpenEffective ? 'Ocultar datos' : 'Mostrar datos'}
+                >
+                  <ChevronDown
+                    className={`size-4 transition-transform ${
+                      metadataOpenEffective ? 'rotate-180' : ''
+                    }`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+            </div>
 
-              <CollapsibleContent className="space-y-4 pt-4">
-                <Separator />
-                <Form {...metadataForm}>
-                  <form
-                    onSubmit={(e) => void metadataForm.handleSubmit(onSaveMetadata)(e)}
-                    className="space-y-6 pt-2"
-                    noValidate
-                  >
-                    <RgrlMetadataForm form={metadataForm} disabled={isPending} />
-                    <div className="flex justify-end">
-                      <Button type="submit" disabled={isPending}>
-                        {state === 'saving_metadata' ? 'Guardando…' : 'Guardar datos'}
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </CollapsibleContent>
-            </Collapsible>
-          </CardContent>
-        </Card>
-      )}
+            <CollapsibleContent className="space-y-4 pt-4">
+              <Separator />
+              <Form {...metadataForm}>
+                <form
+                  onSubmit={(e) => void metadataForm.handleSubmit(onSaveMetadata)(e)}
+                  className="space-y-6 pt-2"
+                  noValidate
+                >
+                  <FormComponent
+                    form={metadataForm as UseFormReturn<FieldValues>}
+                    disabled={isPending}
+                  />
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={isPending}>
+                      {state === 'saving_metadata' ? 'Guardando…' : 'Guardar datos'}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </CollapsibleContent>
+          </Collapsible>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

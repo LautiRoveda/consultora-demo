@@ -44,15 +44,19 @@ test.describe('Informes · crear + listar (T-019)', () => {
     await expect(page).toHaveURL(/\/informes\/nuevo$/);
 
     // Form: el default del tipo es 'relevamiento'; cambiamos a Capacitación para
-    // validar el Select. NOTA T-021: el path RGRL se ramifica en wizard 2-step
-    // (boton "Siguiente"), cubierto por informes-rgrl-template.spec.ts. Acá
-    // testeamos el "quick path" de tipos sin template parametrizado.
+    // validar el Select. T-022: los 5 tipos ramifican al wizard step 2; testeamos
+    // el path "Crear sin datos" (AlertDialog) para validar que el informe se crea
+    // sin metadata cuando el user lo prefiere.
     await page.getByRole('combobox').click();
     await page.getByRole('option', { name: 'Capacitación' }).click();
 
     const titulo = `Informe E2E ${Date.now().toString(36)}`;
     await page.getByLabel('Título').fill(titulo);
-    await page.getByRole('button', { name: 'Crear informe' }).click();
+    await page.getByRole('button', { name: /Siguiente/ }).click();
+
+    // Step 2: "Crear sin datos" → AlertDialog → confirmar.
+    await page.getByRole('button', { name: 'Crear sin datos' }).click();
+    await page.getByRole('button', { name: 'Crear vacío' }).click();
 
     // Redirect a /informes/[id] con placeholder de contenido pendiente.
     await expect(page).toHaveURL(/\/informes\/[0-9a-f-]+$/, { timeout: 10_000 });
@@ -74,9 +78,11 @@ test.describe('Informes · crear + listar (T-019)', () => {
 
     await page.goto('/informes/nuevo');
     const titulo = `Informe lista E2E ${Date.now().toString(36)}`;
-    // Tipo default 'relevamiento' es valido — no tocamos el Select.
+    // Tipo default 'relevamiento'. T-022: ramifica a step 2 → "Crear sin datos".
     await page.getByLabel('Título').fill(titulo);
-    await page.getByRole('button', { name: 'Crear informe' }).click();
+    await page.getByRole('button', { name: /Siguiente/ }).click();
+    await page.getByRole('button', { name: 'Crear sin datos' }).click();
+    await page.getByRole('button', { name: 'Crear vacío' }).click();
 
     // Redirect al detalle. Volvemos a la lista y verificamos el row.
     await expect(page).toHaveURL(/\/informes\/[0-9a-f-]+$/, { timeout: 10_000 });
