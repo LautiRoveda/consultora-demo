@@ -1,14 +1,28 @@
 'use client';
 
+import type { AccidenteMetadata } from '@/shared/templates/accidente/schema';
+import type { CapacitacionMetadata } from '@/shared/templates/capacitacion/schema';
+import type { OtrosMetadata } from '@/shared/templates/otros/schema';
+import type { RelevamientoMetadata } from '@/shared/templates/relevamiento/schema';
 import type { RgrlMetadata } from '@/shared/templates/rgrl/schema';
-import type { CreateInformeInput } from '../schema';
+import type { UseFormReturn } from 'react-hook-form';
+import type { CreateInformeInput, InformeTipo } from '../schema';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
-import { rgrlMetadataDefaults, RgrlMetadataForm } from '@/shared/templates/rgrl/RgrlMetadataForm';
+import { accidenteMetadataDefaults } from '@/shared/templates/accidente/AccidenteMetadataForm';
+import { accidenteMetadataSchema } from '@/shared/templates/accidente/schema';
+import { capacitacionMetadataDefaults } from '@/shared/templates/capacitacion/CapacitacionMetadataForm';
+import { capacitacionMetadataSchema } from '@/shared/templates/capacitacion/schema';
+import { otrosMetadataDefaults } from '@/shared/templates/otros/OtrosMetadataForm';
+import { otrosMetadataSchema } from '@/shared/templates/otros/schema';
+import { TEMPLATE_CLIENT_REGISTRY } from '@/shared/templates/registry/client';
+import { relevamientoMetadataDefaults } from '@/shared/templates/relevamiento/RelevamientoMetadataForm';
+import { relevamientoMetadataSchema } from '@/shared/templates/relevamiento/schema';
+import { rgrlMetadataDefaults } from '@/shared/templates/rgrl/RgrlMetadataForm';
 import { rgrlMetadataSchema } from '@/shared/templates/rgrl/schema';
 import {
   AlertDialog,
@@ -32,22 +46,79 @@ import { createInformeSchema, INFORME_TIPO_LABELS, INFORME_TIPOS } from '../sche
 
 /**
  * T-021 · Wizard de creacion de informes (2 steps).
+ * T-022 · Generalizado para los 5 tipos via `useFormsByTipo()` + el registry
+ *         cliente. Cada tipo tiene su `useForm` instance dedicada que vive
+ *         durante todo el ciclo de vida del wizard.
  *
- * Step `'tipo'`: tipo + titulo (espejo de T-019).
- *   - Si `tipo === 'rgrl'`, el boton principal dice "Siguiente" y avanza al
- *     step `'metadata'`.
- *   - Si `tipo !== 'rgrl'`, el boton dice "Crear informe" y submit directo.
+ * Step `'tipo'`: tipo + titulo. Boton dice "Siguiente" para todos los tipos
+ *   con metadata (los 5 hoy).
+ * Step `'metadata'`: form del tipo activo, renderizado desde el registry.
+ *   - "← Volver" preserva los values del form activo.
+ *   - "Crear sin datos" abre AlertDialog de confirmacion → submit sin metadata.
+ *   - "Crear con datos" valida step 2 + submit con metadata.
  *
- * Step `'metadata'`: form RGRL completo.
- *   - "← Volver" preserva los values del metadataForm.
- *   - "Crear sin datos" abre un AlertDialog de confirmacion → submit sin metadata.
- *   - "Crear informe con datos" valida step 2 + submit con metadata.
- *
- * Si el user vuelve a step 1 y cambia tipo a !== 'rgrl', descartamos
- * metadataForm silenciosamente (devLog console.log en NODE_ENV=development).
+ * COMENTARIO IMPORTANTE sobre useFormsByTipo:
+ * Volver al mismo tipo previo PRESERVA los values ingresados — las 5
+ * instancias `useForm` sobreviven al cambio de tipo (vivien durante todo el
+ * mount del componente). Si necesitas reset entre tipos, usar
+ * `form.reset(defaults)` explicito al cambio. Hoy NO reseteamos al cambiar
+ * tipo: el user vuelve, ve sus datos y puede ajustar — UX preferida vs
+ * "form siempre limpio segun tipo".
  */
 
 type WizardStep = 'tipo' | 'metadata';
+
+/** Titulo del step 2 por tipo (genero gramatical correcto). */
+const STEP2_TITLE_BY_TIPO: Record<InformeTipo, string> = {
+  rgrl: 'Datos del relevamiento',
+  capacitacion: 'Datos de la capacitación',
+  relevamiento: 'Datos del relevamiento',
+  accidente: 'Datos del accidente',
+  otros: 'Datos del informe',
+};
+
+// Map de tipo → metadata específico. Usado por TS para narrowear forms[tipo].
+type MetadataByTipo = {
+  rgrl: RgrlMetadata;
+  capacitacion: CapacitacionMetadata;
+  relevamiento: RelevamientoMetadata;
+  accidente: AccidenteMetadata;
+  otros: OtrosMetadata;
+};
+
+/**
+ * Custom hook: instancia 1 useForm por tipo (5 total). React requiere que
+ * los hooks se llamen en orden fijo — usar Object.fromEntries con map sobre
+ * INFORME_TIPOS VIOLA reglas de hooks. Por eso los hardcodemos en bloque.
+ *
+ * Las instancias sobreviven a cambios de `tipoWatch` (no se desmontan).
+ * Cambiar de tipo y volver preserva los values ingresados (UX preferida).
+ */
+function useFormsByTipo(): {
+  [K in InformeTipo]: UseFormReturn<MetadataByTipo[K]>;
+} {
+  const rgrl = useForm<RgrlMetadata>({
+    resolver: zodResolver(rgrlMetadataSchema),
+    defaultValues: rgrlMetadataDefaults(),
+  });
+  const capacitacion = useForm<CapacitacionMetadata>({
+    resolver: zodResolver(capacitacionMetadataSchema),
+    defaultValues: capacitacionMetadataDefaults(),
+  });
+  const relevamiento = useForm<RelevamientoMetadata>({
+    resolver: zodResolver(relevamientoMetadataSchema),
+    defaultValues: relevamientoMetadataDefaults(),
+  });
+  const accidente = useForm<AccidenteMetadata>({
+    resolver: zodResolver(accidenteMetadataSchema),
+    defaultValues: accidenteMetadataDefaults(),
+  });
+  const otros = useForm<OtrosMetadata>({
+    resolver: zodResolver(otrosMetadataSchema),
+    defaultValues: otrosMetadataDefaults(),
+  });
+  return { rgrl, capacitacion, relevamiento, accidente, otros };
+}
 
 export function InformeNuevoForm() {
   const router = useRouter();
@@ -59,30 +130,14 @@ export function InformeNuevoForm() {
     defaultValues: { tipo: 'relevamiento', titulo: '' },
   });
 
-  const metadataForm = useForm<RgrlMetadata>({
-    resolver: zodResolver(rgrlMetadataSchema),
-    defaultValues: rgrlMetadataDefaults(),
-  });
+  const forms = useFormsByTipo();
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const tipoWatch = baseForm.watch('tipo');
-  const isRgrl = tipoWatch === 'rgrl';
+  // PARADA #3: todos los 5 tipos tienen metadata, asi que siempre hay step 2.
+  const tipoHasMetadata = TEMPLATE_CLIENT_REGISTRY[tipoWatch] !== null;
 
-  // Si el user vuelve a step 1 y cambia tipo !== rgrl, reset metadataForm.
-  useEffect(() => {
-    if (step === 'tipo' && tipoWatch !== 'rgrl' && metadataForm.formState.isDirty) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[wizard] tipo cambio a', tipoWatch, '— descartando metadataForm');
-      }
-      metadataForm.reset(rgrlMetadataDefaults());
-    }
-  }, [step, tipoWatch, metadataForm]);
-
-  /**
-   * Submit a `createInformeAction` con o sin metadata. Maneja errores con
-   * pattern match sobre el discriminated union.
-   */
-  async function submitWithMetadata(metadata: RgrlMetadata | undefined) {
+  async function submitWithMetadata(metadata: MetadataByTipo[InformeTipo] | undefined) {
     setIsPending(true);
     const values = baseForm.getValues();
     const result = await createInformeAction({ ...values, metadata });
@@ -128,19 +183,25 @@ export function InformeNuevoForm() {
     }
   }
 
-  /** Step 1 submit handler. Si es RGRL → avanza al step 2; sino → submit. */
+  /** Step 1 submit handler. Si tiene metadata → avanza al step 2; sino → submit. */
   async function onStep1Submit() {
-    if (isRgrl) {
+    if (tipoHasMetadata) {
       setStep('metadata');
       return;
     }
     await submitWithMetadata(undefined);
   }
 
-  /** Step 2 submit handler. Valida + envia con metadata. */
-  async function onStep2Submit(values: RgrlMetadata) {
+  /** Step 2 submit handler. Valida + envia con metadata del tipo activo. */
+  async function onStep2Submit(values: MetadataByTipo[InformeTipo]) {
     await submitWithMetadata(values);
   }
+
+  const tipoEntry = TEMPLATE_CLIENT_REGISTRY[tipoWatch];
+  const FormComponent = tipoEntry.FormComponent;
+  // Cast a unknown para evitar variance issues — el render correcto se
+  // garantiza por contruccion (el form que pasamos es el del tipoWatch).
+  const activeForm = forms[tipoWatch] as UseFormReturn<MetadataByTipo[InformeTipo]>;
 
   return (
     <Card className="max-w-3xl">
@@ -191,7 +252,11 @@ export function InformeNuevoForm() {
               />
               <div className="flex justify-end">
                 <Button type="submit" disabled={isPending}>
-                  {isRgrl ? 'Siguiente: cargar datos' : isPending ? 'Creando…' : 'Crear informe'}
+                  {tipoHasMetadata
+                    ? 'Siguiente: cargar datos'
+                    : isPending
+                      ? 'Creando…'
+                      : 'Crear informe'}
                 </Button>
               </div>
             </form>
@@ -199,21 +264,23 @@ export function InformeNuevoForm() {
         )}
 
         {step === 'metadata' && (
-          <Form {...metadataForm}>
+          <Form {...activeForm}>
             <form
-              onSubmit={(e) => void metadataForm.handleSubmit(onStep2Submit)(e)}
+              onSubmit={(e) => void activeForm.handleSubmit(onStep2Submit)(e)}
               className="space-y-6"
               noValidate
             >
               <div>
-                <h2 className="text-lg font-semibold tracking-tight">Datos del relevamiento</h2>
+                <h2 className="text-lg font-semibold tracking-tight">
+                  {STEP2_TITLE_BY_TIPO[tipoWatch]}
+                </h2>
                 <p className="text-muted-foreground mt-1 text-sm">
                   Esta información se inyecta al prompt de la IA para que genere un borrador 80-90%
                   completo en lugar de placeholders.
                 </p>
               </div>
 
-              <RgrlMetadataForm form={metadataForm} disabled={isPending} />
+              <FormComponent form={activeForm} disabled={isPending} />
 
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
                 <Button
@@ -236,7 +303,7 @@ export function InformeNuevoForm() {
                       <AlertDialogHeader>
                         <AlertDialogTitle>¿Crear sin datos?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Podés cargar los datos del establecimiento después desde el editor.
+                          Podés cargar los datos del informe después desde el editor.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

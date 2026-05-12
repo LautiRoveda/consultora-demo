@@ -1,6 +1,7 @@
 'use server';
 
 import type { AiErrorCode, AiUsage } from '@/shared/ai/types';
+import type { Json } from '@/shared/supabase/types';
 import type { InformeTipo } from '../schema';
 import Anthropic from '@anthropic-ai/sdk';
 import { revalidatePath } from 'next/cache';
@@ -10,8 +11,7 @@ import { getSystemPromptForTipo } from '@/shared/ai/prompts';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
-import { renderRgrlMetadataAsPromptContext } from '@/shared/templates/rgrl/render';
-import { normalizeRgrlMetadata, rgrlMetadataSchema } from '@/shared/templates/rgrl/schema';
+import { getServerTemplate } from '@/shared/templates/registry/server';
 
 import { INFORME_TIPOS } from '../schema';
 import {
@@ -22,6 +22,7 @@ import {
 
 /**
  * T-020 · Server actions del editor de contenido de informes.
+ * T-022 · Generaliza inyeccion + persistencia de metadata via registry.
  *
  * Patron de discriminated union heredado de Sprint 1: las actions NUNCA
  * tiran. El cliente patternmatchea sobre `code` para UX. Errores tecnicos
@@ -49,17 +50,15 @@ export type GenerateInformeResult =
  * 2. Auth gate (getUser → UNAUTHENTICATED).
  * 3. Consultora gate (getCurrentConsultora → NO_CONSULTORA).
  * 4. Cargar informe (RLS scope → NOT_FOUND si null).
- * 5. Permission gate defensivo: creator O owner. Razon: si el user no
- *    tiene permiso de UPDATE en el informe, no quemamos tokens generando
- *    contenido que tampoco va a poder guardar. La RLS de UPDATE haria
- *    el gate real al guardar, pero queremos UX rapida.
- * 6. Build prompt: system del tipo + user message (opcional).
- * 7. Call Anthropic (single-turn, no streaming, max_tokens=4096).
- * 8. Manejo de stop_reason (refusal → CONTENT_FILTER).
- * 9. Extract text + log usage (sin loggear prompt ni response).
- *
- * NO escribe a DB. El user revisa el contenido en el editor y luego
- * decide guardar via `updateInformeContentAction`.
+ * 5. Permission gate defensivo: creator O owner.
+ * 6. (T-022) Si el tipo tiene template, cargar metadata e inyectar como
+ *    prompt context al user message. system prompt NO cambia → cache hit
+ *    preservado. Defensivo: metadata invalida cae al comportamiento sin
+ *    contexto en lugar de bloquear.
+ * 7. Build prompt: system del tipo + user message.
+ * 8. Call Anthropic (single-turn, no streaming, max_tokens=4096).
+ * 9. Manejo de stop_reason (refusal → CONTENT_FILTER).
+ * 10. Extract text + log usage.
  */
 export async function generateInformeContentAction(
   informeId: string,
@@ -140,13 +139,14 @@ export async function generateInformeContentAction(
     return { ok: false, code: 'INTERNAL_ERROR', message: 'Tipo de informe invalido.' };
   }
 
-  // 5.5. (T-021) Si tipo === 'rgrl', cargar metadata e inyectar como prompt
-  // context al user message. system prompt NO cambia → cache hit preservado.
-  // Defensivo: si la metadata no parsea (drift post-T-022) caemos al
-  // comportamiento sin contexto en lugar de bloquear al usuario.
+  // 6. (T-022) Cargar metadata via registry. system prompt NO cambia → cache
+  // hit preservado. Defensivo: si la metadata no parsea (schema drift post-T-022)
+  // caemos al comportamiento sin contexto en lugar de bloquear al usuario.
   let promptContext = '';
   let hasMetadata = false;
-  if (informe.tipo === 'rgrl') {
+  const tipo = informe.tipo as InformeTipo;
+  const tipoEntry = getServerTemplate(tipo);
+  if (tipoEntry) {
     const { data: metaRow, error: metaErr } = await supabase
       .from('informe_metadata')
       .select('data')
@@ -155,14 +155,14 @@ export async function generateInformeContentAction(
 
     if (metaErr) {
       logger.warn(
-        { err: metaErr, informeId, consultoraId: consultora.id, userId: user.id },
-        'rgrl_metadata_load_failed',
+        { err: metaErr, informeId, consultoraId: consultora.id, userId: user.id, tipo },
+        'metadata_load_failed',
       );
       // No bloqueante: caer a prosa libre.
     } else if (metaRow?.data) {
-      const parsedMeta = rgrlMetadataSchema.safeParse(metaRow.data);
+      const parsedMeta = tipoEntry.schema.safeParse(metaRow.data);
       if (parsedMeta.success) {
-        promptContext = renderRgrlMetadataAsPromptContext(parsedMeta.data);
+        promptContext = tipoEntry.render(parsedMeta.data);
         hasMetadata = true;
       } else {
         logger.warn(
@@ -170,24 +170,21 @@ export async function generateInformeContentAction(
             informeId,
             consultoraId: consultora.id,
             userId: user.id,
+            tipo,
             issueCount: parsedMeta.error.issues.length,
           },
-          'rgrl_metadata_schema_drift',
+          'metadata_schema_drift',
         );
       }
     }
   }
 
-  // 6. Build prompt.
-  const systemPrompt = getSystemPromptForTipo(informe.tipo as InformeTipo);
+  // 7. Build prompt.
+  const systemPrompt = getSystemPromptForTipo(tipo);
   const userNotes = parsed.data.userPrompt?.trim() ?? '';
-  const userMessage = buildUserMessage({
-    promptContext,
-    userNotes,
-    tipo: informe.tipo as InformeTipo,
-  });
+  const userMessage = buildUserMessage({ promptContext, userNotes, tipo });
 
-  // 7. Call Anthropic.
+  // 8. Call Anthropic.
   // max_tokens=4096 para fit en Vercel Hobby timeout de 10s. Subir a 8192
   // cuando upgrademos a Pro (issue T-020-FU1).
   const client = getAnthropicClient();
@@ -213,7 +210,7 @@ export async function generateInformeContentAction(
     });
   }
 
-  // 8. Stop reason: 'refusal' → CONTENT_FILTER.
+  // 9. Stop reason: 'refusal' → CONTENT_FILTER.
   if (response.stop_reason === 'refusal') {
     logger.warn({ informeId, consultoraId: consultora.id, userId: user.id }, 'anthropic_refusal');
     return {
@@ -224,7 +221,7 @@ export async function generateInformeContentAction(
     };
   }
 
-  // 9. Extract text + log usage.
+  // 10. Extract text + log usage.
   const content = response.content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
     .map((b) => b.text)
@@ -242,6 +239,7 @@ export async function generateInformeContentAction(
       informeId,
       consultoraId: consultora.id,
       userId: user.id,
+      tipo,
       model: response.model,
       stopReason: response.stop_reason,
       hasMetadata,
@@ -254,11 +252,11 @@ export async function generateInformeContentAction(
 }
 
 /**
- * Combina prompt context (renderizado de metadata RGRL) y user notes (textarea
+ * Combina prompt context (renderizado de metadata) y user notes (textarea
  * libre) en un único user message. Reglas:
  * - Ambos presentes → context + separador + sección "Notas adicionales".
  * - Solo context (form sin notas) → context puro.
- * - Solo notes (informe sin metadata o no-rgrl) → notes solos.
+ * - Solo notes (informe sin metadata) → notes solos.
  * - Ninguno → fallback genérico por tipo.
  */
 function buildUserMessage(args: {
@@ -342,8 +340,8 @@ export type UpdateInformeContentResult =
  * creator OR consultora owner. Si el usuario no tiene permiso, el UPDATE
  * devuelve 0 filas (sin error explicito) → mapeamos a FORBIDDEN.
  *
- * El trigger `audit_informes_after_update` (post-T-020 migration) captura
- * el cambio en audit_log con before/after data truncado a 500 chars.
+ * El trigger `audit_informes_after_update` captura el cambio en audit_log
+ * con before/after data truncado a 500 chars.
  */
 export async function updateInformeContentAction(
   informeId: string,
@@ -443,7 +441,7 @@ export async function updateInformeContentAction(
 }
 
 // =============================================================================
-// updateInformeMetadataAction (T-021)
+// updateInformeMetadataAction (T-021 / T-022 generalizada)
 // =============================================================================
 
 export type UpdateInformeMetadataResult =
@@ -456,30 +454,34 @@ export type UpdateInformeMetadataResult =
     };
 
 /**
- * Persiste el form RGRL en `public.informe_metadata` via UPSERT por
- * informe_id (PK=FK 1:1 con informes).
+ * Persiste el form estructurado del tipo de informe en `public.informe_metadata`
+ * via UPSERT por informe_id (PK=FK 1:1 con informes).
+ *
+ * T-022 · El input es un discriminated union sobre `tipo`. El action verifica
+ * que `input.tipo` coincida con `informe.tipo` (defensa contra wizard mal
+ * sincronizado), luego despacha al `getServerTemplate(tipo)` para
+ * normalizar pre-persist.
  *
  * Permission gate: creator del informe O owner de la consultora — mismo
- * gate que update de contenido (T-020). RLS WITH CHECK confirma del lado
- * DB; el chequeo pre-UPSERT distingue NOT_FOUND vs FORBIDDEN para UX
- * mejor que el silent RLS filter.
+ * gate que update de contenido. RLS WITH CHECK confirma del lado DB; el
+ * chequeo pre-UPSERT distingue NOT_FOUND vs FORBIDDEN.
  *
- * Solo acepta tipo='rgrl' por ahora. T-022 va a convertir esto en un
- * dispatch por tipo cuando se sumen los otros 4 templates.
- *
- * El audit_log queda cubierto por el trigger `audit_informe_metadata` —
- * diff guard ya filtra UPDATEs sin cambio real en data.
+ * El audit_log queda cubierto por el trigger `audit_informe_metadata`.
  */
 export async function updateInformeMetadataAction(
   informeId: string,
   input: unknown,
 ): Promise<UpdateInformeMetadataResult> {
-  // 1. Zod validate.
+  // 1. Zod validate (discriminated union por tipo).
   const parsed = updateInformeMetadataInputSchema.safeParse(input);
   if (!parsed.success) {
     const fieldErrors: Record<string, string[]> = {};
     for (const issue of parsed.error.issues) {
-      const key = issue.path.join('.') || '_';
+      // Las issues del discriminated union vienen con paths absolutos
+      // (`data.cuit`, etc.). Stripeamos el prefijo `data.` para que el RHF
+      // del cliente (que trabaja sobre `data` puro) las matchee.
+      const rawKey = issue.path.join('.') || '_';
+      const key = rawKey.startsWith('data.') ? rawKey.slice(5) : rawKey;
       (fieldErrors[key] ??= []).push(issue.message);
     }
     return {
@@ -527,11 +529,33 @@ export async function updateInformeMetadataAction(
     return { ok: false, code: 'NOT_FOUND', message: 'Informe no encontrado.' };
   }
 
-  // Solo RGRL acepta metadata en T-021 — defensa server-side (UI no permite).
-  if (informe.tipo !== 'rgrl') {
+  // T-022 · El tipo del input DEBE coincidir con el del informe. Si no,
+  // el cliente esta enviando un payload con shape de otro tipo — rechazamos.
+  if (parsed.data.tipo !== informe.tipo) {
+    logger.warn(
+      {
+        informeId,
+        tipoInput: parsed.data.tipo,
+        tipoInforme: informe.tipo,
+        userId: user.id,
+        consultoraId: consultora.id,
+      },
+      'updateInformeMetadataAction: tipo input no coincide con informe',
+    );
+    return {
+      ok: false,
+      code: 'INVALID_INPUT',
+      fieldErrors: { _: ['El tipo del formulario no coincide con el informe.'] },
+      message: 'Tipo de formulario invalido para este informe.',
+    };
+  }
+
+  const tipoEntry = getServerTemplate(informe.tipo);
+  if (!tipoEntry) {
+    // Defensa: tipo sin template registrado. No deberia ocurrir post-T-022.
     logger.error(
       { informeId, tipo: informe.tipo, userId: user.id, consultoraId: consultora.id },
-      'updateInformeMetadataAction: tipo no soporta metadata',
+      'updateInformeMetadataAction: tipo sin template registrado',
     );
     return {
       ok: false,
@@ -551,11 +575,12 @@ export async function updateInformeMetadataAction(
     };
   }
 
-  // 6. UPSERT. RLS WITH CHECK confirma el permission gate del lado DB.
-  const cleaned = normalizeRgrlMetadata(parsed.data);
+  // 6. UPSERT con data normalizada. RLS WITH CHECK confirma del lado DB.
+  // Cast a Json: el normalize() retorna objeto plano serializable, TS no lo infiere.
+  const cleaned = tipoEntry.normalize(parsed.data.data);
   const { data, error } = await supabase
     .from('informe_metadata')
-    .upsert({ informe_id: informeId, data: cleaned }, { onConflict: 'informe_id' })
+    .upsert({ informe_id: informeId, data: cleaned as Json }, { onConflict: 'informe_id' })
     .select('informe_id');
 
   if (error) {
@@ -584,7 +609,7 @@ export async function updateInformeMetadataAction(
       consultoraId: consultora.id,
       userId: user.id,
       tipo: informe.tipo,
-      fieldCount: Object.keys(parsed.data).length,
+      fieldCount: Object.keys(parsed.data.data).length,
     },
     'informe_metadata_updated',
   );

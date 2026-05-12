@@ -1,9 +1,10 @@
 import type { RgrlMetadata } from './schema';
 
+import { renderAsBlockquote, sanitizeField } from '../common/sanitize';
+import { provinciaName } from '../common/site';
 import {
   distribucionTurnoLabel,
   modalidadOperativaLabel,
-  provinciaName,
   servicioHysModalidadLabel,
 } from './schema';
 
@@ -11,48 +12,18 @@ import {
  * T-021 · Render del metadata RGRL como bloque markdown estructurado para
  * inyectar en el `user message` del Claude API call.
  *
- * Diseño:
+ * T-022 · `sanitizeField` y `renderAsBlockquote` se importan de `common/sanitize`
+ * — los 5 renders comparten la misma defensa anti-prompt-injection.
+ *
+ * Diseno:
  * - El bloque se prepende al userMessage. El `system` prompt no cambia →
  *   los hits de prompt caching (cache_control: ephemeral) se preservan.
  * - Los valores del consultor se escapan ANTES de concatenarse al template
- *   fijo. Estrategia defensiva contra prompt-injection (un member legitimo
- *   podria meter en `razon_social` algo como ```ignore previous```).
+ *   fijo. Estrategia defensiva contra prompt-injection.
  * - Footer de re-anclaje: el ultimo parrafo re-instruye al modelo a su rol
- *   original. Tecnica clasica de defensa contra jailbreaks por inyeccion.
- * - Campos opcionales ausentes: NO se renderizan (no aparecen como
- *   "CIIU: null"). Si toda una seccion queda vacia (riesgos_pre_detectados),
- *   se omite la subseccion entera.
- *
- * Este modulo es server-only en uso (lo invoca el action al armar el prompt),
- * pero NO marca 'use server' — se importa tambien desde tests integration
- * para snapshot del shape.
+ *   original. Defensa contra jailbreaks por inyeccion.
+ * - Campos opcionales ausentes: NO se renderizan.
  */
-
-/**
- * Sanitiza un string user-controlled antes de meterlo en el markdown del
- * prompt:
- * - Triple backticks → '''.
- * - Backticks simples → '.
- * - "\n#" (heading injector tras newline) → "\n - #".
- * Length caps ya estan aplicados por Zod en `rgrlMetadataSchema`.
- */
-function sanitizeField(s: string): string {
-  return s.replace(/```/g, "'''").replace(/`/g, "'").replace(/\n#/g, '\n - #');
-}
-
-/**
- * Renderiza riesgos_pre_detectados como blockquote por linea. Cada linea
- * tipea `> ...` — limita la capacidad del campo de inyectar estructura
- * markdown libre (headings, listas anidadas, codeblocks).
- */
-function renderRiesgosAsBlockquote(text: string): string {
-  return text
-    .split('\n')
-    .map((line) => `> ${line.trim()}`)
-    .filter((line) => line !== '> ')
-    .join('\n');
-}
-
 export function renderRgrlMetadataAsPromptContext(metadata: RgrlMetadata): string {
   const m = metadata;
   const provincia = `${provinciaName(m.provincia)} (${m.provincia})`;
@@ -107,7 +78,7 @@ export function renderRgrlMetadataAsPromptContext(metadata: RgrlMetadata): strin
   // Riesgos pre-detectados (opcional, omitido si ausente)
   if (m.riesgos_pre_detectados) {
     lines.push('**Riesgos pre-detectados (entrada del consultor):**');
-    lines.push(renderRiesgosAsBlockquote(sanitizeField(m.riesgos_pre_detectados)));
+    lines.push(renderAsBlockquote(sanitizeField(m.riesgos_pre_detectados)));
     lines.push('');
   }
 
