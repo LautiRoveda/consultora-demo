@@ -18,7 +18,23 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@11.0.9 --activate
 
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+
+# --ignore-scripts (T-022.5-FU) bypasea 2 issues en el build de EasyPanel:
+#   1. pnpm 11+ ERR_PNPM_IGNORED_BUILDS: el field package.json pnpm.onlyBuiltDependencies
+#      no es suficiente en este entorno (whitelist queda ignorada y promociona a fatal).
+#   2. husky "prepare" postinstall falla con `.git can't be found` porque `.dockerignore`
+#      excluye `.git` correctamente — husky no tiene heuristica para detectar build context.
+# Skip-eando TODOS los postinstalls evita ambos.
+#
+# `pnpm rebuild` después construye explícitamente los packages que SÍ necesitan native
+# binaries en runtime del container:
+#   - sharp: image optimization (Next.js image runtime).
+#   - esbuild: bundler nativo (Next dev/build pero también ciertas runtime paths).
+# Otros packages whitelisted (@sentry/cli, supabase, unrs-resolver) NO necesitan rebuild:
+# @sentry/cli solo se usa build-time (upload source maps), supabase es devDependency
+# (no llega al runner stage), unrs-resolver es transitivo y se resuelve sin native.
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+ && pnpm rebuild sharp esbuild
 
 # ─── Stage 2: build ─────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
