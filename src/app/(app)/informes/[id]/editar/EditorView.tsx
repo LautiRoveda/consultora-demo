@@ -4,10 +4,10 @@ import type { FieldValues, UseFormReturn } from 'react-hook-form';
 import type { InformeTipo } from '../../schema';
 import type { UpdateInformeContentInput } from '../schema';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronDown, Sparkles } from 'lucide-react';
+import { ChevronDown, Sparkles, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 /**
@@ -22,6 +22,7 @@ import { toast } from 'sonner';
  */
 import { type ZodType } from 'zod';
 
+import { parseSseStream } from '@/shared/ai/sse-client';
 import { useMediaQuery } from '@/shared/lib/use-media-query';
 import { accidenteMetadataSchema } from '@/shared/templates/accidente/schema';
 import { capacitacionMetadataSchema } from '@/shared/templates/capacitacion/schema';
@@ -39,17 +40,20 @@ import { Separator } from '@/shared/ui/separator';
 import { Textarea } from '@/shared/ui/textarea';
 
 import { INFORME_TIPO_LABELS } from '../../schema';
-import {
-  generateInformeContentAction,
-  updateInformeContentAction,
-  updateInformeMetadataAction,
-} from '../actions';
+import { updateInformeContentAction, updateInformeMetadataAction } from '../actions';
 import { MarkdownPreview } from '../MarkdownPreview';
 import { updateInformeInputSchema } from '../schema';
 
-type EditorState = 'idle' | 'generating' | 'generated' | 'saving' | 'saving_metadata';
+/**
+ * T-025 · State machine extendida. `generating-stream` reemplaza al
+ * `generating` de T-020 — la diferencia visual es que durante el stream
+ * vemos chunks aparecer, y se muestra un boton "Cancelar".
+ */
+type EditorState = 'idle' | 'generating-stream' | 'generated' | 'saving' | 'saving_metadata';
 
 const USER_PROMPT_MAX = 2000;
+/** Fallback de flush si rAF pausa (tab background). En foreground rAF gana. */
+const STREAM_FLUSH_FALLBACK_MS = 250;
 
 const USER_PROMPT_PLACEHOLDERS: Record<InformeTipo, string> = {
   relevamiento:
@@ -100,6 +104,20 @@ export function EditorView({
   const router = useRouter();
   const [state, setState] = useState<EditorState>('idle');
   const [userPrompt, setUserPrompt] = useState('');
+  /**
+   * T-025 · Buffer del stream visible. Update via rAF para no saturar
+   * react-markdown con un re-render por chunk. Al `done` se copia a
+   * form.content (state final del editor).
+   */
+  const [streamingBuffer, setStreamingBuffer] = useState('');
+
+  // Refs para cleanup al unmount. Sin esto, navegar mid-stream filtra el
+  // fetch + el SDK sigue tirando tokens hasta el message_stop sin que la UI
+  // se entere.
+  const abortRef = useRef<AbortController | null>(null);
+  const bufferRef = useRef('');
+  const rafIdRef = useRef<number | null>(null);
+  const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const form = useForm<UpdateInformeContentInput>({
     resolver: zodResolver(updateInformeInputSchema),
@@ -118,20 +136,74 @@ export function EditorView({
         : tipoEntry.defaults(),
   });
 
-  // Collapsible default open behavior: si data vacia, siempre abierto (el
-  // user tiene que llenar). Si data poblada, abierto en desktop / cerrado en
-  // mobile (evita scroll hasta el editor de contenido).
   const isDesktop = useMediaQuery('(min-width: 768px)');
   const [metadataOpen, setMetadataOpen] = useState<boolean | undefined>(undefined);
   const metadataOpenEffective = metadataOpen ?? (initialMetadata ? isDesktop : true);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const watchedContent = form.watch('content');
-  const isPending = state === 'generating' || state === 'saving' || state === 'saving_metadata';
+  const isStreaming = state === 'generating-stream';
+  const isPending = isStreaming || state === 'saving' || state === 'saving_metadata';
 
   const FormComponent = tipoEntry.FormComponent;
 
-  async function onGenerate() {
+  // Cleanup al unmount: abort fetch + cancelar rAF y timeout fallback. Sin
+  // esto, navegar a otra ruta mid-stream deja el fetch corriendo en
+  // background y los tokens server-side se siguen gastando.
+  useEffect(() => {
+    return () => {
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      if (timeoutIdRef.current !== null) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
+      }
+    };
+  }, []);
+
+  function scheduleFlush(): void {
+    if (rafIdRef.current !== null) return;
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      if (timeoutIdRef.current !== null) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
+      }
+      setStreamingBuffer(bufferRef.current);
+    });
+    // Fallback: si la pestana esta en background rAF pausa indefinido.
+    // El timeout asegura updates ocasionales sin importar el estado del tab.
+    if (timeoutIdRef.current === null) {
+      timeoutIdRef.current = setTimeout(() => {
+        timeoutIdRef.current = null;
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
+        }
+        setStreamingBuffer(bufferRef.current);
+      }, STREAM_FLUSH_FALLBACK_MS);
+    }
+  }
+
+  function flushAndStopThrottle(): void {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    if (timeoutIdRef.current !== null) {
+      clearTimeout(timeoutIdRef.current);
+      timeoutIdRef.current = null;
+    }
+    setStreamingBuffer(bufferRef.current);
+  }
+
+  async function onGenerate(): Promise<void> {
     if (form.formState.isDirty && watchedContent.trim().length > 0) {
       const ok = window.confirm(
         '¿Reemplazar el contenido actual con el nuevo borrador generado? Tus cambios sin guardar se van a perder.',
@@ -139,51 +211,149 @@ export function EditorView({
       if (!ok) return;
     }
 
-    setState('generating');
-    const result = await generateInformeContentAction(informeId, {
-      userPrompt: userPrompt.trim(),
-    });
+    // Reset del buffer y abort controller para esta corrida.
+    bufferRef.current = '';
+    setStreamingBuffer('');
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setState('generating-stream');
 
-    if (result.ok) {
-      form.setValue('content', result.content, { shouldDirty: true });
+    let usage: { inputTokens: number; outputTokens: number } | null = null;
+
+    try {
+      const res = await fetch(`/api/informes/${informeId}/generate-stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userPrompt: userPrompt.trim() }),
+        signal: ac.signal,
+      });
+
+      // Error pre-stream (4xx/5xx con JSON body). Despues de status 200 el
+      // body es SSE — el error puede venir adentro como evento `error`.
+      if (!res.ok) {
+        let code = 'INTERNAL_ERROR';
+        let message = 'Hubo un error inesperado generando el informe.';
+        try {
+          const body = (await res.json()) as { code?: string; message?: string };
+          code = body.code ?? code;
+          message = body.message ?? message;
+        } catch {
+          // Body no es JSON parseable — usamos los defaults.
+        }
+        handleErrorCode(code, message);
+        return;
+      }
+
+      if (!res.body) {
+        handleErrorCode('INTERNAL_ERROR', 'Respuesta sin body.');
+        return;
+      }
+
+      let lastErrorCode: string | null = null;
+      let lastErrorMessage = '';
+
+      for await (const event of parseSseStream(res.body)) {
+        if (event.type === 'delta') {
+          const { text } = JSON.parse(event.data) as { text: string };
+          bufferRef.current += text;
+          scheduleFlush();
+        } else if (event.type === 'usage') {
+          usage = JSON.parse(event.data) as { inputTokens: number; outputTokens: number };
+        } else if (event.type === 'stop') {
+          // No-op visual — el done que sigue cierra el flujo.
+        } else if (event.type === 'error') {
+          const err = JSON.parse(event.data) as { code: string; message: string };
+          lastErrorCode = err.code;
+          lastErrorMessage = err.message;
+          break;
+        } else if (event.type === 'done') {
+          break;
+        }
+      }
+
+      flushAndStopThrottle();
+
+      if (lastErrorCode) {
+        // STREAM_ABORTED es silent — fue intencional del usuario.
+        if (lastErrorCode === 'STREAM_ABORTED') {
+          bufferRef.current = '';
+          setStreamingBuffer('');
+          setState('idle');
+          return;
+        }
+        handleErrorCode(lastErrorCode, lastErrorMessage);
+        return;
+      }
+
+      // Exito. Copiamos el buffer al form.content (state autoritativo del
+      // editor) y limpiamos el buffer de stream.
+      const finalContent = bufferRef.current;
+      form.setValue('content', finalContent, { shouldDirty: true });
+      bufferRef.current = '';
+      setStreamingBuffer('');
       setState('generated');
       toast.success('Borrador generado', {
-        description: `Tokens usados: ${result.usage.inputTokens} entrada + ${result.usage.outputTokens} salida.`,
+        description: usage
+          ? `Tokens usados: ${usage.inputTokens} entrada + ${usage.outputTokens} salida.`
+          : undefined,
       });
-      return;
+    } catch (err) {
+      // AbortError esperado cuando el usuario clickea "Cancelar" o navega.
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        bufferRef.current = '';
+        setStreamingBuffer('');
+        setState('idle');
+        return;
+      }
+      flushAndStopThrottle();
+      bufferRef.current = '';
+      setStreamingBuffer('');
+      handleErrorCode('INTERNAL_ERROR', 'Hubo un error inesperado generando el informe.');
+    } finally {
+      abortRef.current = null;
     }
+  }
 
+  function handleErrorCode(code: string, message: string): void {
     setState('idle');
-    switch (result.code) {
+    switch (code) {
       case 'INVALID_INPUT':
-        toast.error('Datos inválidos', { description: result.message });
+        toast.error('Datos inválidos', { description: message });
         return;
       case 'UNAUTHENTICATED':
-        toast.error('Sesión vencida', { description: result.message });
+        toast.error('Sesión vencida', { description: message });
         router.push('/login');
         return;
       case 'NO_CONSULTORA':
-        toast.error('Cuenta sin consultora', { description: result.message });
+        toast.error('Cuenta sin consultora', { description: message });
         return;
       case 'FORBIDDEN':
-        toast.error('Sin permiso', { description: result.message });
+        toast.error('Sin permiso', { description: message });
         return;
       case 'NOT_FOUND':
-        toast.error('Informe no encontrado', { description: result.message });
+        toast.error('Informe no encontrado', { description: message });
         return;
       case 'RATE_LIMITED':
-        toast.error('IA saturada', { description: result.message });
+        toast.error('IA saturada', { description: message });
         return;
       case 'CONTENT_FILTER':
-        toast.error('Contenido rechazado por la IA', { description: result.message });
+        toast.error('Contenido rechazado por la IA', { description: message });
         return;
       case 'TIMEOUT':
-        toast.error('Tiempo agotado', { description: result.message });
+        toast.error('Tiempo agotado', { description: message });
         return;
       case 'INTERNAL_ERROR':
-        toast.error('Error inesperado', { description: result.message });
+      default:
+        toast.error('Error inesperado', { description: message });
         return;
     }
+  }
+
+  function onCancelStream(): void {
+    // Dispara el cleanup del fetch + el SDK server-side detecta signal.aborted
+    // y emite event:error STREAM_ABORTED antes de cerrar. El reader del
+    // for-await captura el error o el AbortError + reseteamos state.
+    abortRef.current?.abort();
   }
 
   async function onSubmit(values: UpdateInformeContentInput) {
@@ -275,6 +445,10 @@ export function EditorView({
     }
   }
 
+  // Preview source: durante el stream mostramos el buffer parcial; despues
+  // del done (state generated/idle/saving) mostramos el contenido autoritativo.
+  const previewContent = isStreaming ? streamingBuffer : watchedContent;
+
   return (
     <div className="space-y-6">
       <div>
@@ -358,16 +532,23 @@ export function EditorView({
               </p>
             </div>
 
-            <Button
-              type="button"
-              variant="default"
-              disabled={isPending}
-              onClick={() => void onGenerate()}
-              className="w-full"
-            >
-              <Sparkles className="mr-2 h-4 w-4" />
-              {state === 'generating' ? 'Generando con IA…' : 'Generar con IA'}
-            </Button>
+            {isStreaming ? (
+              <Button type="button" variant="outline" onClick={onCancelStream} className="w-full">
+                <X className="mr-2 h-4 w-4" />
+                Cancelar generación
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="default"
+                disabled={isPending}
+                onClick={() => void onGenerate()}
+                className="w-full"
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                Generar con IA
+              </Button>
+            )}
 
             {state === 'generated' && (
               <Alert>
@@ -424,7 +605,7 @@ export function EditorView({
               Vista previa
             </p>
             <div className="min-h-[400px]">
-              <MarkdownPreview content={watchedContent} />
+              <MarkdownPreview content={previewContent} />
             </div>
           </CardContent>
         </Card>
