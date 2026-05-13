@@ -158,13 +158,11 @@ create policy clientes_update_own_owner on public.clientes
 - `audit_log_select_own` (T-011).
 - `consultoras_select_own_member` (T-013) — defensiva pre-T-016: espejo de `consultora_members_select_self`, permite al dashboard leer la propia consultora vía JOIN sin depender del custom claim.
 
-## Supabase Auth Email Templates (T-012 + T-013)
+## Supabase Auth Email Templates (T-079)
 
-Configuración no versionada (vive en el dashboard, no en el repo):
+Wording + HTML de los 6 templates (Confirm signup, Magic Link, Reset Password, Invite User, Change Email, Reauthentication) vive en [`docs/operations/email-templates.md`](../docs/operations/email-templates.md) — fuente de verdad versionada del repo. Aplicar via `Supabase Dashboard → Authentication → Email Templates` cuando cambien.
 
-- **"Confirm signup"** (T-012) — subject + body en español rioplatense. Wording final en el PR de T-012.
-- **"Magic Link"** (T-013) — subject + body en español rioplatense. Wording final en el PR de T-013.
-- **"Reset Password"** (T-014) — subject + body en español rioplatense. `{{ .ConfirmationURL }}` apunta a `/auth/callback?next=/cambiar-password&from=recovery`. Wording final en el PR de T-014.
+Reset Password en particular: `{{ .ConfirmationURL }}` apunta a `/auth/callback?next=/cambiar-password&from=recovery` (config T-014).
 
 ## Test data residual (T-011 + T-012)
 
