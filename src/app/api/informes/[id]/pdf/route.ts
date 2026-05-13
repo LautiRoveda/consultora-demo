@@ -5,6 +5,7 @@ import { type NextRequest } from 'next/server';
 import { getInformeById } from '@/app/(app)/informes/queries';
 import { INFORME_TIPOS } from '@/app/(app)/informes/schema';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
+import { resolveInternalBaseUrl } from '@/shared/lib/resolve-internal-base-url';
 import { logger } from '@/shared/observability/logger';
 import { getInternalPdfRenderToken } from '@/shared/pdf/browser-pool';
 import { buildPdfFilename } from '@/shared/pdf/filename';
@@ -218,30 +219,6 @@ export async function GET(
       'X-Robots-Tag': 'noindex',
     },
   });
-}
-
-/**
- * Resuelve la URL base para el internal fetch al print page. Prioriza:
- *  1. `INTERNAL_BASE_URL` env var explicita (testing/staging override).
- *  2. `request.url` origin (lo mas robusto en runtime real).
- *  3. `http://127.0.0.1:${PORT}` como ultimo recurso.
- *
- * IPv4 loopback (no `localhost`) para evitar resolver DNS — el container puede
- * tener resolver lento o roto, 127.0.0.1 es instant.
- */
-function resolveInternalBaseUrl(request: NextRequest): string {
-  const explicit = process.env.INTERNAL_BASE_URL;
-  if (explicit) return explicit.replace(/\/$/, '');
-  try {
-    const reqOrigin = new URL(request.url).origin;
-    // Si el request viene por dominio publico (https://...test-ia.cloud), el
-    // fetch interno funciona pero suma latencia. Si es localhost/127.0.0.1,
-    // perfecto. En ambos casos respetamos el origin del request.
-    return reqOrigin;
-  } catch {
-    const port = process.env.PORT ?? '3000';
-    return `http://127.0.0.1:${port}`;
-  }
 }
 
 type AuditLogArgs = {

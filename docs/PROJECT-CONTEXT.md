@@ -120,7 +120,7 @@ Sos mi tech lead y orquestador. Yo (Lautaro) soy el puente entre vos y Claude Co
 - VPS sobre Vercel: decisión T-022.5. Razón: `max_tokens` cap 4096 por Vercel Hobby 10s timeout era bloqueante para outputs Claude largos. VPS sin timeout cap.
 - Vercel queda como hot-backup pausado hasta `2026-06-09` (4 semanas post-cutover). Después decommission.
 - Deploy manual click: EasyPanel self-hosted CE no expone Auto Deploy en UI. Tras cada merge a `main`: EasyPanel → Service `consultora-demo` → "Implementar". GitHub Actions deploy job removido del `ci.yml`.
-- `INTERNAL_BASE_URL=http://localhost:80` seteado en EasyPanel env vars como workaround del fetch interno que falla con dominio público detrás de Traefik. Issue #45 trackea refactor para que loopback sea default en `NODE_ENV=production`.
+- `INTERNAL_BASE_URL` ya **no es necesario** post T-023-FU2: `resolveInternalBaseUrl` devuelve loopback IPv4 `http://127.0.0.1:${PORT ?? '3000'}` por default en `NODE_ENV=production`. La env var queda como override opcional (testing/staging). Post-deploy de T-023-FU2 se puede remover de EasyPanel.
 
 ### Modelo IA
 
@@ -229,7 +229,7 @@ consultora-demo/
 | Issue       | Título                                                                     | Estado                  | Prioridad                  |
 | ----------- | -------------------------------------------------------------------------- | ----------------------- | -------------------------- |
 | #44         | T-023-FU1 · Configurar `mem_limit 1g` en EasyPanel                         | abierto                 | Activar si presión RAM     |
-| #45         | T-023-FU2 · Refactor `resolveInternalBaseUrl()` con loopback default       | abierto                 | Media                      |
+| #45         | T-023-FU2 · Refactor `resolveInternalBaseUrl()` con loopback default       | cerrado                 | —                          |
 | #46         | T-023-FU3 · Footer overlap PDF                                             | cerrado por PR #47+#48  | —                          |
 | T-023-FU4   | Polish visual PDF (logo, color, page breaks, cover, TOC, watermark)        | pendiente abrir post-feedback HyS | a definir          |
 | T-022.5-FU2 | Decommission Vercel hot-backup                                             | scheduled `2026-06-09`  | calendar reminder          |
@@ -241,7 +241,7 @@ consultora-demo/
 - NUNCA pedir passwords reales en chat. Smokes logueados los hace Lautaro manualmente.
 - Build OOM en Docker mitigado con `output: 'standalone'` + `.dockerignore` agresivo. Imagen actual ~600MB con Chromium.
 - HMR token persistence: tokens efímeros generados al boot deben persistirse en `globalThis` para sobrevivir HMR en dev mode (caso del PDF render token).
-- Internal fetch en VPS: `request.url` devuelve dominio externo en prod detrás de Traefik — usar loopback con `INTERNAL_BASE_URL=http://localhost:80`.
+- Internal fetch en VPS: `request.url` devuelve dominio externo en prod detrás de Traefik. Resuelto por T-023-FU2 — `resolveInternalBaseUrl` (`src/shared/lib/`) usa loopback IPv4 por default en `NODE_ENV=production`. La env var `INTERNAL_BASE_URL` queda como override opcional, no obligatoria.
 - EasyPanel UI manual: Service config + env vars + domains se cargan manualmente. CC no tiene acceso. Documentar config literal en ADR para que Lautaro la replique.
 - Cotenants en VPS: projects `agendalo` y `aruba` son productivos. No modificar sus services, env vars, ni Traefik routing.
 
