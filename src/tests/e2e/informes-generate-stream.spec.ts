@@ -111,8 +111,10 @@ test('happy path · streaming visible + save persiste el contenido', async ({ pa
   const contentTextarea = page.getByLabel('Contenido del informe');
   await expect(contentTextarea).toHaveValue(fullText, { timeout: 5000 });
 
-  // Alert "Borrador generado" visible post-done.
-  await expect(page.getByText('Borrador generado')).toBeVisible();
+  // Alert "Borrador generado" visible post-done. Match por la descripcion
+  // unica del Alert (no por el titulo que tambien aparece en el toast sonner —
+  // strict mode falla con 2 matches).
+  await expect(page.getByText(/Revisalo y editalo antes de guardar/i)).toBeVisible();
 
   await page.getByRole('button', { name: 'Guardar cambios' }).click();
 
@@ -177,6 +179,6 @@ test('cancel · abort mid-stream resetea state sin tocar el contenido inicial', 
   await expect(page.getByRole('button', { name: /Generar con IA/i })).toBeVisible();
   // Textarea sin cambios — el contenido previo se preserva.
   await expect(contentTextarea).toHaveValue('# Contenido previo');
-  // No aparece el alert "Borrador generado".
-  await expect(page.getByText('Borrador generado')).toBeHidden();
+  // No aparece el alert "Borrador generado" (match por descripcion unica).
+  await expect(page.getByText(/Revisalo y editalo antes de guardar/i)).toBeHidden();
 });
