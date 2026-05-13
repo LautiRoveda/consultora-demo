@@ -45,11 +45,22 @@ export type HtmlToPdfOptions = {
   };
 };
 
+// T-023-FU3 + FU4 · margenes generosos para impresion fisica A4 + buffer
+// amplio para el footer. Iteracion:
+//   T-023 inicial: 22 / 18 / 24 / 18  (top/right/bottom/left)
+//   FU3 (footer overlap pag 1):   _ / _ / 30 / _
+//   FU4 (overlap persistente otras paginas + impresion fisica):
+//     - top 22 → 25mm: header mas generoso (cubre logo + titulo + metadata).
+//     - sides 18 → 22mm: respeta non-printable area de impresoras (~5-10mm
+//       por borde) y deja texto comodo.
+//     - bottom 30 → 38mm: buffer amplio para footerTemplate de Puppeteer
+//       (que ocupa altura variable y no respeta exact el margin reservado)
+//       + espacio entre la ultima linea del body y el footer.
 const DEFAULT_MARGIN = {
-  top: '22mm',
-  right: '18mm',
-  bottom: '24mm',
-  left: '18mm',
+  top: '25mm',
+  right: '22mm',
+  bottom: '38mm',
+  left: '22mm',
 };
 
 const SET_CONTENT_TIMEOUT_MS = 10_000;
@@ -148,10 +159,19 @@ function defaultHeaderTemplate(): string {
  * Footer default — disclaimer + numero de pagina. Aparece en todas las
  * paginas. Estilo inline-only porque el print engine de Chromium ignora
  * stylesheets externas en header/footer templates.
+ *
+ * T-023 iteracion:
+ *   - inicial: font-size 8pt, sin max-height.
+ *   - FU3: font-size 7pt + padding-top 4mm para overlap pag 1.
+ *   - FU4: font-size 6.5pt, max-height 15mm + overflow hidden, padding-top
+ *     2mm. El cap duro de altura impide que un footer "elastico" (e.g. si
+ *     el disclaimer wrapea en pantallas estrechas) crezca y se coma el
+ *     buffer body↔footer. 6.5pt sigue siendo legible en impresion fisica
+ *     A4 y libera ~1pt de altura vertical.
  */
 function defaultFooterTemplate(): string {
   return `
-    <div style="font-size: 8pt; color: #71717a; width: 100%; padding: 0 18mm; display: flex; justify-content: space-between; align-items: center; font-family: -apple-system, system-ui, sans-serif;">
+    <div style="font-size: 6.5pt; padding-top: 2mm; padding-left: 22mm; padding-right: 22mm; max-height: 15mm; overflow: hidden; color: #71717a; width: 100%; display: flex; justify-content: space-between; align-items: center; font-family: -apple-system, system-ui, sans-serif;">
       <span>Documento generado por ConsultoraDemo. El profesional matriculado firmante asume la responsabilidad técnica.</span>
       <span>Página <span class="pageNumber"></span> de <span class="totalPages"></span></span>
     </div>
