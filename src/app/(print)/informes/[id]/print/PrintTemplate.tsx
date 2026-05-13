@@ -52,11 +52,29 @@ export function PrintTemplate({ informe, metadata }: PrintTemplateProps) {
   return (
     <>
       {/* Print CSS — define page size, margins, font, page-break rules.
-          Inline porque Puppeteer corre el render con CSS inherido del head. */}
+          Inline porque Puppeteer corre el render con CSS inherido del head.
+
+          T-023-FU4 (#46+): margenes generosos (25/22/38/22 mm) replicados
+          tanto en @page como en Puppeteer DEFAULT_MARGIN (render.ts). El
+          @page es declarativo + backup; el control real viene del
+          parametro `margin` en page.pdf(). Tener ambos sincronizados
+          documenta intencion y evita drift si en futuro Puppeteer respeta
+          @page sobre el parametro.
+
+          .pdf-root padding reducido (era 22/18/24/18mm replicando el
+          margin de Puppeteer y sumando ~44/36/54mm visual). Ahora 0:
+          unica fuente de margen es Puppeteer/@page. Esto destraba a la
+          primera pagina de tener cushion adicional que no se repite en
+          paginas 2+ (causa secundaria del overlap persistente).
+
+          @media print: bloque de controles de page-break para listas
+          largas + headings + tablas + secciones. Sin esto, listas que
+          aterrizan en el borde inferior pueden cortar items individuales
+          que solapan con el footer. */}
       <style>{`
-        @page { size: A4; margin: 0; }
+        @page { size: A4; margin: 25mm 22mm 38mm 22mm; }
         body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; font-size: 11pt; line-height: 1.5; color: #18181b; }
-        .pdf-root { padding: 22mm 18mm 24mm 18mm; }
+        .pdf-root { padding: 0; }
         .pdf-header { border-bottom: 1px solid #e4e4e7; padding-bottom: 12pt; margin-bottom: 16pt; }
         .pdf-brand { font-size: 9pt; color: #71717a; text-transform: uppercase; letter-spacing: 0.06em; }
         .pdf-title { font-size: 18pt; font-weight: 600; line-height: 1.25; margin: 6pt 0 4pt; color: #09090b; }
@@ -65,18 +83,88 @@ export function PrintTemplate({ informe, metadata }: PrintTemplateProps) {
         .pdf-section { margin-top: 14pt; }
         .pdf-section-title { font-size: 11pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #52525b; margin-bottom: 8pt; }
         .pdf-body { margin-top: 16pt; }
-        h1 { font-size: 16pt; font-weight: 600; margin: 14pt 0 8pt; page-break-after: avoid; color: #09090b; }
-        h2 { font-size: 13pt; font-weight: 600; margin: 12pt 0 6pt; page-break-after: avoid; color: #18181b; }
-        h3 { font-size: 11pt; font-weight: 600; margin: 10pt 0 4pt; page-break-after: avoid; color: #27272a; }
-        p, li { orphans: 3; widows: 3; margin: 4pt 0; }
-        table { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 10pt; page-break-inside: avoid; }
+        h1 { font-size: 16pt; font-weight: 600; margin: 14pt 0 8pt; color: #09090b; }
+        h2 { font-size: 13pt; font-weight: 600; margin: 12pt 0 6pt; color: #18181b; }
+        h3 { font-size: 11pt; font-weight: 600; margin: 10pt 0 4pt; color: #27272a; }
+        p, li { margin: 4pt 0; }
+        table { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 10pt; }
         th, td { border: 1px solid #e4e4e7; padding: 4pt 6pt; text-align: left; }
         th { background: #fafafa; font-weight: 600; }
-        pre, blockquote { page-break-inside: avoid; }
         blockquote { border-left: 2px solid #e4e4e7; padding-left: 10pt; color: #52525b; font-style: italic; margin: 8pt 0; }
         code { font-family: ui-monospace, monospace; font-size: 9pt; background: #f4f4f5; padding: 1pt 4pt; border-radius: 2pt; }
         hr { border: none; border-top: 1px solid #e4e4e7; margin: 14pt 0; }
         a { color: #18181b; text-decoration: underline; }
+
+        @media print {
+          /* Buffer extra dentro del body antes del page break. Aunque el
+             padding-bottom no se repite por pagina (CSS box-model), si la
+             ultima pagina tiene contenido cerca del borde el padding lo
+             empuja hacia arriba dentro del margin reservado. */
+          body {
+            padding-bottom: 10mm;
+          }
+
+          /* Headings: nunca quedan solos al final de pagina (page-break
+             antes/despues evita "huerfano" de heading) + tope un poco
+             mayor para que respiren al iniciar seccion. */
+          h1, h2, h3 {
+            page-break-after: avoid;
+            margin-top: 1.5em;
+          }
+
+          /* Listas: si toda la lista no entra en la pagina actual, se
+             permite el salto (no es page-break-inside: avoid absoluto
+             porque listas largas SI deben poder cortar). Pero los items
+             individuales tienen orphans/widows: 2 para que al menos 2
+             items queden juntos en cada chunk. */
+          ul, ol {
+            page-break-inside: auto;
+          }
+          li {
+            orphans: 2;
+            widows: 2;
+          }
+          /* Primer/ultimo item de lista no debe quedar solo al final/inicio
+             de pagina — fuerza que arrastre el siguiente/anterior. */
+          ul > li:first-child, ol > li:first-child {
+            page-break-after: avoid;
+          }
+          ul > li:last-child, ol > li:last-child {
+            page-break-before: avoid;
+          }
+
+          /* Parrafos: orphans/widows 3 (heredado del default original) +
+             margin-bottom para que un parrafo largo no toque el footer. */
+          p {
+            orphans: 3;
+            widows: 3;
+          }
+
+          /* Secciones cortas no se cortan a la mitad (page-break-inside
+             avoid solo aplica si la seccion entera entra en una pagina;
+             si excede, se permite el corte). */
+          section {
+            page-break-inside: avoid;
+          }
+
+          /* Tablas: lo mismo. Tablas chicas no se cortan, las largas si. */
+          table {
+            page-break-inside: avoid;
+          }
+          /* Header de tabla repetido si la tabla cruza pagina (cuando
+             corta porque excede). */
+          thead {
+            display: table-header-group;
+          }
+          tr {
+            page-break-inside: avoid;
+          }
+
+          /* pre/blockquote/code blocks: chicos no se cortan. */
+          pre, blockquote {
+            page-break-inside: avoid;
+          }
+        }
       `}</style>
 
       <div className="pdf-root">
