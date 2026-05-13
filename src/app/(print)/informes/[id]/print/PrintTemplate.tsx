@@ -3,7 +3,7 @@ import type { FieldValues } from 'react-hook-form';
 
 import { MarkdownPreview } from '@/app/(app)/informes/[id]/MarkdownPreview';
 import { INFORME_STATUS_LABELS, INFORME_TIPO_LABELS } from '@/app/(app)/informes/schema';
-import { TEMPLATE_CLIENT_REGISTRY } from '@/shared/templates/registry/client';
+import { TEMPLATE_PRINT_REGISTRY } from '@/shared/templates/registry/print';
 
 /**
  * T-023 · Template imprimible reutilizado para los 5 tipos de informe.
@@ -44,9 +44,13 @@ export function PrintTemplate({ informe, metadata }: PrintTemplateProps) {
   });
   const idShort = informe.id.slice(0, 8);
 
-  const SummaryComponent =
+  // T-023-FU4: PrintTemplate consume el SummaryContent (server-only, sin
+  // Collapsible) en vez del SummaryComponent web (client, con expand/compact).
+  // El web Collapsible no hidrata en Puppeteer y dejaba el trigger + chevron
+  // inertes en pagina 1 del PDF.
+  const SummaryContentComponent =
     metadata && metadata.tipo === informe.tipo
-      ? TEMPLATE_CLIENT_REGISTRY[metadata.tipo]?.SummaryComponent
+      ? TEMPLATE_PRINT_REGISTRY[metadata.tipo]?.SummaryContentComponent
       : null;
 
   return (
@@ -94,6 +98,27 @@ export function PrintTemplate({ informe, metadata }: PrintTemplateProps) {
         code { font-family: ui-monospace, monospace; font-size: 9pt; background: #f4f4f5; padding: 1pt 4pt; border-radius: 2pt; }
         hr { border: none; border-top: 1px solid #e4e4e7; margin: 14pt 0; }
         a { color: #18181b; text-decoration: underline; }
+
+        /* SummaryContent — replicado como inline scoped porque Tailwind
+           no carga en el contexto Puppeteer setContent + about:blank.
+           Las URLs relativas del <link rel="stylesheet"> de Tailwind no
+           resuelven ahí. Las páginas 2+ del PDF usan tag selectors (h1/h2/
+           p/table) que sí estilizan vía estas mismas inline rules; FU4
+           replica el mismo mecanismo para la sección de metadata. */
+        .pdf-summary-section { margin-bottom: 1.25rem; }
+        .pdf-summary-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+        .pdf-summary-title { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+        .pdf-summary-badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+        .pdf-summary-badge--complete { background-color: #d1fae5; color: #047857; }
+        .pdf-summary-badge--partial { background-color: #fef3c7; color: #b45309; }
+        .pdf-summary-grid { display: grid; grid-template-columns: max-content 1fr; gap: 0.375rem 1rem; font-size: 0.875rem; margin: 0; }
+        .pdf-summary-grid dt { color: #6b7280; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; margin: 0; align-self: start; padding-top: 0.125rem; }
+        .pdf-summary-grid dd { font-weight: 500; margin: 0; }
+        .pdf-summary-list-section { margin-top: 0.75rem; }
+        .pdf-summary-list-title { font-size: 0.75rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.03em; margin: 0 0 0.25rem 0; }
+        .pdf-summary-list { list-style: disc; margin: 0; padding-left: 1.25rem; font-size: 0.875rem; }
+        .pdf-summary-list li { margin-bottom: 0.125rem; }
+        .pdf-summary-prose { font-size: 0.875rem; white-space: pre-wrap; margin: 0.25rem 0 0 0; }
 
         @media print {
           /* Buffer extra dentro del body antes del page break. Aunque el
@@ -176,10 +201,13 @@ export function PrintTemplate({ informe, metadata }: PrintTemplateProps) {
           </div>
         </header>
 
-        {SummaryComponent && metadata && (
+        {SummaryContentComponent && metadata && (
           <section className="pdf-section">
-            <div className="pdf-section-title">Datos del establecimiento</div>
-            <SummaryComponent metadata={metadata.data as FieldValues} />
+            {/* T-023-FU4: cada Content trae su propio <h2> del tipo
+                ("Datos del relevamiento" / "...capacitación" / etc.),
+                reemplazando el hardcode "Datos del establecimiento" anterior
+                que era RGRL-especifico. */}
+            <SummaryContentComponent metadata={metadata.data as FieldValues} />
           </section>
         )}
 

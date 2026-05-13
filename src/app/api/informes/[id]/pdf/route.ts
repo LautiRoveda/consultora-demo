@@ -9,6 +9,7 @@ import { resolveInternalBaseUrl } from '@/shared/lib/resolve-internal-base-url';
 import { logger } from '@/shared/observability/logger';
 import { getInternalPdfRenderToken } from '@/shared/pdf/browser-pool';
 import { buildPdfFilename } from '@/shared/pdf/filename';
+import { injectBaseHref } from '@/shared/pdf/inject-base-href';
 import { htmlToPdf, PdfRenderTimeoutError } from '@/shared/pdf/render';
 import { createClient } from '@/shared/supabase/server';
 import { createServiceRoleClient } from '@/shared/supabase/service-role';
@@ -148,10 +149,13 @@ export async function GET(
     return errorResponse(500, 'INTERNAL_ERROR', 'No se pudo renderear el informe.');
   }
 
-  // 7. HTML → PDF.
+  // 7. HTML → PDF. Inyectamos `<base href>` antes de pasar a Puppeteer porque
+  // `setContent` renderea en about:blank y las URLs relativas del CSS de
+  // Tailwind no resuelven sin base. Reusamos el `baseUrl` ya computed arriba.
+  const htmlWithBase = injectBaseHref(html, baseUrl);
   let pdfBuffer: Buffer;
   try {
-    pdfBuffer = await htmlToPdf(html);
+    pdfBuffer = await htmlToPdf(htmlWithBase);
   } catch (err) {
     clearTimeout(hardCap);
     if (err instanceof PdfRenderTimeoutError) {
