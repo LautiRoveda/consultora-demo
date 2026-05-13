@@ -45,10 +45,14 @@ export type HtmlToPdfOptions = {
   };
 };
 
+// T-023-FU3 (#46) · bottom margin subio de 24mm → 30mm para evitar el footer
+// overlap con la ultima linea del body en pagina 1. El header del PrintTemplate
+// (logo + titulo + metadata) ocupa mas espacio en la primera pagina, asi que
+// el body llega mas cerca del borde inferior — necesita area de footer mayor.
 const DEFAULT_MARGIN = {
   top: '22mm',
   right: '18mm',
-  bottom: '24mm',
+  bottom: '30mm',
   left: '18mm',
 };
 
@@ -148,10 +152,15 @@ function defaultHeaderTemplate(): string {
  * Footer default — disclaimer + numero de pagina. Aparece en todas las
  * paginas. Estilo inline-only porque el print engine de Chromium ignora
  * stylesheets externas en header/footer templates.
+ *
+ * T-023-FU3 (#46): font-size bajo 8pt → 7pt y se sumo padding-top 4mm
+ * para evitar overlap del footer con la ultima linea del body en pagina 1.
+ * El area de footer (DEFAULT_MARGIN.bottom = 30mm) ahora aloja al footer
+ * con 4mm de aire arriba antes de comenzar el texto del disclaimer.
  */
 function defaultFooterTemplate(): string {
   return `
-    <div style="font-size: 8pt; color: #71717a; width: 100%; padding: 0 18mm; display: flex; justify-content: space-between; align-items: center; font-family: -apple-system, system-ui, sans-serif;">
+    <div style="font-size: 7pt; padding-top: 4mm; padding-left: 18mm; padding-right: 18mm; color: #71717a; width: 100%; display: flex; justify-content: space-between; align-items: center; font-family: -apple-system, system-ui, sans-serif;">
       <span>Documento generado por ConsultoraDemo. El profesional matriculado firmante asume la responsabilidad técnica.</span>
       <span>Página <span class="pageNumber"></span> de <span class="totalPages"></span></span>
     </div>
