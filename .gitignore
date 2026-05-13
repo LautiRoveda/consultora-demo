@@ -64,3 +64,6 @@ next-env.d.ts
 
 # Lighthouse local runs (artefactos de smoke manual, no van al repo)
 /lighthouse-*.json
+
+# Dumps temporales de debug (T-023-FU4)
+/.tmp/

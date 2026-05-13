@@ -1,4 +1,10 @@
 import 'server-only';
+// T-023-FU4: el route group (print) tiene root layout propio (return <html>),
+// asi que NO compone con src/app/layout.tsx y no hereda su import de
+// globals.css. Sin este import, Tailwind nunca se carga en el subtree print
+// y todas las utility classes en PrintTemplate + <Tipo>MetadataSummaryContent
+// quedan como no-op → grid colapsa a flow vertical, badges sin pill, etc.
+import '@/app/globals.css';
 
 import type { ReactNode } from 'react';
 import { headers } from 'next/headers';
