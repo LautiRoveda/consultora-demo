@@ -43,6 +43,12 @@ export type GenerateInformeResult =
     };
 
 /**
+ * @deprecated since T-025 — reemplazada por el Route Handler streaming
+ * `POST /api/informes/[id]/generate-stream`. La action se mantiene hasta el
+ * follow-up T-025-FU1 (1 sprint estable en prod del stream) para evitar
+ * romper los 9 tests integration que la ejercen. Ningun caller productivo
+ * deberia invocarla — la UI ya migro a `fetch()` contra el stream.
+ *
  * Genera contenido para un informe usando Claude.
  *
  * Flow:
