@@ -3,6 +3,7 @@
 import type { FieldValues, UseFormReturn } from 'react-hook-form';
 import type { InformeTipo } from '../../schema';
 import type { UpdateInformeContentInput } from '../schema';
+import type { AttachmentClientRow } from './AttachmentsSection';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ChevronDown, Sparkles, X } from 'lucide-react';
 import Link from 'next/link';
@@ -43,6 +44,7 @@ import { INFORME_TIPO_LABELS } from '../../schema';
 import { updateInformeContentAction, updateInformeMetadataAction } from '../actions';
 import { MarkdownPreview } from '../MarkdownPreview';
 import { updateInformeInputSchema } from '../schema';
+import { AttachmentsSection } from './AttachmentsSection';
 
 /**
  * T-025 · State machine extendida. `generating-stream` reemplaza al
@@ -89,6 +91,8 @@ export function EditorView({
   titulo,
   initialContent,
   initialMetadata,
+  attachments,
+  canEdit,
 }: {
   informeId: string;
   tipo: InformeTipo;
@@ -100,6 +104,9 @@ export function EditorView({
    * estructuralmente coincide con el shape esperado.
    */
   initialMetadata: unknown;
+  /** T-024: attachments con signed URLs ya generadas por el server (TTL 1h). */
+  attachments: AttachmentClientRow[];
+  canEdit: boolean;
 }) {
   const router = useRouter();
   const [state, setState] = useState<EditorState>('idle');
@@ -513,6 +520,12 @@ export function EditorView({
           </Collapsible>
         </CardContent>
       </Card>
+
+      <AttachmentsSection
+        informeId={informeId}
+        initialAttachments={attachments}
+        canEdit={canEdit}
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

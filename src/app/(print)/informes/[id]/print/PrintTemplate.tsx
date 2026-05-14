@@ -3,6 +3,7 @@ import type { FieldValues } from 'react-hook-form';
 
 import { MarkdownPreview } from '@/app/(app)/informes/[id]/MarkdownPreview';
 import { INFORME_STATUS_LABELS, INFORME_TIPO_LABELS } from '@/app/(app)/informes/schema';
+import { humanBytes, humanMime } from '@/shared/storage/format';
 import { TEMPLATE_PRINT_REGISTRY } from '@/shared/templates/registry/print';
 
 /**
@@ -22,6 +23,24 @@ import { TEMPLATE_PRINT_REGISTRY } from '@/shared/templates/registry/print';
  * body y no tiene acceso a las stylesheets externas. Mantener acá tambien
  * por consistencia.
  */
+export type AttachmentForPrint = {
+  id: string;
+  kind: 'image' | 'file';
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  caption: string | null;
+  position: number;
+  signedUrl: string | null;
+};
+
+export type PrintTemplateBranding = {
+  /** Nombre de la consultora. Fallback al wordmark cuando no hay logo. */
+  consultoraName: string;
+  /** URL firmada del logo en el bucket consultora-logos. Null = sin logo. */
+  logoSignedUrl: string | null;
+};
+
 export type PrintTemplateProps = {
   informe: {
     id: string;
@@ -32,9 +51,11 @@ export type PrintTemplateProps = {
     created_at: string;
   };
   metadata: { tipo: InformeTipo; data: unknown } | null;
+  branding: PrintTemplateBranding;
+  attachments: AttachmentForPrint[];
 };
 
-export function PrintTemplate({ informe, metadata }: PrintTemplateProps) {
+export function PrintTemplate({ informe, metadata, branding, attachments }: PrintTemplateProps) {
   const tipoLabel = INFORME_TIPO_LABELS[informe.tipo] ?? informe.tipo;
   const statusLabel = INFORME_STATUS_LABELS[informe.status] ?? informe.status;
   const fecha = new Date(informe.created_at).toLocaleDateString('es-AR', {
@@ -52,6 +73,13 @@ export function PrintTemplate({ informe, metadata }: PrintTemplateProps) {
     metadata && metadata.tipo === informe.tipo
       ? TEMPLATE_PRINT_REGISTRY[metadata.tipo]?.SummaryContentComponent
       : null;
+
+  // T-024: split attachments por tipo. images van a "Anexos visuales"
+  // (renderizadas en pagina aparte). files van a tabla "Anexos descargables".
+  const images = attachments
+    .filter((a) => a.kind === 'image' && a.signedUrl)
+    .sort((a, b) => a.position - b.position);
+  const files = attachments.filter((a) => a.kind === 'file');
 
   return (
     <>
@@ -192,9 +220,32 @@ export function PrintTemplate({ informe, metadata }: PrintTemplateProps) {
         }
       `}</style>
 
+      <style>{`
+        /* T-024: branding + anexos. Logo con dimensiones generosas (no
+           uniformes — sharp pipeline ya hizo resize a max 600 px); el
+           object-fit contain respeta aspect ratio. */
+        .pdf-brand-logo { max-height: 48pt; max-width: 200pt; object-fit: contain; display: block; }
+        .pdf-anexos-visuales { page-break-before: always; }
+        .pdf-anexos-visuales-title { font-size: 14pt; font-weight: 600; margin: 0 0 12pt; color: #09090b; }
+        .pdf-anexo-figure { margin: 0 0 18pt; page-break-inside: avoid; text-align: center; }
+        .pdf-anexo-figure img { max-width: 100%; max-height: 180mm; object-fit: contain; display: block; margin: 0 auto; }
+        .pdf-anexo-caption { font-size: 9pt; color: #52525b; margin-top: 6pt; }
+        .pdf-anexos-files { margin-top: 16pt; page-break-inside: avoid; }
+        .pdf-anexos-files-note { font-size: 9pt; color: #71717a; margin: 4pt 0 8pt; }
+      `}</style>
+
       <div className="pdf-root">
         <header className="pdf-header">
-          <div className="pdf-brand">ConsultoraDemo</div>
+          {branding.logoSignedUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- Puppeteer renderea el PDF: Next/Image no aplica (no hay client hydration, no hay loader server-side para signed URLs externas).
+            <img
+              src={branding.logoSignedUrl}
+              alt={branding.consultoraName}
+              className="pdf-brand-logo"
+            />
+          ) : (
+            <div className="pdf-brand">{branding.consultoraName}</div>
+          )}
           <h1 className="pdf-title">{informe.titulo}</h1>
           <div className="pdf-meta">
             <strong>{tipoLabel}</strong> · {statusLabel} · {fecha} · ID {idShort}
@@ -214,6 +265,49 @@ export function PrintTemplate({ informe, metadata }: PrintTemplateProps) {
         <section className="pdf-body">
           <MarkdownPreview content={informe.contenido} />
         </section>
+
+        {images.length > 0 && (
+          <section className="pdf-anexos-visuales">
+            <h2 className="pdf-anexos-visuales-title">Anexos visuales</h2>
+            {images.map((img, idx) => (
+              <figure key={img.id} className="pdf-anexo-figure">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img.signedUrl ?? undefined} alt={img.caption ?? img.filename} />
+                <figcaption className="pdf-anexo-caption">
+                  Imagen {idx + 1}
+                  {img.caption ? ` — ${img.caption}` : ''}
+                </figcaption>
+              </figure>
+            ))}
+          </section>
+        )}
+
+        {files.length > 0 && (
+          <section className="pdf-anexos-files">
+            <h2 className="pdf-anexos-visuales-title">Anexos descargables</h2>
+            <p className="pdf-anexos-files-note">
+              Los siguientes archivos están adjuntos al informe en la aplicación.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Archivo</th>
+                  <th>Tipo</th>
+                  <th>Tamaño</th>
+                </tr>
+              </thead>
+              <tbody>
+                {files.map((f) => (
+                  <tr key={f.id}>
+                    <td>{f.filename}</td>
+                    <td>{humanMime(f.mime_type)}</td>
+                    <td>{humanBytes(f.size_bytes)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
       </div>
     </>
   );

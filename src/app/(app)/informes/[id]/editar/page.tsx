@@ -1,22 +1,21 @@
 import { notFound, redirect } from 'next/navigation';
 
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
+import { createSignedAttachmentUrls } from '@/shared/storage/attachments';
+import { SIGNED_URL_TTL_UI_SEC } from '@/shared/storage/types';
 import { createClient } from '@/shared/supabase/server';
 
 import { getInformeById, getInformeMetadata } from '../../queries';
 import { type InformeTipo } from '../../schema';
+import { getInformeAttachments } from '../attachments/queries';
+import { type AttachmentClientRow } from './AttachmentsSection';
 import { EditorView } from './EditorView';
 
 /**
  * T-020 · Editor de informe.
  * T-021 · Fetcha metadata para tipo='rgrl' y la pasa al EditorView para el
  *         panel Collapsible arriba del editor de contenido.
- *
- * Server component que valida acceso y delega al EditorView client.
- *
- * Permission gate: si el user no es creator NI owner de la consultora,
- * redirige a `/informes/[id]` (no a `/login`) — el read-view del informe
- * sigue siendo accesible.
+ * T-024 · Carga attachments + genera signed URLs (TTL 1h) para previews + downloads.
  */
 export default async function InformeEditarPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -37,11 +36,25 @@ export default async function InformeEditarPage({ params }: { params: Promise<{ 
     redirect(`/informes/${informe.id}`);
   }
 
-  // T-022: getInformeMetadata es generico — devuelve `{ tipo, data: unknown }`
-  // o null si no hay metadata o schema drift. El EditorView (Client) usa el
-  // registry cliente para renderizar el form correcto a partir del tipo.
   const tipo = informe.tipo as InformeTipo;
   const metadataRow = await getInformeMetadata(supabase, informe.id, tipo);
+
+  const attachments = await getInformeAttachments(supabase, informe.id);
+  const signedUrls = await createSignedAttachmentUrls(
+    supabase,
+    attachments.map((a) => a.storage_path),
+    SIGNED_URL_TTL_UI_SEC,
+  );
+  const attachmentRows: AttachmentClientRow[] = attachments.map((a) => ({
+    id: a.id,
+    kind: a.kind as 'image' | 'file',
+    filename: a.filename,
+    mime_type: a.mime_type,
+    size_bytes: a.size_bytes,
+    caption: a.caption,
+    position: a.position,
+    signedUrl: signedUrls.get(a.storage_path) ?? null,
+  }));
 
   return (
     <EditorView
@@ -50,6 +63,8 @@ export default async function InformeEditarPage({ params }: { params: Promise<{ 
       titulo={informe.titulo}
       initialContent={informe.contenido}
       initialMetadata={metadataRow?.data ?? null}
+      attachments={attachmentRows}
+      canEdit={canEdit}
     />
   );
 }
