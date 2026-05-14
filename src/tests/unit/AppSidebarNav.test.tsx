@@ -45,7 +45,8 @@ describe('AppSidebarNav', () => {
     // el accessible-name en jsdom (visible + sr-only).
     const nav = screen.getByRole('navigation');
     const items = nav.querySelectorAll('li');
-    expect(items.length).toBe(7);
+    // T-024: sumamos item "Configuración" (live). Total: 8 (2 live + 5 soon + 1 settings).
+    expect(items.length).toBe(8);
 
     const expectedSoonLabels = ['Clientes', 'Empleados', 'EPP', 'Calendario', 'Notificaciones'];
     const soonButtons = nav.querySelectorAll<HTMLButtonElement>(

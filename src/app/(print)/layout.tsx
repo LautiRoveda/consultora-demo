@@ -46,17 +46,48 @@ export default async function PrintLayout({ children }: { children: ReactNode })
     notFound();
   }
 
+  // T-024 · CSP img-src extendido al host de Supabase Storage.
+  //
+  // PORQUE: Puppeteer respeta las directivas CSP del response HTML que le
+  // pasamos via setContent(). El CSP inicial de T-023 era `img-src 'self' data:`,
+  // suficiente porque el PDF solo tenia texto + tablas (data URIs eran para
+  // SVGs inline si alguno aparecia). T-024 introduce <img src> apuntando a
+  // signed URLs del bucket consultora-logos + informe-attachments, que viven
+  // en el host del project Supabase (ej: blijipnixnikaguojjee.supabase.co).
+  // Ese host es CROSS-ORIGIN respecto a 'self' (localhost:3000 en dev, el
+  // dominio productivo en prod) → CSP las bloquea silenciosamente y el PDF
+  // sale con icono roto donde deberia estar el logo/foto (alt text visible
+  // pero raster del icono "broken image" de Chromium).
+  //
+  // Fix: derivar el origin desde NEXT_PUBLIC_SUPABASE_URL (env publica, ya
+  // disponible en build + runtime) y sumarlo al img-src. Mas restrictivo que
+  // wildcard `*` o `https:` — solo whitelisteamos el host de NUESTRO project.
+  // Si en el futuro migramos a self-hosted Storage, basta cambiar el env.
+  //
+  // Fallback `https:` (cualquier https) si NEXT_PUBLIC_SUPABASE_URL esta
+  // ausente o malformado — sigue siendo mas restrictivo que `*` (bloquea
+  // http:// + data URIs externos).
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  let imgSrcHosts = "'self' data:";
+  if (supabaseUrl) {
+    try {
+      imgSrcHosts = `'self' data: ${new URL(supabaseUrl).origin}`;
+    } catch {
+      imgSrcHosts = "'self' data: https:";
+    }
+  }
+  const csp = `default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src ${imgSrcHosts}; connect-src 'none'; base-uri 'none'; form-action 'none';`;
+
   return (
     <html lang="es">
       <head>
         <meta charSet="utf-8" />
         {/* CSP defense-in-depth: rehype-sanitize ya strippea scripts del
             markdown, pero si alguna vez se rompe queremos que Chromium NO
-            ejecute JS al renderear el PDF. */}
-        <meta
-          httpEquiv="Content-Security-Policy"
-          content="default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none';"
-        />
+            ejecute JS al renderear el PDF. img-src extendido en T-024 al
+            host de Supabase para que carguen logos + attachments via signed
+            URLs (ver bloque de comentario arriba para el porque). */}
+        <meta httpEquiv="Content-Security-Policy" content={csp} />
         <meta name="robots" content="noindex, nofollow" />
         <title>Informe PDF</title>
       </head>

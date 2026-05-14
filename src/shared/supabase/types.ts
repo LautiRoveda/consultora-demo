@@ -124,6 +124,7 @@ export type Database = {
           created_at: string;
           cuit: string | null;
           id: string;
+          logo_storage_path: string | null;
           name: string;
           plan_tier: string;
           slug: string;
@@ -135,6 +136,7 @@ export type Database = {
           created_at?: string;
           cuit?: string | null;
           id?: string;
+          logo_storage_path?: string | null;
           name: string;
           plan_tier?: string;
           slug: string;
@@ -146,6 +148,7 @@ export type Database = {
           created_at?: string;
           cuit?: string | null;
           id?: string;
+          logo_storage_path?: string | null;
           name?: string;
           plan_tier?: string;
           slug?: string;
@@ -153,6 +156,69 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      informe_attachments: {
+        Row: {
+          caption: string | null;
+          consultora_id: string;
+          created_at: string;
+          filename: string;
+          id: string;
+          informe_id: string;
+          kind: string;
+          mime_type: string;
+          position: number;
+          size_bytes: number;
+          storage_path: string;
+          updated_at: string;
+          uploaded_by: string | null;
+        };
+        Insert: {
+          caption?: string | null;
+          consultora_id: string;
+          created_at?: string;
+          filename: string;
+          id?: string;
+          informe_id: string;
+          kind: string;
+          mime_type: string;
+          position?: number;
+          size_bytes: number;
+          storage_path: string;
+          updated_at?: string;
+          uploaded_by?: string | null;
+        };
+        Update: {
+          caption?: string | null;
+          consultora_id?: string;
+          created_at?: string;
+          filename?: string;
+          id?: string;
+          informe_id?: string;
+          kind?: string;
+          mime_type?: string;
+          position?: number;
+          size_bytes?: number;
+          storage_path?: string;
+          updated_at?: string;
+          uploaded_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'informe_attachments_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'informe_attachments_informe_id_fkey';
+            columns: ['informe_id'];
+            isOneToOne: false;
+            referencedRelation: 'informes';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       informe_metadata: {
         Row: {

@@ -183,6 +183,49 @@ EasyPanel acumula images viejas con cada build. Mitigación:
 - EasyPanel UI suele tener un setting "Auto-prune old builds" — activar.
 - Manual: SSH al VPS y correr `docker system prune -af --volumes` (cuidado: confirmar que NO borra images activas de otros services del project agendalo/aruba). Schedule cron weekly opcional.
 
+## Chromium para PDF render (T-023, T-024)
+
+El módulo `src/shared/pdf/*` usa `puppeteer-core` con un binario de Chromium externo (no descarga el suyo). La ruta del binario se controla con la env var `CHROMIUM_PATH`.
+
+### Producción (Docker alpine en VPS)
+
+El `Dockerfile` instala Chromium vía `apk add chromium` y setea las env vars relevantes en el stage `runner`:
+
+```dockerfile
+ENV PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    CHROMIUM_PATH=/usr/bin/chromium-browser
+```
+
+Sin acción manual — el container ya lo tiene listo al deploy.
+
+### Dev local (Windows / macOS)
+
+`puppeteer-core` NO descarga Chromium en `pnpm install`. Para correr el route handler `/api/informes/[id]/pdf` o los tests E2E de T-023/T-024 localmente, hay que apuntar `CHROMIUM_PATH` a un Chrome/Chromium ya instalado en la máquina:
+
+```bash
+# Windows (git-bash o MINGW):
+CHROMIUM_PATH="C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" pnpm dev
+
+# macOS (Google Chrome instalado):
+CHROMIUM_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" pnpm dev
+
+# Linux con Chromium instalado:
+CHROMIUM_PATH=/usr/bin/chromium pnpm dev
+```
+
+**Síntoma si está mal seteado**: el endpoint `/api/informes/[id]/pdf` devuelve `500 INTERNAL_ERROR` con el log `pdf_browser_pool: launch fallo · Browser was not found at the configured executablePath`.
+
+Para tests E2E que tocan PDF (T-023 `informes-pdf-export`, T-024 `informes-attachments` + `consultora-logo`):
+
+```bash
+set -a && source .env.local && set +a &&
+  CHROMIUM_PATH="C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" \
+  pnpm test:e2e
+```
+
+Sin `CHROMIUM_PATH`, los tests de PDF fallan pero los demás (auth, signup, landing, etc.) corren igual.
+
 ## Troubleshooting
 
 ### Build falla en EasyPanel

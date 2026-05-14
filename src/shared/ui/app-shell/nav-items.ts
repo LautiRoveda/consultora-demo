@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Bell, Calendar, FileText, HardHat, Home, UserCheck, Users } from 'lucide-react';
+import { Bell, Calendar, FileText, HardHat, Home, Settings, UserCheck, Users } from 'lucide-react';
 
 /**
  * Items del sidebar autenticado. Fuente única de verdad para nav.
@@ -34,4 +34,5 @@ export const NAV_ITEMS: readonly NavItem[] = [
     status: 'soon',
     ticket: 'T-024',
   },
+  { href: '/settings/consultora', label: 'Configuración', icon: Settings, status: 'live' },
 ] as const;

@@ -15,4 +15,10 @@ export type CurrentConsultora = {
   planTier: string;
   trialEndsAt: string | null;
   role: 'owner' | 'member';
+  /**
+   * T-024: path dentro del bucket `consultora-logos`, o null si no se subio
+   * un logo. El caller que necesite mostrarlo (Settings + PDF print) genera
+   * una signed URL con TTL apropiado.
+   */
+  logoStoragePath: string | null;
 };
