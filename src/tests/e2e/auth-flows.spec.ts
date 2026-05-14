@@ -123,16 +123,18 @@ test.describe('recovery flow completo', () => {
     });
     createdUserIds.push(userId);
 
-    // (a) Solicitar link via UI. Toast success "Link enviado" (anti-enumeration:
-    //     mismo mensaje aunque email no exista — acá sí existe).
-    await page.goto('/recuperar-password');
-    await page.getByLabel('Email').fill(email);
-    await page.getByRole('button', { name: 'Enviar link de recuperación' }).click();
-    await expect(page.getByText('Link enviado')).toBeVisible({ timeout: 10_000 });
-
-    // (b-c) Generar URL del callback (bypass email rate limit) y navegar.
-    //       El callback consume token_hash via verifyOtp(type='recovery') y
-    //       redirige a /cambiar-password con sesión recovery activa.
+    // (a-c) Generar URL del callback via admin.generateLink y navegar directo.
+    //       T-022.5-FU4: antes este test ejercitaba el form UI de /recuperar-password
+    //       (recoverPasswordAction → resetPasswordForEmail) para validar el toast
+    //       "Link enviado". Eso consumía el rate limit de email del free tier de
+    //       Supabase (~30/h por proyecto), y con varias ejecuciones de CI en la
+    //       misma hora el test se rompía determinísticamente al saturarse el
+    //       cuota. El admin API (auth.admin.generateLink) NO tiene ese rate limit
+    //       y genera el mismo hashed_token consumible por el callback handler
+    //       (verifyOtp type='recovery'). La cobertura UI del form de
+    //       /recuperar-password vive en src/tests/e2e/recovery.spec.ts.
+    //       El callback consume el token_hash y redirige a /cambiar-password
+    //       con sesión recovery activa.
     const recoveryUrl = await generateRecoveryLinkUrl(email);
     await page.goto(recoveryUrl);
     await expect(page).toHaveURL(/\/cambiar-password(\?.*)?$/, { timeout: 10_000 });

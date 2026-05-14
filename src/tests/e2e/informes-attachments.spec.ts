@@ -91,6 +91,15 @@ test.describe('Informes · attachments (T-024)', () => {
   test('happy path: upload image + file + caption + reorder + delete + download PDF', async ({
     page,
   }) => {
+    // T-022.5-FU4: el test entero requiere mas de 30s en CI cargado. Pasos:
+    // setup admin + login UI + 3 uploads + caption + reorder + delete +
+    // navegar a detail + PDF render con 2 imagenes embebidas (Puppeteer cold
+    // start + signed URL fetch Supabase Storage). 90s es buffer comodo; el
+    // waitForEvent('download') de 60s tambien queda dentro de este budget.
+    // Sin esto, el cap global default de Playwright (30s) capa el bump del
+    // waitForEvent.
+    test.setTimeout(90_000);
+
     const email = uniqueTestEmail('att-happy');
     const consultoraName = `T-024 attachments ${Date.now().toString(36)}`;
     const { userId, consultoraId, password } = await createTestUserWithConsultora({
@@ -189,8 +198,11 @@ test.describe('Informes · attachments (T-024)', () => {
     const downloadBtn = page.getByRole('button', { name: /Descargar PDF/ });
     await expect(downloadBtn).toBeEnabled();
 
+    // T-022.5-FU4: bump 30s→60s. PDF con anexos visuales requiere Puppeteer
+    // cold start + fetch de signed URLs Supabase Storage; CI runner cargado
+    // roza el cap default.
     const [download] = await Promise.all([
-      page.waitForEvent('download', { timeout: 30_000 }),
+      page.waitForEvent('download', { timeout: 60_000 }),
       downloadBtn.click(),
     ]);
     const downloadPath = await download.path();
