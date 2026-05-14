@@ -19,9 +19,9 @@ jobs:
     # Supabase keys vienen de GitHub Secrets (configuradas en T-018) — son
     # necesarias para que los tests E2E con sesión real (`auth-flows.spec.ts`)
     # creen users via admin.createUser + bypass de email rate limit.
-    # Sentry y SITE_URL siguen placeholders: `enabled: NODE_ENV === 'production'`
-    # en cada sentry.*.config.ts hace que no envíen nada a Sentry desde CI; el
-    # site URL solo afecta sitemap/robots, no hay scope T-018 para configurarlo.
+    # Sentry sigue con placeholders: `enabled: NODE_ENV === 'production'` en
+    # cada sentry.*.config.ts hace que no envíen nada a Sentry desde CI.
+    # SITE_URL apunta a localhost:3000 (ver inline T-022.5-FU4 más abajo).
     # SENTRY_AUTH_TOKEN (source maps en Vercel) se gestiona desde Vercel, no acá.
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -30,7 +30,14 @@ jobs:
       NEXT_PUBLIC_SENTRY_DSN: https://placeholder@o0.ingest.sentry.io/0
       SENTRY_ORG: placeholder-org
       SENTRY_PROJECT: placeholder-project
-      NEXT_PUBLIC_SITE_URL: https://placeholder.example.com
+      # T-022.5-FU4: el callback handler (/auth/callback) ahora lee
+      # NEXT_PUBLIC_SITE_URL como base del redirect post-auth (ver
+      # src/app/auth/callback/route.ts). En CI el server Next corre en
+      # localhost:3000 vía playwright webServer (next start), así que el
+      # placeholder no-resolvible anterior (https://placeholder.example.com)
+      # rompía el E2E recovery flow con net::ERR_NAME_NOT_RESOLVED.
+      # Sitemap/robots usan este mismo env pero no se exercitan en E2E.
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
       # T-020: env.ts valida ANTHROPIC_API_KEY al cargar (es required). El
       # build de Next la necesita aunque ningun test live pegue a la API —
       # los integration tests mockean el SDK (vi.mock) y los E2E NO disparan
