@@ -73,6 +73,14 @@ async function makeLogoPng(label: string): Promise<string> {
 
 test.describe('Configuración · logo (T-024)', () => {
   test('owner: upload logo → preview visible → PDF del informe usa el logo', async ({ page }) => {
+    // T-024-FU8: el test entero requiere mas de 30s en CI cargado. Pasos:
+    // login UI + goto settings + upload logo + verify preview + DB query +
+    // goto detail + PDF render con logo embebido (Puppeteer cold start +
+    // signed URL fetch Supabase Storage). 90s es buffer comodo; el
+    // waitForEvent('download') de 60s tambien queda dentro de este budget.
+    // Mismo patron consistente con T-022.5-FU4 informes-attachments.spec.ts.
+    test.setTimeout(90_000);
+
     const email = uniqueTestEmail('logo-owner');
     const { userId, consultoraId, password } = await createTestUserWithConsultora({
       email,
@@ -126,8 +134,11 @@ test.describe('Configuración · logo (T-024)', () => {
     // PDF post-logo: descargamos y validamos magic bytes + size sano.
     await page.goto(`/informes/${informe.id}`);
     const newBtn = page.getByRole('button', { name: /Descargar PDF/ });
+    // T-024-FU8: bump 30s→60s. PDF render con logo embebido + Puppeteer cold
+    // start en CI runner cargado roza el cap default. Patrón consistente con
+    // T-022.5-FU4 informes-attachments.
     const [newDownload] = await Promise.all([
-      page.waitForEvent('download', { timeout: 30_000 }),
+      page.waitForEvent('download', { timeout: 60_000 }),
       newBtn.click(),
     ]);
     const newPath = await newDownload.path();
