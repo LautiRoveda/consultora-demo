@@ -83,6 +83,126 @@ export type Database = {
           },
         ];
       };
+      calendar_event_reminders: {
+        Row: {
+          consultora_id: string;
+          created_at: string;
+          event_id: string;
+          id: string;
+          offset_days: number;
+          scheduled_at: string;
+          sent_at: string | null;
+          status: string;
+        };
+        Insert: {
+          consultora_id: string;
+          created_at?: string;
+          event_id: string;
+          id?: string;
+          offset_days: number;
+          scheduled_at: string;
+          sent_at?: string | null;
+          status?: string;
+        };
+        Update: {
+          consultora_id?: string;
+          created_at?: string;
+          event_id?: string;
+          id?: string;
+          offset_days?: number;
+          scheduled_at?: string;
+          sent_at?: string | null;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'calendar_event_reminders_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'calendar_event_reminders_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'calendar_events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      calendar_events: {
+        Row: {
+          completed_at: string | null;
+          completed_by: string | null;
+          consultora_id: string;
+          created_at: string;
+          created_by: string | null;
+          descripcion: string | null;
+          fecha_vencimiento: string;
+          id: string;
+          informe_id: string | null;
+          metadata: Json | null;
+          recurrence_months: number | null;
+          reminder_offsets_days: number[];
+          status: string;
+          tipo: string;
+          titulo: string;
+          updated_at: string;
+        };
+        Insert: {
+          completed_at?: string | null;
+          completed_by?: string | null;
+          consultora_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          descripcion?: string | null;
+          fecha_vencimiento: string;
+          id?: string;
+          informe_id?: string | null;
+          metadata?: Json | null;
+          recurrence_months?: number | null;
+          reminder_offsets_days: number[];
+          status?: string;
+          tipo: string;
+          titulo: string;
+          updated_at?: string;
+        };
+        Update: {
+          completed_at?: string | null;
+          completed_by?: string | null;
+          consultora_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          descripcion?: string | null;
+          fecha_vencimiento?: string;
+          id?: string;
+          informe_id?: string | null;
+          metadata?: Json | null;
+          recurrence_months?: number | null;
+          reminder_offsets_days?: number[];
+          status?: string;
+          tipo?: string;
+          titulo?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'calendar_events_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'calendar_events_informe_id_fkey';
+            columns: ['informe_id'];
+            isOneToOne: false;
+            referencedRelation: 'informes';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       consultora_members: {
         Row: {
           consultora_id: string;
