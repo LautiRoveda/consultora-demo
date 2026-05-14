@@ -1,9 +1,12 @@
 import type { FieldValues } from 'react-hook-form';
 import type { InformeStatus, InformeTipo } from '../schema';
+import type { AttachmentClientRow } from './editar/AttachmentsSection';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
+import { createSignedAttachmentUrls } from '@/shared/storage/attachments';
+import { SIGNED_URL_TTL_UI_SEC } from '@/shared/storage/types';
 import { createClient } from '@/shared/supabase/server';
 import { TEMPLATE_CLIENT_REGISTRY } from '@/shared/templates/registry/client';
 import { Button } from '@/shared/ui/button';
@@ -11,12 +14,17 @@ import { Card, CardContent } from '@/shared/ui/card';
 
 import { getInformeById, getInformeMetadata } from '../queries';
 import { INFORME_STATUS_LABELS, INFORME_TIPO_LABELS } from '../schema';
+import { getInformeAttachments } from './attachments/queries';
 import { DownloadPdfButton } from './DownloadPdfButton';
+import { AttachmentsSection } from './editar/AttachmentsSection';
 import { MarkdownPreview } from './MarkdownPreview';
 
 /**
  * T-020 · Detalle de informe (read-only).
  * T-022 · Summary renderizado dinamicamente via TEMPLATE_CLIENT_REGISTRY[tipo].
+ * T-024-FU0 · Suma seccion de adjuntos en modo read-only (sin botones upload/
+ * delete/reorder, captions no editables). Reusa AttachmentsSection.tsx con
+ * prop canEdit={false} — el componente ya tiene los gates internos.
  *
  * Render del `contenido` via MarkdownPreview (react-markdown + remark-gfm +
  * rehype-sanitize). Boton "Editar" visible solo si el user es creator del
@@ -43,6 +51,30 @@ export default async function InformeDetallePage({ params }: { params: Promise<{
   const tipo = informe.tipo as InformeTipo;
   const metadataRow = await getInformeMetadata(supabase, informe.id, tipo);
   const SummaryComponent = TEMPLATE_CLIENT_REGISTRY[tipo]?.SummaryComponent;
+
+  // T-024-FU0: attachments + signed URLs (mismo patron que /editar, TTL 1h).
+  // Si no hay attachments, dejamos el array vacio y el componente NO renderea
+  // la seccion (el empty state "No hay adjuntos todavía" solo aparece en
+  // /editar, ya que aca el caller decide si pasar el componente o no).
+  const attachmentRows = await getInformeAttachments(supabase, informe.id);
+  let attachments: AttachmentClientRow[] = [];
+  if (attachmentRows.length > 0) {
+    const signedUrls = await createSignedAttachmentUrls(
+      supabase,
+      attachmentRows.map((a) => a.storage_path),
+      SIGNED_URL_TTL_UI_SEC,
+    );
+    attachments = attachmentRows.map((a) => ({
+      id: a.id,
+      kind: a.kind as 'image' | 'file',
+      filename: a.filename,
+      mime_type: a.mime_type,
+      size_bytes: a.size_bytes,
+      caption: a.caption,
+      position: a.position,
+      signedUrl: signedUrls.get(a.storage_path) ?? null,
+    }));
+  }
 
   const tipoLabel = INFORME_TIPO_LABELS[tipo] ?? informe.tipo;
   const statusLabel = INFORME_STATUS_LABELS[informe.status as InformeStatus] ?? informe.status;
@@ -79,6 +111,13 @@ export default async function InformeDetallePage({ params }: { params: Promise<{
       </div>
       {metadataRow && SummaryComponent && (
         <SummaryComponent metadata={metadataRow.data as FieldValues} />
+      )}
+      {attachments.length > 0 && (
+        <AttachmentsSection
+          informeId={informe.id}
+          initialAttachments={attachments}
+          canEdit={false}
+        />
       )}
       <Card>
         <CardContent className="px-6 py-6">
