@@ -150,21 +150,26 @@ test.describe('Informes · attachments (T-024)', () => {
     await moveUpButtons.nth(1).click();
 
     // Validamos via DB que las posiciones reflejan el reorder. RLS lo lee
-    // como el user owner.
-    await page.waitForTimeout(800); // dar tiempo al router.refresh().
-    const { data: attsAfter } = await adminClient
-      .from('informe_attachments')
-      .select('id, kind, position, caption, filename')
-      .eq('informe_id', informe.id)
-      .order('kind', { ascending: true })
-      .order('position', { ascending: true });
-    const images = attsAfter?.filter((a) => a.kind === 'image') ?? [];
-    expect(images.length).toBe(2);
+    // como el user owner. T-024-FU6: poll en lugar de waitForTimeout(800)
+    // — en CI las 2 UPDATEs + RLS checks + router.refresh() tardan mas de
+    // 800ms ciegos. El poll reintenta hasta 10s o hasta que el orden
+    // observado coincida con el esperado.
     // El que llego "segundo" (sin caption) deberia estar ahora en posicion 0
     // (porque clickeamos "Mover arriba" sobre la segunda).
-    const captions = images.map((a) => a.caption);
-    expect(captions[0]).toBe(null);
-    expect(captions[1]).toBe('Foto sector taller');
+    await expect
+      .poll(
+        async () => {
+          const { data } = await adminClient
+            .from('informe_attachments')
+            .select('caption, position')
+            .eq('informe_id', informe.id)
+            .eq('kind', 'image')
+            .order('position', { ascending: true });
+          return (data ?? []).map((a) => a.caption);
+        },
+        { timeout: 10_000 },
+      )
+      .toEqual([null, 'Foto sector taller']);
 
     // 7. Delete del PDF con AlertDialog.
     const deleteButtons = page.getByRole('button', { name: 'Eliminar adjunto' });

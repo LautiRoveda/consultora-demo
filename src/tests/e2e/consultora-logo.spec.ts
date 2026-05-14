@@ -108,8 +108,9 @@ test.describe('Configuración · logo (T-024)', () => {
     const logoInput = page.locator('input[type="file"][accept*="image"]');
     await logoInput.setInputFiles(logoPath);
     await expect(page.getByText('Logo cargado')).toBeVisible({ timeout: 15_000 });
-    // Preview presente (img con alt incluye consultora name).
-    await expect(page.locator('img[alt*="Logo de"]')).toBeVisible();
+    // Preview presente en el body del Settings (T-024-FU0.5 sumo un <img> con
+    // mismo alt en el sidebar — scope al <main> para evitar strict mode violation).
+    await expect(page.getByRole('main').locator('img[alt*="Logo de"]')).toBeVisible();
     // Boton "Reemplazar logo" reemplaza al "Cargar logo".
     await expect(page.getByRole('button', { name: /Reemplazar logo/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Eliminar logo/ })).toBeVisible();

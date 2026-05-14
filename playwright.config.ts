@@ -32,9 +32,15 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm dev',
+    // En CI corremos build + start (modo produccion) para evitar race conditions
+    // con Fast Refresh / HMR de `next dev` que descartan toasts y otros UI
+    // ephemerals despues de un router.refresh() post-Server-Action. En local
+    // dejamos `next dev` por velocidad de iteracion.
+    command: isCI ? 'pnpm build && pnpm start' : 'pnpm dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !isCI,
-    timeout: 120_000,
+    // En CI: 3 min para que el build de Next 16 termine + start. Local sigue
+    // con 2 min porque dev arranca instantaneo.
+    timeout: isCI ? 180_000 : 120_000,
   },
 });
