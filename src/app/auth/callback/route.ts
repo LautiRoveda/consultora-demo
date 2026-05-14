@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
+import { env } from '@/env';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
 
@@ -51,15 +52,22 @@ function isValidOtpType(t: string | null): t is ValidOtpType {
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const tokenHash = searchParams.get('token_hash');
   const type = searchParams.get('type');
   const next = sanitizeNext(searchParams.get('next'));
 
+  // T-022.5-FU4: usar NEXT_PUBLIC_SITE_URL como base del redirect evita que
+  // tome el bind interno del container (0.0.0.0:80) cuando está detrás de
+  // Traefik en EasyPanel. `new URL(request.url).origin` parseaba el bind
+  // upstream porque Next no confía en X-Forwarded-Host por default, mandando
+  // al browser a un host inválido. Strip de trailing slash defensivo.
+  const siteUrl = env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
+
   if (!code && !tokenHash) {
     logger.warn({ url: request.url }, 'auth/callback invocado sin code ni token_hash');
-    return NextResponse.redirect(`${origin}/login?error=callback_failed`);
+    return NextResponse.redirect(`${siteUrl}/login?error=callback_failed`);
   }
 
   const supabase = await createClient();
@@ -69,7 +77,7 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
       logger.error({ error, code: code.slice(0, 8) }, 'exchangeCodeForSession falló');
-      return NextResponse.redirect(`${origin}/login?error=callback_failed`);
+      return NextResponse.redirect(`${siteUrl}/login?error=callback_failed`);
     }
     // T-016 PARADA #3: refresh post-signup-confirm garantiza que el JWT
     // emitido tras el exchange traiga el claim consultora_id. Race posible:
@@ -90,12 +98,12 @@ export async function GET(request: NextRequest) {
         { url: request.url, type },
         'auth/callback token_hash con type ausente o inválido',
       );
-      return NextResponse.redirect(`${origin}/login?error=callback_failed`);
+      return NextResponse.redirect(`${siteUrl}/login?error=callback_failed`);
     }
     const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
     if (error) {
       logger.error({ error, type, tokenHash: tokenHash.slice(0, 8) }, 'verifyOtp falló');
-      return NextResponse.redirect(`${origin}/login?error=callback_failed`);
+      return NextResponse.redirect(`${siteUrl}/login?error=callback_failed`);
     }
   }
 
@@ -105,10 +113,10 @@ export async function GET(request: NextRequest) {
   // - signup confirm → /login?confirmed=1 (usuario debe ingresar manualmente).
   // - backward compat (sin next) → /login?confirmed=1.
   if (next === '/dashboard') {
-    return NextResponse.redirect(`${origin}/dashboard`);
+    return NextResponse.redirect(`${siteUrl}/dashboard`);
   }
   if (next === '/cambiar-password') {
-    return NextResponse.redirect(`${origin}/cambiar-password`);
+    return NextResponse.redirect(`${siteUrl}/cambiar-password`);
   }
-  return NextResponse.redirect(`${origin}/login?confirmed=1`);
+  return NextResponse.redirect(`${siteUrl}/login?confirmed=1`);
 }
