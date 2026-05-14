@@ -107,6 +107,7 @@ Roadmap detallado por tickets en `docs/technical/10-roadmap.md`.
 ## Estado actual
 
 - **Discovery completo** ✅ (4 documentos en `docs/discovery/`).
+- **T-026 (discovery) ✅** base para Sprint 3 Calendario + Notificaciones. 11 secciones (problema, casos de uso, modelo de datos, tipos, sistema de recordatorios, canales email/Telegram/Web Push, cron pg_cron + pg_net, wireframes ASCII, edge cases, 7 decisiones DA-01..DA-07, plan de tickets T-027..T-037). Ver [`docs/discovery/07-calendario-notificaciones.md`](docs/discovery/07-calendario-notificaciones.md). **DA-01..DA-07 ✅ resueltas 2026-05-14** — T-027 desbloqueado (migration `calendar_events` + `calendar_event_reminders` + RLS + audit trigger, próximo). Decisiones clave: HTML inline (DA-01), Web Push sin PWA en MVP (DA-02), settings per-user (DA-03), sin snooze (DA-04), auto-crear vencimiento al firmar como modal default + toggle silent opt-in (DA-05), `.ics` follow-up (DA-06), compartir con cliente fuera de scope (DA-07).
 - **Diseño técnico completo** ✅ (6 documentos clave en `docs/technical/` incluyendo `06-deployment.md`).
 - **ADRs iniciales** ✅ (template + ADR-0002 stack + ADR-0003 modelo Claude default + ADR-0004 branch protection diferida + ADR-0005 Vercel-GitHub auto-deploy [parcialmente reemplazado por ADR-0007] + ADR-0006 multi-tenant RLS strategy + **ADR-0007 VPS Hostinger + EasyPanel + Docker**).
 - **Prototipo Fase 0** ✅ (`public/prototipo/index.html` estático, accesible vía rewrite `/prototipo`).
