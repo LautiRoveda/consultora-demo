@@ -191,8 +191,9 @@ export function AttachmentsSection({
           <div>
             <h2 className="text-base font-semibold tracking-tight">Adjuntos</h2>
             <p className="text-muted-foreground mt-1 text-sm">
-              Imágenes (JPG/PNG/WEBP, max 10 MB) y archivos (PDF/DOC/XLS) que se incluyen como anexo
-              del PDF.
+              {canEdit
+                ? 'Imágenes (JPG/PNG/WEBP, max 10 MB) y archivos (PDF/DOC/XLS) que se incluyen como anexo del PDF.'
+                : 'Adjuntos incluidos en el PDF descargable.'}
             </p>
           </div>
           {canEdit && (
