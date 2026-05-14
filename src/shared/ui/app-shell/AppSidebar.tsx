@@ -21,6 +21,8 @@ type AppShellUser = {
 type AppSidebarProps = {
   user: AppShellUser;
   consultora: CurrentConsultora;
+  /** T-024-FU0.5: signed URL del logo (TTL 1h). Null → fallback al placeholder "CD". */
+  logoSignedUrl: string | null;
 };
 
 /**
@@ -32,7 +34,7 @@ type AppSidebarProps = {
  * El `TooltipProvider` envuelve todo porque los nav items "soon" usan
  * Tooltip — viven en el árbol cliente, así que el provider va acá.
  */
-export function AppSidebar({ user, consultora }: AppSidebarProps) {
+export function AppSidebar({ user, consultora, logoSignedUrl }: AppSidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -41,7 +43,7 @@ export function AppSidebar({ user, consultora }: AppSidebarProps) {
         aria-label="Barra lateral"
         className="bg-card text-card-foreground fixed inset-y-0 left-0 z-30 hidden w-64 border-r md:flex md:flex-col"
       >
-        <SidebarContents user={user} consultora={consultora} />
+        <SidebarContents user={user} consultora={consultora} logoSignedUrl={logoSignedUrl} />
       </aside>
 
       <header className="bg-background sticky top-0 z-40 flex h-14 items-center gap-3 border-b px-4 md:hidden">
@@ -59,6 +61,7 @@ export function AppSidebar({ user, consultora }: AppSidebarProps) {
             <SidebarContents
               user={user}
               consultora={consultora}
+              logoSignedUrl={logoSignedUrl}
               onNavigate={() => setMobileOpen(false)}
             />
           </SheetContent>
@@ -72,15 +75,17 @@ export function AppSidebar({ user, consultora }: AppSidebarProps) {
 function SidebarContents({
   user,
   consultora,
+  logoSignedUrl,
   onNavigate,
 }: {
   user: AppShellUser;
   consultora: CurrentConsultora;
+  logoSignedUrl: string | null;
   onNavigate?: () => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ConsultoraHeader consultora={consultora} />
+      <ConsultoraHeader consultora={consultora} logoSignedUrl={logoSignedUrl} />
       <Separator />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <AppSidebarNav onNavigate={onNavigate} />
@@ -93,17 +98,36 @@ function SidebarContents({
   );
 }
 
-function ConsultoraHeader({ consultora }: { consultora: CurrentConsultora }) {
+function ConsultoraHeader({
+  consultora,
+  logoSignedUrl,
+}: {
+  consultora: CurrentConsultora;
+  logoSignedUrl: string | null;
+}) {
   const isTrial = consultora.planTier === 'trial';
 
   return (
     <div className="flex items-center gap-3 px-4 py-4">
-      <div
-        className="bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md text-sm font-semibold"
-        aria-hidden="true"
-      >
-        CD
-      </div>
+      {logoSignedUrl ? (
+        // T-024-FU0.5: refuerzo de ownership UX. Si la consultora subio logo,
+        // lo mostramos en lugar del placeholder "CD". next/image requeriria
+        // configurar remotePatterns para *.supabase.co; <img> con unoptimized
+        // es mas simple y la signed URL ya tiene TTL 1h del server.
+        // eslint-disable-next-line @next/next/no-img-element -- Signed URL externa con TTL; usar <img> directo para evitar remotePatterns config.
+        <img
+          src={logoSignedUrl}
+          alt={`Logo de ${consultora.name}`}
+          className="bg-muted size-9 shrink-0 rounded-md object-contain"
+        />
+      ) : (
+        <div
+          className="bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md text-sm font-semibold"
+          aria-hidden="true"
+        >
+          CD
+        </div>
+      )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{consultora.name}</p>
         <p className="text-muted-foreground truncate text-xs">@{consultora.slug}</p>
