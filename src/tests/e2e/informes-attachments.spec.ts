@@ -145,40 +145,9 @@ test.describe('Informes · attachments (T-024)', () => {
     await expect(page.getByText(/Imágenes \(2\)/)).toBeVisible({ timeout: 15_000 });
 
     // 6. Reorder: la segunda imagen (idx 1) la pasamos a idx 0 con flecha up.
-    // T-024-FU6 SPIKE: instrumentacion temporal para diagnosticar por que el
-    // reorder no se persiste en CI. Listeners se registran ANTES del click
-    // para capturar todo lo que dispara el handler. Logs van a stdout de
-    // Playwright → visibles en CI log con prefijo [SPIKE].
-    page.on('console', (msg) => {
-      console.log(`[SPIKE BROWSER ${msg.type()}]`, msg.text());
-    });
-    page.on('pageerror', (err) => {
-      console.log('[SPIKE PAGEERROR]', err.message);
-    });
-    page.on('request', (req) => {
-      const url = req.url();
-      if (url.includes('/api/') || (req.method() === 'POST' && !url.includes('/_next/'))) {
-        console.log('[SPIKE REQ]', req.method(), url);
-        const post = req.postData();
-        if (post) console.log('[SPIKE REQ-BODY]', post.slice(0, 500));
-      }
-    });
-    page.on('response', async (res) => {
-      const req = res.request();
-      const url = res.url();
-      if (url.includes('/api/') || (req.method() === 'POST' && !url.includes('/_next/'))) {
-        console.log('[SPIKE RES]', res.status(), req.method(), url);
-        if (res.status() >= 400) {
-          const body = await res.text().catch(() => '<no body>');
-          console.log('[SPIKE RES-BODY]', body.slice(0, 500));
-        }
-      }
-    });
     const moveUpButtons = page.getByRole('button', { name: 'Mover arriba' });
     await expect(moveUpButtons).toHaveCount(2);
-    console.log('[SPIKE] About to click moveUpButtons.nth(1) at', new Date().toISOString());
     await moveUpButtons.nth(1).click();
-    console.log('[SPIKE] Click returned at', new Date().toISOString());
 
     // Validamos via DB que las posiciones reflejan el reorder. RLS lo lee
     // como el user owner. T-024-FU6: poll en lugar de waitForTimeout(800)
