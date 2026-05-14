@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation';
 
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { logger } from '@/shared/observability/logger';
+import { createSignedLogoUrl } from '@/shared/storage/logo';
+import { SIGNED_URL_TTL_UI_SEC } from '@/shared/storage/types';
 import { createClient } from '@/shared/supabase/server';
 import { AppShell } from '@/shared/ui/app-shell/AppShell';
 
@@ -44,8 +46,25 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     redirect('/login?error=no_consultora');
   }
 
+  // T-024-FU0.5: si la consultora tiene logo, pre-generamos signed URL TTL 1h
+  // para mostrarlo en el sidebar (mismo patron que /settings/consultora y
+  // /informes/[id]). Sin logo → null y el sidebar cae al placeholder "CD".
+  let logoSignedUrl: string | null = null;
+  if (consultora.logoStoragePath) {
+    const { signedUrl } = await createSignedLogoUrl(
+      supabase,
+      consultora.logoStoragePath,
+      SIGNED_URL_TTL_UI_SEC,
+    );
+    logoSignedUrl = signedUrl;
+  }
+
   return (
-    <AppShell user={{ id: user.id, email: user.email ?? '' }} consultora={consultora}>
+    <AppShell
+      user={{ id: user.id, email: user.email ?? '' }}
+      consultora={consultora}
+      logoSignedUrl={logoSignedUrl}
+    >
       {children}
     </AppShell>
   );

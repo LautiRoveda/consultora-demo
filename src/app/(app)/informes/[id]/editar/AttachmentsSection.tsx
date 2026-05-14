@@ -20,6 +20,13 @@ import {
 } from '@/shared/ui/alert-dialog';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from '@/shared/ui/dialog';
 import { Input } from '@/shared/ui/input';
 import { Separator } from '@/shared/ui/separator';
 
@@ -321,22 +328,50 @@ function ImageCard({
 
   return (
     <div className="border-border bg-card overflow-hidden rounded-md border">
-      <div className="bg-muted relative aspect-video">
-        {img.signedUrl ? (
-          <Image
-            src={img.signedUrl}
-            alt={img.filename}
-            fill
-            sizes="(max-width: 768px) 100vw, 33vw"
-            className="object-contain"
-            unoptimized
-          />
-        ) : (
+      {/* T-024-FU0.5: thumbnail wrappeado en Dialog. Click abre lightbox con
+          la imagen full-size + caption. Aplica para canEdit=true y false —
+          el lightbox es solo visual, no toca permisos. */}
+      {img.signedUrl ? (
+        <Dialog>
+          <DialogTrigger asChild>
+            <button
+              type="button"
+              className="bg-muted relative block aspect-video w-full cursor-zoom-in overflow-hidden"
+              aria-label={`Ampliar imagen ${img.filename}`}
+            >
+              <Image
+                src={img.signedUrl}
+                alt={img.filename}
+                fill
+                sizes="(max-width: 768px) 100vw, 33vw"
+                className="object-contain"
+                unoptimized
+              />
+            </button>
+          </DialogTrigger>
+          <DialogContent className="max-w-screen-lg p-4 sm:p-6">
+            <DialogTitle className="truncate text-base">{img.filename}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Vista ampliada del adjunto {img.filename}
+            </DialogDescription>
+            {/* eslint-disable-next-line @next/next/no-img-element -- Lightbox de signed URL externa; mantenemos <img> simple sin Next/Image. */}
+            <img
+              src={img.signedUrl}
+              alt={img.filename}
+              className="mx-auto h-auto max-h-[80vh] w-full object-contain"
+            />
+            {img.caption && (
+              <p className="text-muted-foreground mt-2 text-center text-sm">{img.caption}</p>
+            )}
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <div className="bg-muted relative aspect-video">
           <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
             Sin preview
           </div>
-        )}
-      </div>
+        </div>
+      )}
       <div className="space-y-2 p-3">
         <p className="text-foreground truncate text-xs" title={img.filename}>
           {img.filename}

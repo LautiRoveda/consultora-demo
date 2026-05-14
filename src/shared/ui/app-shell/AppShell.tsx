@@ -6,6 +6,8 @@ import { AppSidebar } from './AppSidebar';
 type AppShellProps = {
   user: { id: string; email: string };
   consultora: CurrentConsultora;
+  /** T-024-FU0.5: signed URL del logo (TTL 1h, generada por layout). */
+  logoSignedUrl: string | null;
   children: ReactNode;
 };
 
@@ -19,10 +21,10 @@ type AppShellProps = {
  *   - Mobile (<md): sidebar oculta, header sticky con hamburger encima del
  *     main. El `pl-0` en mobile cubre el reset implícito.
  */
-export function AppShell({ user, consultora, children }: AppShellProps) {
+export function AppShell({ user, consultora, logoSignedUrl, children }: AppShellProps) {
   return (
     <div className="bg-background min-h-svh">
-      <AppSidebar user={user} consultora={consultora} />
+      <AppSidebar user={user} consultora={consultora} logoSignedUrl={logoSignedUrl} />
       <div className="md:pl-64">
         <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">{children}</main>
       </div>
