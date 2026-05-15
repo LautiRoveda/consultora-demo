@@ -43,6 +43,17 @@ jobs:
       # los integration tests mockean el SDK (vi.mock) y los E2E NO disparan
       # "Generar con IA" para evitar costo en CI.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # T-031: env.ts valida RESEND_API_KEY + RESEND_FROM_ADDRESS +
+      # INTERNAL_CRON_SECRET. Placeholders alcanzan en CI: los integration
+      # tests mockean Resend SDK (vi.mock @/shared/notifications/resend) y
+      # el endpoint dispatcher se invoca directo desde el test sin pegarle
+      # al cron real. El secret de Vault tampoco se toca (los tests usan
+      # set_cron_vault_secret helper allowlisted). Valores reales viven
+      # en EasyPanel + Vault, configurados por Lautaro post-merge
+      # (docs/operations/resend-setup.md).
+      RESEND_API_KEY: re_placeholder_ci_does_not_call_resend
+      RESEND_FROM_ADDRESS: placeholder-ci@example.com
+      INTERNAL_CRON_SECRET: ci_placeholder_secret_32_chars_minimum_aaaaaa
     steps:
       - name: Checkout
         uses: actions/checkout@v5
