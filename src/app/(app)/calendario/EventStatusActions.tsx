@@ -1,6 +1,5 @@
 'use client';
 
-import type { UrlState } from './url-state';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -89,25 +88,28 @@ export function EventStatusActions({
     // navegar al mes del nuevo vencimiento.
     if (result.nextEventId && recurrenceMonths !== null) {
       const nextYM = monthsLater(currentMonth, recurrenceMonths, fechaVencimientoIso);
+      // Cerramos el drawer ANTES del toast por dos razones:
+      //  - UX: la sesion sobre el evento original termino al completarlo;
+      //    mantener el drawer abierto despues confunde.
+      //  - Tecnica: el Sheet overlay intercepta pointer events; sin cerrarlo,
+      //    el CTA del toast queda inaccesible (testeado en E2E #6).
+      // duration: Infinity → el toast persiste hasta que el user clickee el CTA
+      // o lo dismissee manualmente. Sin esto sonner lo auto-cierra en ~4s.
+      onMutated({ closeDrawer: true });
       toast.success('Vencimiento completado', {
         description: 'Se generó el próximo vencimiento por recurrencia.',
+        duration: Infinity,
         action: {
           label: 'Ver siguiente',
           onClick: () => {
-            const updates: Partial<UrlState> = {
-              year: nextYM.year,
-              month: nextYM.month,
-              event: result.nextEventId,
-            };
-            void updates;
             onMutated({ gotoEventId: result.nextEventId, gotoMonth: nextYM });
           },
         },
       });
     } else {
       toast.success('Vencimiento completado');
+      onMutated({});
     }
-    onMutated({});
     router.refresh();
   }
 

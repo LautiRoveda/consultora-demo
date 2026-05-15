@@ -1,17 +1,14 @@
 /**
  * T-029 · E2E del calendario mensual.
  *
- * Cobertura:
- *  1. happy path crear evento via drawer (incluye recurrencia + chip remover).
- *  2. evento aparece en cell correcta + filtro tipo lo oculta/muestra.
+ * Cobertura (6 tests):
+ *  1. happy path crear evento via drawer + visible en cell del mes.
+ *  2. filtro por tipo oculta/muestra correctamente.
  *  3. navegar a mes siguiente preserva filtros en URL.
- *  4. completar evento NO recurrente → status pasa a completed (cell fuera de
- *     filtro pending default).
- *  5. cancelar evento → cell pierde el badge (mismo principio que 4).
- *
- * Out de scope: recurrencia con next event en otro mes (test 5 del plan)
- * queda como follow-up — el flow es complejo cross-mes y no aporta cobertura
- * incremental sobre 4+5 que ya validan los actions.
+ *  4. completar evento NO recurrente → status pasa a completed.
+ *  5. cancelar evento con motivo → status cancelled + reason en metadata.
+ *  6. completar evento recurrente → next event aparece en mes siguiente
+ *     (CTA del toast navega al mes + drawer view del nuevo).
  *
  * Correr local: `set -a && source .env.local && set +a &&
  *   CHROMIUM_PATH="/path/to/chrome" pnpm test:e2e --grep "Calendario mensual"`.
@@ -281,5 +278,75 @@ test.describe('Calendario mensual', () => {
     expect(row?.status).toBe('cancelled');
     const meta = row?.metadata as Record<string, unknown> | null;
     expect(meta?.cancel_reason).toBe('Cliente desistió E2E');
+  });
+
+  test('6. completar evento recurrente → next event aparece en mes siguiente', async ({ page }) => {
+    const email = uniqueTestEmail('cal-recur');
+    const { userId, consultoraId } = await createTestUserWithConsultora({
+      email,
+      consultoraName: 'Cal Test 6',
+    });
+    createdUserIds.push(userId);
+
+    // Fecha original: 120 dias futuro. Next event = +12 meses → garantia que
+    // todos los offsets default RGRL [60,30,7,0] caen en futuro relativo a now
+    // (no se skipean por hora 09:00 ART pasada).
+    const fechaIso = farFutureIso(120);
+    const { year, month } = ymOf(fechaIso);
+    const nextYear = month === 12 ? year + 2 : year + 1;
+    const nextMonth = month;
+    const nextMonthSlug = `${nextYear}-${String(nextMonth).padStart(2, '0')}`;
+
+    // Insert via admin (mas rapido que crear via UI) — RGRL anual + recurrence_months=12.
+    const { data: ev } = await adminClient
+      .from('calendar_events')
+      .insert({
+        consultora_id: consultoraId,
+        tipo: 'rgrl_anual',
+        titulo: 'RGRL recurrente E2E',
+        fecha_vencimiento: fechaIso,
+        recurrence_months: 12,
+        reminder_offsets_days: [60, 30, 7, 0],
+        created_by: userId,
+      })
+      .select('id')
+      .single();
+    if (ev) createdEventIds.push(ev.id);
+
+    await loginViaUI(page, email, 'TestPassword123!');
+    await page.goto(`/calendario?month=${year}-${String(month).padStart(2, '0')}&event=${ev!.id}`);
+
+    // Drawer view del original abierto. Click "Marcar completado" → AlertDialog.
+    await page.getByTestId('complete-trigger').click();
+    await page.getByRole('button', { name: 'Confirmar' }).click();
+
+    // Toast con CTA aparece. Sonner renderiza el `action` como button con el
+    // label "Ver siguiente" (ver EventStatusActions.tsx).
+    const ctaToast = page.getByRole('button', { name: /ver siguiente/i });
+    await expect(ctaToast).toBeVisible({ timeout: 10_000 });
+    await ctaToast.click();
+
+    // URL navega al mes del next event (mismo mes 12 meses despues).
+    await page.waitForURL(new RegExp(`month=${nextMonthSlug}`), { timeout: 10_000 });
+
+    // El badge del next event aparece en la cell del dia (mismo dia +12 meses).
+    const dayPart = fechaIso.split('-')[2]!;
+    const nextCellTestId = `cell-${nextYear}-${String(nextMonth).padStart(2, '0')}-${dayPart}`;
+    const nextCell = page.getByTestId(nextCellTestId);
+    await expect(nextCell).toBeVisible({ timeout: 5_000 });
+    await expect(nextCell.getByText('RGRL recurrente E2E')).toBeVisible({ timeout: 5_000 });
+
+    // Track el next event para cleanup.
+    const { data: nextRow } = await adminClient
+      .from('calendar_events')
+      .select('id, status, recurrence_months')
+      .eq('consultora_id', consultoraId)
+      .eq('titulo', 'RGRL recurrente E2E')
+      .eq('status', 'pending')
+      .neq('id', ev!.id)
+      .maybeSingle();
+    expect(nextRow).not.toBeNull();
+    expect(nextRow?.recurrence_months).toBe(12);
+    if (nextRow) createdEventIds.push(nextRow.id);
   });
 });

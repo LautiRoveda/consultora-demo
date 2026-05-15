@@ -41,11 +41,10 @@ export function EventViewPanel({
   // non-owner. Coincide con el gate del backend (T-028 update/complete/cancel).
   const canEdit = event.created_by === currentUserId || currentUserRole === 'owner';
 
-  // T-029-FU0: deteccion de "evento auto-creado por recurrencia" requeria una
-  // columna nueva en `calendar_events` (parent_event_id o created_via_recurrence)
-  // que T-027 no tiene. La heuristica `informe_id IS NULL AND fecha_vencimiento
-  // > created_at + N dias` da falsos positivos para eventos custom creados a
-  // futuro. Diferido a T-029-FU1 hasta que el orquestador apruebe la migration.
+  // TODO(T-036): mostrar copy "auto-creado por recurrencia" cuando el next event
+  // fue generado por completeCalendarEventAction. Requiere columna parent_event_id
+  // o created_via_recurrence en calendar_events — heuristica sin schema no es
+  // confiable (falsos positivos en eventos custom a futuro lejano).
 
   const fechaCivil = civilIsoToDate(event.fecha_vencimiento);
   const isOverdue =
