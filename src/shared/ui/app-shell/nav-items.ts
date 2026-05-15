@@ -26,7 +26,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/clientes', label: 'Clientes', icon: Users, status: 'soon', ticket: 'T-020' },
   { href: '/empleados', label: 'Empleados', icon: UserCheck, status: 'soon', ticket: 'T-021' },
   { href: '/epp', label: 'EPP', icon: HardHat, status: 'soon', ticket: 'T-022' },
-  { href: '/calendario', label: 'Calendario', icon: Calendar, status: 'soon', ticket: 'T-023' },
+  { href: '/calendario', label: 'Calendario', icon: Calendar, status: 'live' },
   {
     href: '/notificaciones',
     label: 'Notificaciones',
