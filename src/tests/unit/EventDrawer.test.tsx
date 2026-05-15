@@ -1,7 +1,7 @@
 /**
  * T-029 · Tests del EventDrawer (3 modos + permission gate + ajuste 4).
  */
-import type { DrawerState } from '@/app/(app)/calendario/CalendarView';
+import type { DrawerState } from '@/app/(app)/calendario/EventDrawer';
 import type { CalendarEventRow } from '@/app/(app)/calendario/queries';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';

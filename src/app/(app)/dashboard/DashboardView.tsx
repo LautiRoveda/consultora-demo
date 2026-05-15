@@ -1,18 +1,26 @@
-import { Calendar, FileText, HardHat, Users } from 'lucide-react';
+import { FileText, HardHat, Users } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
+
+import { ProximosVencimientosPanel } from './ProximosVencimientosPanel';
 
 type DashboardViewProps = {
   showResetSuccess?: boolean;
 };
 
 /**
- * Contenido del dashboard simplificado post-T-017.
+ * Contenido del dashboard.
  *
  * El nombre de la consultora, el plan tier y el menú de cuenta los muestra
- * el `<AppShell>` aguas arriba — acá sólo va el contenido específico de la
- * página: banner post-recovery + cards de features que están por venir.
+ * el `<AppShell>` aguas arriba — acá va el contenido específico de la página:
+ *  - Banner post-recovery (T-014).
+ *  - Panel "Próximos vencimientos" (T-030) — server async child embedido.
+ *  - Cards "Próximamente" de features faltantes (Informes ya live; Clientes/
+ *    EPP siguen pending — drift legacy fuera de scope T-030).
+ *
+ * Server component sync con async child: React Server Components soporta
+ * embed async children sin convertir el padre a async.
  */
 export function DashboardView({ showResetSuccess }: DashboardViewProps) {
   return (
@@ -23,6 +31,8 @@ export function DashboardView({ showResetSuccess }: DashboardViewProps) {
           <AlertDescription>Tu nueva contraseña ya está activa.</AlertDescription>
         </Alert>
       ) : null}
+
+      <ProximosVencimientosPanel />
 
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Bienvenido a ConsultoraDemo</h1>
@@ -38,7 +48,7 @@ export function DashboardView({ showResetSuccess }: DashboardViewProps) {
         >
           Próximamente
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <FeatureCard
             icon={<FileText className="size-5" aria-hidden="true" />}
             title="Informes"
@@ -56,12 +66,6 @@ export function DashboardView({ showResetSuccess }: DashboardViewProps) {
             title="EPP"
             description="Tracking de entregas y planilla Res. 299/11."
             ticket="T-022"
-          />
-          <FeatureCard
-            icon={<Calendar className="size-5" aria-hidden="true" />}
-            title="Calendario"
-            description="Vencimientos y alertas proactivas."
-            ticket="T-023"
           />
         </div>
       </section>

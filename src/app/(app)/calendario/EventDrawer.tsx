@@ -1,6 +1,5 @@
 'use client';
 
-import type { DrawerState } from './CalendarView';
 import type { CalendarEventRow } from './queries';
 import { useMemo } from 'react';
 
@@ -8,6 +7,21 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 
 import { EventForm } from './EventForm';
 import { EventViewPanel } from './EventViewPanel';
+
+/**
+ * Modos del drawer. `view` y `edit` referencian eventos por id; `create`
+ * opcionalmente lleva una fecha pre-poblada (cuando el user clickea un dia
+ * vacio del grid).
+ *
+ * Definido aca (en lugar de en `CalendarView`) para que tanto `CalendarView`
+ * (vista mensual) como `AgendaView` (T-030, vista lista) lo importen desde su
+ * dueno natural sin dependencias circulares entre vistas hermanas.
+ */
+export type DrawerState =
+  | { mode: 'closed' }
+  | { mode: 'view'; eventId: string }
+  | { mode: 'create'; fechaPrepop: string | null }
+  | { mode: 'edit'; eventId: string };
 
 type Props = {
   state: DrawerState;
