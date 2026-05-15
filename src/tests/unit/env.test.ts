@@ -20,6 +20,9 @@ vi.hoisted(() => {
   process.env.SENTRY_ORG = 'hoisted-org';
   process.env.SENTRY_PROJECT = 'hoisted-project';
   process.env.ANTHROPIC_API_KEY = 'hoisted-anthropic-key';
+  process.env.RESEND_API_KEY = 'hoisted-resend-key';
+  process.env.RESEND_FROM_ADDRESS = 'hoisted@example.com';
+  process.env.INTERNAL_CRON_SECRET = 'hoisted-cron-secret-32-chars-min-aaa';
 });
 
 describe('envSchema', () => {
@@ -31,6 +34,9 @@ describe('envSchema', () => {
     SENTRY_ORG: 'lautaro-96',
     SENTRY_PROJECT: 'consultora-demo',
     ANTHROPIC_API_KEY: 'anthropic-key',
+    RESEND_API_KEY: 'resend-key',
+    RESEND_FROM_ADDRESS: 'reminders@example.com',
+    INTERNAL_CRON_SECRET: 'cron-secret-32-chars-min-aaaaaaaaaa',
   };
 
   it('acepta vars válidas', () => {
@@ -127,6 +133,59 @@ describe('envSchema', () => {
     const result = envSchema.safeParse({
       ...validInput,
       ANTHROPIC_API_KEY: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza RESEND_API_KEY vacía (T-031)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      RESEND_API_KEY: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza RESEND_FROM_ADDRESS no-email (T-031)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      RESEND_FROM_ADDRESS: 'not-an-email',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza INTERNAL_CRON_SECRET < 32 chars (T-031)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      INTERNAL_CRON_SECRET: 'too-short',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('RESEND_REPLY_TO_ADDRESS tiene default si se omite (T-031)', () => {
+    const result = envSchema.safeParse(validInput);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.RESEND_REPLY_TO_ADDRESS).toBe(
+        'noreply@mail.consultora-demo.test-ia.cloud',
+      );
+    }
+  });
+
+  it('RESEND_REPLY_TO_ADDRESS acepta override válido (T-031)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      RESEND_REPLY_TO_ADDRESS: 'soporte@consultora-demo.test-ia.cloud',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.RESEND_REPLY_TO_ADDRESS).toBe('soporte@consultora-demo.test-ia.cloud');
+    }
+  });
+
+  it('RESEND_REPLY_TO_ADDRESS rechaza no-email (T-031)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      RESEND_REPLY_TO_ADDRESS: 'not-an-email',
     });
     expect(result.success).toBe(false);
   });

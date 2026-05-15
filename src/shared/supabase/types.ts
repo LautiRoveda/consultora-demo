@@ -413,6 +413,100 @@ export type Database = {
           },
         ];
       };
+      notification_channel_prefs: {
+        Row: {
+          channel: string;
+          created_at: string;
+          enabled: boolean;
+          id: string;
+          muted_until: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          channel: string;
+          created_at?: string;
+          enabled?: boolean;
+          id?: string;
+          muted_until?: string | null;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          channel?: string;
+          created_at?: string;
+          enabled?: boolean;
+          id?: string;
+          muted_until?: string | null;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      notification_log: {
+        Row: {
+          channel: string;
+          consultora_id: string;
+          error_code: string | null;
+          error_detail: string | null;
+          event_id: string | null;
+          id: string;
+          provider_message_id: string | null;
+          recipient_user_id: string | null;
+          reminder_id: string | null;
+          sent_at: string;
+          status: string;
+        };
+        Insert: {
+          channel: string;
+          consultora_id: string;
+          error_code?: string | null;
+          error_detail?: string | null;
+          event_id?: string | null;
+          id?: string;
+          provider_message_id?: string | null;
+          recipient_user_id?: string | null;
+          reminder_id?: string | null;
+          sent_at?: string;
+          status: string;
+        };
+        Update: {
+          channel?: string;
+          consultora_id?: string;
+          error_code?: string | null;
+          error_detail?: string | null;
+          event_id?: string | null;
+          id?: string;
+          provider_message_id?: string | null;
+          recipient_user_id?: string | null;
+          reminder_id?: string | null;
+          sent_at?: string;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'notification_log_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'notification_log_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'calendar_events';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'notification_log_reminder_id_fkey';
+            columns: ['reminder_id'];
+            isOneToOne: false;
+            referencedRelation: 'calendar_event_reminders';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -436,7 +530,18 @@ export type Database = {
         Returns: boolean;
       };
       my_consultora_ids: { Args: never; Returns: string[] };
+      process_pending_reminders: {
+        Args: never;
+        Returns: {
+          claimed_id: string;
+          dispatched: boolean;
+        }[];
+      };
       role_on_consultora: { Args: { p_consultora_id: string }; Returns: string };
+      set_cron_vault_secret: {
+        Args: { new_value: string; secret_name: string };
+        Returns: undefined;
+      };
       unaccent: { Args: { '': string }; Returns: string };
     };
     Enums: {
