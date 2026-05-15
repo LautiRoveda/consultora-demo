@@ -45,10 +45,11 @@ describe('AppSidebarNav', () => {
     // el accessible-name en jsdom (visible + sr-only).
     const nav = screen.getByRole('navigation');
     const items = nav.querySelectorAll('li');
-    // T-029: Calendario paso de soon → live. Total sigue 8 (3 live + 4 soon + 1 settings).
-    expect(items.length).toBe(8);
+    // T-029: Calendario paso de soon → live. T-035: Notificaciones salio del sidebar
+    // (vive como sub-tab de Configuracion). Total 7 (3 live + 3 soon + 1 settings).
+    expect(items.length).toBe(7);
 
-    const expectedSoonLabels = ['Clientes', 'Empleados', 'EPP', 'Notificaciones'];
+    const expectedSoonLabels = ['Clientes', 'Empleados', 'EPP'];
     const soonButtons = nav.querySelectorAll<HTMLButtonElement>(
       'button[aria-disabled="true"][disabled]',
     );
