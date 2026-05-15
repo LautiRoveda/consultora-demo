@@ -1,6 +1,7 @@
 'use client';
 
 import type { CalendarEventStatus, CalendarEventTipo } from './defaults';
+import type { DrawerState } from './EventDrawer';
 import type { CalendarEventRow } from './queries';
 import type { UrlState } from './url-state';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
@@ -8,24 +9,12 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 
 import { Button } from '@/shared/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip';
+import { TooltipProvider } from '@/shared/ui/tooltip';
 
 import { CalendarFilters } from './CalendarFilters';
 import { CalendarMonthView } from './CalendarMonthView';
 import { EventDrawer } from './EventDrawer';
 import { addMonthsToYM, buildSearchParams } from './url-state';
-
-/**
- * Modos del drawer. `view` y `edit` referencian eventos por id; `create`
- * opcionalmente lleva una fecha pre-poblada (cuando el user clickea un dia
- * vacio del grid).
- */
-export type DrawerState =
-  | { mode: 'closed' }
-  | { mode: 'view'; eventId: string }
-  | { mode: 'create'; fechaPrepop: string | null }
-  | { mode: 'edit'; eventId: string };
 
 const MONTH_LABELS_ES = [
   'Enero',
@@ -194,19 +183,6 @@ export function CalendarView({
     <TooltipProvider>
       <div className="space-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Calendario</h1>
-            <p className="text-muted-foreground text-sm">
-              Vencimientos del mes. Click en un evento para ver detalle, en un día vacío para crear.
-            </p>
-          </div>
-          <Button onClick={() => openCreateOnDay(null)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Nuevo vencimiento
-          </Button>
-        </div>
-
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -233,32 +209,21 @@ export function CalendarView({
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          <CalendarFilters value={initialFilters} onChange={applyFilters} />
+          <div className="flex flex-wrap items-center gap-2">
+            <CalendarFilters value={initialFilters} onChange={applyFilters} />
+            <Button onClick={() => openCreateOnDay(null)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Nuevo vencimiento
+            </Button>
+          </div>
         </div>
 
-        <Tabs value="mensual">
-          <TabsList>
-            <TabsTrigger value="mensual">Mensual</TabsTrigger>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
-                  <TabsTrigger value="agenda" disabled>
-                    Agenda
-                  </TabsTrigger>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>Próximamente (T-030)</TooltipContent>
-            </Tooltip>
-          </TabsList>
-          <TabsContent value="mensual" className="mt-2">
-            <CalendarMonthView
-              month={initialMonth}
-              events={initialEvents}
-              onClickDay={openCreateOnDay}
-              onClickEvent={openViewEvent}
-            />
-          </TabsContent>
-        </Tabs>
+        <CalendarMonthView
+          month={initialMonth}
+          events={initialEvents}
+          onClickDay={openCreateOnDay}
+          onClickEvent={openViewEvent}
+        />
 
         <EventDrawer
           state={drawer}

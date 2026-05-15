@@ -803,4 +803,112 @@ describe('queries', () => {
     const ids = upcoming.map((e) => e.id);
     expect(ids).not.toContain(evCa!.id);
   });
+
+  it('26. T-030 getEventsBeyondDays(30) devuelve solo pending fecha > today+30', async () => {
+    await signInAs(emailOwnerA);
+    const { createCalendarEventAction } = await import('@/app/(app)/calendario/actions');
+    const { getEventsBeyondDays } = await import('@/app/(app)/calendario/queries');
+
+    // Fixture: 4 eventos en cA, fechas variadas.
+    const inFifteen = await createCalendarEventAction({
+      tipo: 'custom',
+      titulo: 'Beyond +15d (in range upcoming)',
+      fecha_vencimiento: futureDateIso(15),
+    });
+    const inThirty = await createCalendarEventAction({
+      tipo: 'custom',
+      titulo: 'Beyond +30d (borde, NO debe aparecer)',
+      fecha_vencimiento: futureDateIso(30),
+    });
+    const inThirtyOne = await createCalendarEventAction({
+      tipo: 'custom',
+      titulo: 'Beyond +31d (SI debe aparecer)',
+      fecha_vencimiento: futureDateIso(31),
+    });
+    const inNinety = await createCalendarEventAction({
+      tipo: 'custom',
+      titulo: 'Beyond +90d (SI debe aparecer)',
+      fecha_vencimiento: futureDateIso(90),
+    });
+    if (!inFifteen.ok || !inThirty.ok || !inThirtyOne.ok || !inNinety.ok) {
+      throw new Error('precondition failed');
+    }
+
+    const { createClient: createServerClient } = await import('@/shared/supabase/server');
+    const sb = await createServerClient();
+    const beyond = await getEventsBeyondDays(sb, 30);
+    const ids = beyond.map((e) => e.id);
+    expect(ids).not.toContain(inFifteen.eventId);
+    expect(ids).not.toContain(inThirty.eventId); // strict gt → +30 excluido
+    expect(ids).toContain(inThirtyOne.eventId);
+    expect(ids).toContain(inNinety.eventId);
+
+    // Order check: ASC por fecha
+    const idx31 = beyond.findIndex((e) => e.id === inThirtyOne.eventId);
+    const idx90 = beyond.findIndex((e) => e.id === inNinety.eventId);
+    expect(idx31).toBeLessThan(idx90);
+  });
+
+  it('27. T-030 getEventsBeyondDays excluye completed/cancelled', async () => {
+    await signInAs(emailOwnerA);
+    const { getEventsBeyondDays } = await import('@/app/(app)/calendario/queries');
+
+    // Insertar 2 eventos a futuro lejano: uno completed, uno cancelled.
+    const { data: completedFar } = await admin
+      .from('calendar_events')
+      .insert({
+        consultora_id: cAId,
+        tipo: 'custom',
+        titulo: 'Far completed',
+        fecha_vencimiento: futureDateIso(60),
+        reminder_offsets_days: [],
+        status: 'completed',
+        created_by: ownerAId,
+      })
+      .select('id')
+      .single();
+    const { data: cancelledFar } = await admin
+      .from('calendar_events')
+      .insert({
+        consultora_id: cAId,
+        tipo: 'custom',
+        titulo: 'Far cancelled',
+        fecha_vencimiento: futureDateIso(70),
+        reminder_offsets_days: [],
+        status: 'cancelled',
+        created_by: ownerAId,
+      })
+      .select('id')
+      .single();
+
+    const { createClient: createServerClient } = await import('@/shared/supabase/server');
+    const sb = await createServerClient();
+    const beyond = await getEventsBeyondDays(sb, 30);
+    const ids = beyond.map((e) => e.id);
+    expect(ids).not.toContain(completedFar!.id);
+    expect(ids).not.toContain(cancelledFar!.id);
+  });
+
+  it('28. T-030 getEventsBeyondDays respeta RLS cross-tenant', async () => {
+    // Crear evento far en cA via admin.
+    const { data: evCa } = await admin
+      .from('calendar_events')
+      .insert({
+        consultora_id: cAId,
+        tipo: 'custom',
+        titulo: 'Beyond cross-tenant',
+        fecha_vencimiento: futureDateIso(45),
+        reminder_offsets_days: [],
+        created_by: ownerAId,
+      })
+      .select('id')
+      .single();
+
+    await signInAs(emailOwnerB);
+    const { getEventsBeyondDays } = await import('@/app/(app)/calendario/queries');
+    const { createClient: createServerClient } = await import('@/shared/supabase/server');
+    const sb = await createServerClient();
+    const beyond = await getEventsBeyondDays(sb, 30);
+    expect(beyond.map((e) => e.id)).not.toContain(evCa!.id);
+  });
 });

@@ -151,3 +151,35 @@ export async function getEventsByInformeId(
     .order('fecha_vencimiento', { ascending: true });
   return data ?? [];
 }
+
+/**
+ * T-030 · Eventos pendientes con fecha_vencimiento > today + daysFrom. Usado
+ * por el bucket "Mas adelante" de la vista agenda (`/calendario/agenda`).
+ *
+ * Default 30 dias matchea el horizonte de `getUpcomingEvents`: las dos queries
+ * juntas (+ overdue) cubren la totalidad del universo pending sin solape.
+ *
+ * Limit configurable (default 200) para evitar saturar el bucket "Mas
+ * adelante" de una consultora con muchos vencimientos a largo plazo. Cuando
+ * llegue a doler, follow-up con virtual scrolling o "Ver mas".
+ */
+export async function getEventsBeyondDays(
+  supabase: SupabaseClient<Database>,
+  daysFrom = 30,
+  limit = 200,
+): Promise<CalendarEventRow[]> {
+  const today = new Date();
+  const horizon = new Date(today.getTime());
+  horizon.setUTCDate(horizon.getUTCDate() + daysFrom);
+  const horizonIso = horizon.toISOString().slice(0, 10);
+
+  const { data } = await supabase
+    .from('calendar_events')
+    .select('*')
+    .eq('status', 'pending')
+    .gt('fecha_vencimiento', horizonIso)
+    .order('fecha_vencimiento', { ascending: true })
+    .order('id', { ascending: true })
+    .limit(limit);
+  return data ?? [];
+}
