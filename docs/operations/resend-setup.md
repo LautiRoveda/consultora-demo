@@ -42,6 +42,18 @@ spam complaints, el daño se contiene al subdominio.
 4. Volver a Resend → **Verify Domain**. Tarda 5-30 min en propagar.
 5. Status debe pasar a `verified`.
 
+> **⚠️ Timing race del badge "Verified"** (observado en smoke productivo T-031):
+> el badge verde aparece cuando Resend valida los DNS records (SPF + DKIM + DMARC
+> resuelven correctamente), pero la verificación **completa** en el backend de
+> Resend (la que habilita el sender efectivo para envíos reales) puede tardar
+> **~4 minutos más**. Timeline observado: Domain Added 09:59 → DNS Verified
+> 19:28 → Domain Fully Verified 19:29.
+>
+> **Mitigación**: esperá 5+ minutos después de ver el badge verde antes del
+> primer envío productivo (paso 7 de este runbook). Si el primer envío falla
+> con `RESEND_VALIDATION_ERROR` en `notification_log`, esperá un par de minutos
+> más y retry — no es bug del código.
+
 ---
 
 ## Paso 3 · Generar API key
