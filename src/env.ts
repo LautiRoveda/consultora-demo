@@ -33,6 +33,26 @@ export const envSchema = z.object({
   // Leak = facturación ajena. El bundler de Next falla si `env.ts` se importa
   // client-side gracias al `server-only` del tope.
   ANTHROPIC_API_KEY: z.string().min(1),
+
+  // Resend API (T-031). Server-only — leak = spam ajeno + cuenta suspendida.
+  RESEND_API_KEY: z.string().min(1),
+
+  // Email FROM address (T-031). Debe estar verificado en Resend con DNS
+  // (SPF + DKIM) del subdominio correspondiente. Ver
+  // docs/operations/resend-setup.md.
+  RESEND_FROM_ADDRESS: z.string().email(),
+
+  // Email Reply-To (T-031). Opcional con default sensato. Lautaro puede
+  // override en EasyPanel env vars si quiere un reply-to especifico
+  // (ej. soporte@…) sin redeploy de codigo.
+  RESEND_REPLY_TO_ADDRESS: z.string().email().default('noreply@mail.consultora-demo.test-ia.cloud'),
+
+  // Shared secret entre pg_cron y el endpoint POST
+  // /api/calendar/dispatch-reminder (T-031). Mismo valor que el secret
+  // de Vault `cron_dispatch_secret`. Generar con `openssl rand -hex 32`.
+  // Server-only — leak permite a cualquiera disparar notificaciones
+  // arbitrarias contra el endpoint.
+  INTERNAL_CRON_SECRET: z.string().min(32),
 });
 
 const parsed = envSchema.safeParse(process.env);
