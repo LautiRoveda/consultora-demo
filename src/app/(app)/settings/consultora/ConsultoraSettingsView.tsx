@@ -248,7 +248,7 @@ export function ConsultoraSettingsView({
 
           {!isOwner && (
             <Alert>
-              <AlertTitle>Solo el owner puede editar</AlertTitle>
+              <AlertTitle>Workflow administrado por el owner</AlertTitle>
               <AlertDescription>
                 Sos member de <strong>{consultoraName}</strong>. Pedile al owner que ajuste el
                 workflow si lo necesitás.
