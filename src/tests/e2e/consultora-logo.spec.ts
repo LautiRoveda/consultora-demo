@@ -72,6 +72,11 @@ async function makeLogoPng(label: string): Promise<string> {
 }
 
 test.describe('Configuración · logo (T-024)', () => {
+  // FLAKY: ver issue #56 — Puppeteer cross-worker en Windows sin
+  // CHROMIUM_PATH provoca timeout. CI Ubuntu OK con retries=2 + Chromium
+  // pre-instalado. Local Windows: export CHROMIUM_PATH antes de correr.
+  // Smoke productivo del runbook valida real flow. NO investigar mas sin
+  // demanda real.
   test('owner: upload logo → preview visible → PDF del informe usa el logo', async ({ page }) => {
     // T-024-FU8: el test entero requiere mas de 30s en CI cargado. Pasos:
     // login UI + goto settings + upload logo + verify preview + DB query +
