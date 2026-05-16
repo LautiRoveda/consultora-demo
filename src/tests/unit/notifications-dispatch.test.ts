@@ -68,15 +68,26 @@ type LogRow = {
  */
 function makeAdminMock(opts: {
   existingSentRecords?: Array<{ reminder_id: string; channel: string }>;
+  // T-033 — telegram_subscriptions fixture opcional. Si no se setea,
+  // el dispatcher hace lookup y devuelve null → mapea a TELEGRAM_NOT_LINKED
+  // → status='skipped' (esperado para tests pre-T-033 que dejan telegram
+  // como stub).
+  telegramSubscriptions?: Array<{
+    user_id: string;
+    telegram_chat_id: number | null;
+    linked_at: string | null;
+    unlinked_at: string | null;
+  }>;
 }) {
   const logInsertedRows: LogRow[] = [];
   const existing = opts.existingSentRecords ?? [];
+  const tgSubs = opts.telegramSubscriptions ?? [];
 
-  // Builder para .from('notification_log').select(...).eq(...).eq(...).eq(...).maybeSingle()
-  function buildSelectChain(filters: Record<string, unknown>) {
+  // Builder para .from(...).select(...).eq(...).eq(...).eq(...).maybeSingle()
+  function buildLogSelectChain(filters: Record<string, unknown>) {
     return {
       eq(col: string, val: unknown) {
-        return buildSelectChain({ ...filters, [col]: val });
+        return buildLogSelectChain({ ...filters, [col]: val });
       },
       maybeSingle() {
         const match = existing.find(
@@ -90,20 +101,40 @@ function makeAdminMock(opts: {
     };
   }
 
+  // Builder para .from('telegram_subscriptions').select(...).eq('user_id', X).maybeSingle()
+  function buildTgSelectChain(filters: Record<string, unknown>) {
+    return {
+      eq(col: string, val: unknown) {
+        return buildTgSelectChain({ ...filters, [col]: val });
+      },
+      maybeSingle() {
+        const match = tgSubs.find((s) => s.user_id === filters.user_id);
+        return Promise.resolve({ data: match ?? null, error: null });
+      },
+    };
+  }
+
   return {
     from(table: string) {
-      if (table !== 'notification_log') {
-        throw new Error(`Mock no soporta tabla "${table}"`);
+      if (table === 'notification_log') {
+        return {
+          select() {
+            return buildLogSelectChain({});
+          },
+          insert(row: LogRow) {
+            logInsertedRows.push(row);
+            return Promise.resolve({ data: null, error: null });
+          },
+        };
       }
-      return {
-        select() {
-          return buildSelectChain({});
-        },
-        insert(row: LogRow) {
-          logInsertedRows.push(row);
-          return Promise.resolve({ data: null, error: null });
-        },
-      };
+      if (table === 'telegram_subscriptions') {
+        return {
+          select() {
+            return buildTgSelectChain({});
+          },
+        };
+      }
+      throw new Error(`Mock no soporta tabla "${table}"`);
     },
     _logInsertedRows: logInsertedRows,
   };
@@ -153,10 +184,12 @@ describe('dispatchReminderToChannels · happy path', () => {
       status: 'sent',
       message_id: 'rsd_test_1',
     });
+    // Post-T-033: sin sub linkeada → dispatcher devuelve TELEGRAM_NOT_LINKED
+    // ANTES de invocar al sender. Push sigue como stub T-034.
     expect(outcomes[1]).toEqual({
       channel: 'telegram',
       status: 'skipped',
-      error_code: 'NO_CHANNEL_IMPL_T033',
+      error_code: 'TELEGRAM_NOT_LINKED',
     });
     expect(outcomes[2]).toEqual({
       channel: 'push',
@@ -373,7 +406,7 @@ describe('dispatchReminderToChannels · email sin recipient.email', () => {
 });
 
 describe('dispatchReminderToChannels · stubs T-033/T-034', () => {
-  it('11. Telegram enabled (T-031 stub) -> skipped NO_CHANNEL_IMPL_T033 + log row', async () => {
+  it('11. Telegram sin sub linkeada -> skipped TELEGRAM_NOT_LINKED + log row (post-T-033)', async () => {
     mockSendEmail.mockResolvedValueOnce({ ok: true, messageId: 'rsd_test_6' });
     const admin = makeAdminMock({});
 
@@ -390,11 +423,47 @@ describe('dispatchReminderToChannels · stubs T-033/T-034', () => {
     expect(outcomes[1]).toEqual({
       channel: 'telegram',
       status: 'skipped',
-      error_code: 'NO_CHANNEL_IMPL_T033',
+      error_code: 'TELEGRAM_NOT_LINKED',
     });
 
     const telegramRow = admin._logInsertedRows.find((r) => r.channel === 'telegram');
     expect(telegramRow?.status).toBe('skipped'); // NO 'failed'
-    expect(telegramRow?.error_code).toBe('NO_CHANNEL_IMPL_T033');
+    expect(telegramRow?.error_code).toBe('TELEGRAM_NOT_LINKED');
+  });
+
+  it('12. Telegram con sub linkeada → invoca sender real (post-T-033)', async () => {
+    mockSendEmail.mockResolvedValueOnce({ ok: true, messageId: 'rsd_test_7' });
+    mockSendTelegram.mockResolvedValueOnce({ ok: true, messageId: '42' });
+    const admin = makeAdminMock({
+      telegramSubscriptions: [
+        {
+          user_id: 'u1',
+          telegram_chat_id: 12345,
+          linked_at: '2026-01-01T00:00:00Z',
+          unlinked_at: null,
+        },
+      ],
+    });
+
+    const outcomes = await dispatchReminderToChannels({
+      admin: admin as never,
+      reminder: makeReminder(),
+      recipient: { email: 'user@example.com', name: null, userId: 'u1' },
+      prefs: [
+        { channel: 'email', enabled: true, muted_until: null },
+        { channel: 'telegram', enabled: true, muted_until: null },
+      ],
+    });
+
+    expect(outcomes[1]).toEqual({
+      channel: 'telegram',
+      status: 'sent',
+      message_id: '42',
+    });
+    expect(mockSendTelegram).toHaveBeenCalledOnce();
+    expect(mockSendTelegram.mock.calls[0]![0]).toMatchObject({
+      chatId: 12345,
+      userId: 'u1',
+    });
   });
 });

@@ -54,6 +54,16 @@ jobs:
       RESEND_API_KEY: re_placeholder_ci_does_not_call_resend
       RESEND_FROM_ADDRESS: placeholder-ci@example.com
       INTERNAL_CRON_SECRET: ci_placeholder_secret_32_chars_minimum_aaaaaa
+      # T-033: env.ts valida TELEGRAM_BOT_TOKEN (min 40) +
+      # TELEGRAM_BOT_USERNAME (regex a-zA-Z0-9_) + TELEGRAM_WEBHOOK_SECRET
+      # (min 32). Placeholders alcanzan en CI: los integration tests
+      # mockean el módulo bot-client (vi.mock @/shared/telegram/bot-client)
+      # y el webhook se invoca directo desde el test con header secret
+      # válido. Valores reales viven en EasyPanel, configurados por
+      # Lautaro post-merge (docs/operations/telegram-setup.md).
+      TELEGRAM_BOT_TOKEN: ci_placeholder_telegram_bot_token_40_chars_aaa
+      TELEGRAM_BOT_USERNAME: consultorademo_ci_bot
+      TELEGRAM_WEBHOOK_SECRET: ci_placeholder_telegram_webhook_secret_32_chars
     steps:
       - name: Checkout
         uses: actions/checkout@v5

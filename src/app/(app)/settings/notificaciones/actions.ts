@@ -13,12 +13,18 @@ import { updateNotificationPrefsSchema } from './schema';
  * T-035 · Server action que actualiza las preferencias de notificacion del
  * user logueado (toggle email + mute temporal global).
  *
- * Telegram y Push son forzados a `enabled=false` aca — T-033/T-034 no estan
- * implementados, si dejaramos `enabled=true` el dispatcher T-031 intentaria
- * enviar y fallaria con `NO_CHANNEL_IMPL_T033` / `NO_CHANNEL_IMPL_T034`.
+ * Post-T-033 — el canal telegram se gobierna por su propio flow (linkeo
+ * via webhook + unlink action), no por este form. NO sobrescribimos
+ * `telegram.enabled` ni `push.enabled` desde acá: el webhook hace
+ * UPSERT enabled=true al linkear, y `unlinkTelegramAction` hace
+ * UPSERT enabled=false al desvincular. Si este action lo sobreescribiera,
+ * el flow se rompería (cada save de mute pisaría el toggle del linkeo).
  *
- * Mute es global: UPSERT bulk de los 3 canales con el mismo `muted_until`
- * computado. Mute granular per-canal queda como follow-up si Lautaro lo pide.
+ * Mute es global: UPDATE del `muted_until` en los 3 canales del user.
+ * Solo el row de email se UPSERTea (porque emailEnabled puede cambiar);
+ * los rows de telegram/push se UPDATE-an solo si existen (no se crean
+ * acá — los crea el trigger T-031 para email y los actions de T-033/T-034
+ * para telegram/push). Mute granular per-canal queda como follow-up.
  *
  * RLS de `notification_channel_prefs` permite SELECT/INSERT/UPDATE propios
  * (`user_id = auth.uid()`); UPSERT con cliente authed respeta el gate sin
@@ -63,37 +69,44 @@ export async function updateNotificationPrefsAction(
   const effectiveMutedUntil =
     mutedUntil !== null && new Date(mutedUntil).getTime() > now.getTime() ? mutedUntil : null;
 
-  // UPSERT bulk a los 3 canales. `onConflict: 'user_id,channel'` apunta a la
-  // UNIQUE constraint de T-031. Si el row no existe (telegram/push nunca creados
-  // por el trigger default que solo crea email), se inserta; si existe, se updatea.
-  const rows = [
+  // UPSERT del row email (puede cambiar emailEnabled + muted_until).
+  const { error: emailErr } = await supabase.from('notification_channel_prefs').upsert(
     {
       user_id: user.id,
       channel: 'email' as const,
       enabled: parsed.data.emailEnabled,
       muted_until: effectiveMutedUntil,
     },
-    {
-      user_id: user.id,
-      channel: 'telegram' as const,
-      enabled: false,
-      muted_until: effectiveMutedUntil,
-    },
-    {
-      user_id: user.id,
-      channel: 'push' as const,
-      enabled: false,
-      muted_until: effectiveMutedUntil,
-    },
-  ];
+    { onConflict: 'user_id,channel' },
+  );
 
-  const { error } = await supabase
-    .from('notification_channel_prefs')
-    .upsert(rows, { onConflict: 'user_id,channel' });
-
-  if (error) {
-    logger.error({ err: error, userId: user.id }, 'updateNotificationPrefsAction: upsert fallo');
+  if (emailErr) {
+    logger.error(
+      { err: emailErr, userId: user.id },
+      'updateNotificationPrefsAction: upsert email fallo',
+    );
     return { ok: false, code: 'INTERNAL_ERROR', message: 'Error guardando preferencias.' };
+  }
+
+  // UPDATE muted_until para telegram + push del mismo user, SIN tocar
+  // `enabled` (gobernado por el flow de cada canal — webhook telegram,
+  // future push setup). Si los rows no existen, este UPDATE es no-op
+  // (0 rows afectados) — no creamos rows con enabled=false innecesarios.
+  const { error: muteErr } = await supabase
+    .from('notification_channel_prefs')
+    .update({ muted_until: effectiveMutedUntil })
+    .eq('user_id', user.id)
+    .in('channel', ['telegram', 'push']);
+
+  if (muteErr) {
+    logger.error(
+      { err: muteErr, userId: user.id },
+      'updateNotificationPrefsAction: update mute telegram/push fallo',
+    );
+    // Email ya fue persistido OK — no fallamos el action entero por esto.
+    // El mute de telegram/push queda desincronizado del de email; aceptable
+    // tradeoff porque es defensa secundaria (dispatcher chequea muted_until
+    // por canal pero el del email es el que el user ve en la UI).
   }
 
   revalidatePath('/settings/notificaciones');

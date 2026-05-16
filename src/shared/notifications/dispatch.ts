@@ -112,15 +112,54 @@ async function dispatchOneChannel(args: {
       });
     }
   } else if (channel === 'telegram') {
-    result = await sendTelegramReminder();
+    // T-033: lookup chat_id activo. Sin sub linkeada → skip silencioso
+    // (no es failure: el user simplemente no completó la vinculación).
+    if (!recipient.userId) {
+      result = {
+        ok: false,
+        errorCode: 'NO_RECIPIENT_TELEGRAM_USERID',
+        errorDetail: 'recipient.userId es null',
+      };
+    } else {
+      const { data: tgSub } = await admin
+        .from('telegram_subscriptions')
+        .select('telegram_chat_id, linked_at, unlinked_at')
+        .eq('user_id', recipient.userId)
+        .maybeSingle();
+
+      if (!tgSub || !tgSub.telegram_chat_id || tgSub.unlinked_at || !tgSub.linked_at) {
+        result = {
+          ok: false,
+          errorCode: 'TELEGRAM_NOT_LINKED',
+          errorDetail: 'User no tiene Telegram vinculado o está unlinked',
+        };
+      } else {
+        result = await sendTelegramReminder({
+          chatId: tgSub.telegram_chat_id,
+          reminder,
+          admin,
+          userId: recipient.userId,
+        });
+      }
+    }
   } else {
     result = await sendPushReminder();
   }
 
   // Persist + outcome.
+  // `skipped` cubre los casos no-failure pero tampoco sent:
+  //  - NO_CHANNEL_IMPL_* (stubs T-034 push).
+  //  - TELEGRAM_NOT_LINKED (user no completó vinculación, no es bug nuestro).
+  //  - NO_RECIPIENT_TELEGRAM_USERID (defensa edge case).
+  // El resto cae a `failed` (provider rechazó, network down, etc).
+  const isSkippableCode =
+    !result.ok &&
+    (result.errorCode.startsWith('NO_CHANNEL_IMPL') ||
+      result.errorCode === 'TELEGRAM_NOT_LINKED' ||
+      result.errorCode === 'NO_RECIPIENT_TELEGRAM_USERID');
   const finalStatus: 'sent' | 'skipped' | 'failed' = result.ok
     ? 'sent'
-    : result.errorCode.startsWith('NO_CHANNEL_IMPL')
+    : isSkippableCode
       ? 'skipped'
       : 'failed';
 

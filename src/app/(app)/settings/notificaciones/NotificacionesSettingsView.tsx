@@ -1,10 +1,11 @@
 'use client';
 
 import type { MuteInput, UpdateNotificationPrefsInput } from './schema';
+import type { TelegramRowState } from './TelegramChannelRow';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Bell, CalendarIcon, Mail, MessageSquare, Smartphone } from 'lucide-react';
+import { Bell, CalendarIcon, Mail, Smartphone } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -24,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shar
 
 import { updateNotificationPrefsAction } from './actions';
 import { getMuteStatus } from './mute-helpers';
+import { TelegramChannelRow } from './TelegramChannelRow';
 
 export type ChannelPrefRow = {
   channel: 'email' | 'telegram' | 'push';
@@ -99,9 +101,11 @@ function toActionInput(values: FormValues): UpdateNotificationPrefsInput {
 export function NotificacionesSettingsView({
   userEmail,
   initialPrefs,
+  telegramInitialState,
 }: {
   userEmail: string;
   initialPrefs: { email: ChannelPrefRow; telegram: ChannelPrefRow; push: ChannelPrefRow };
+  telegramInitialState: TelegramRowState;
 }) {
   const [pending, startTransition] = useTransition();
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -185,32 +189,7 @@ export function NotificacionesSettingsView({
                 )}
               />
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    className="flex items-center justify-between gap-4 rounded-md border p-3 opacity-60"
-                    data-testid="row-telegram"
-                    tabIndex={0}
-                  >
-                    <div className="flex items-start gap-3">
-                      <MessageSquare className="text-muted-foreground mt-0.5 h-4 w-4" />
-                      <div className="space-y-0.5">
-                        <span className="text-sm font-medium">Telegram</span>
-                        <p className="text-muted-foreground text-xs">No configurado todavía.</p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={false}
-                      disabled
-                      aria-label="Recibir reminders por Telegram (proximamente)"
-                      data-testid="toggle-telegram"
-                    />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Próximamente (T-033) — Configurarás tu bot de Telegram cuando esté disponible.
-                </TooltipContent>
-              </Tooltip>
+              <TelegramChannelRow initialState={telegramInitialState} />
 
               <Tooltip>
                 <TooltipTrigger asChild>

@@ -1,4 +1,5 @@
 import type { ChannelPrefRow } from './NotificacionesSettingsView';
+import type { TelegramRowState } from './TelegramChannelRow';
 import { redirect } from 'next/navigation';
 
 import { createClient } from '@/shared/supabase/server';
@@ -26,13 +27,22 @@ export default async function NotificacionesSettingsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const { data: prefs } = await supabase
-    .from('notification_channel_prefs')
-    .select('channel, enabled, muted_until')
-    .eq('user_id', user.id);
+  const [prefsRes, tgRes] = await Promise.all([
+    supabase
+      .from('notification_channel_prefs')
+      .select('channel, enabled, muted_until')
+      .eq('user_id', user.id),
+    supabase
+      .from('telegram_subscriptions')
+      .select(
+        'telegram_username, link_code, link_code_expires_at, linked_at, unlinked_at, blocked_count',
+      )
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ]);
 
   const byChannel = new Map<string, ChannelPrefRow>(
-    (prefs ?? []).map((p) => [p.channel, p as ChannelPrefRow]),
+    (prefsRes.data ?? []).map((p) => [p.channel, p as ChannelPrefRow]),
   );
   const initialPrefs = {
     email: byChannel.get('email') ?? {
@@ -52,5 +62,33 @@ export default async function NotificacionesSettingsPage() {
     },
   };
 
-  return <NotificacionesSettingsView userEmail={user.email ?? ''} initialPrefs={initialPrefs} />;
+  // T-033 — derivar el estado del row Telegram a partir de telegram_subscriptions.
+  const now = new Date();
+  const telegramInitial: TelegramRowState = (() => {
+    const sub = tgRes.data;
+    if (!sub) return { kind: 'unlinked' };
+    if (sub.linked_at && !sub.unlinked_at) {
+      return {
+        kind: 'linked',
+        username: sub.telegram_username,
+        blocked: sub.blocked_count >= 3,
+      };
+    }
+    if (
+      sub.link_code &&
+      sub.link_code_expires_at &&
+      new Date(sub.link_code_expires_at).getTime() > now.getTime()
+    ) {
+      return { kind: 'pending' };
+    }
+    return { kind: 'unlinked' };
+  })();
+
+  return (
+    <NotificacionesSettingsView
+      userEmail={user.email ?? ''}
+      initialPrefs={initialPrefs}
+      telegramInitialState={telegramInitial}
+    />
+  );
 }

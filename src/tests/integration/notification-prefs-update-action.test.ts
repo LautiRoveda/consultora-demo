@@ -167,23 +167,22 @@ describe('updateNotificationPrefsAction', () => {
       .select('channel, enabled, muted_until')
       .eq('user_id', userAId);
 
-    expect(rows).toHaveLength(3);
-    const byChannel = new Map(rows!.map((r) => [r.channel, r]));
+    // Post-T-033: el action solo UPSERTea email + UPDATEa muted_until en
+    // telegram/push si existen. En este test, telegram/push NO existían
+    // pre-submit (el trigger T-031 solo crea email default). Por lo tanto:
+    // solo 1 row después del submit.
+    expect(rows).toHaveLength(1);
+    const emailRow = rows!.find((r) => r.channel === 'email');
+    expect(emailRow?.enabled).toBe(true);
 
-    expect(byChannel.get('email')?.enabled).toBe(true);
-    expect(byChannel.get('telegram')?.enabled).toBe(false);
-    expect(byChannel.get('push')?.enabled).toBe(false);
-
-    // muted_until ~ now + 7d, tolerance basada en el delta entre antes/despues.
+    // muted_until del email ~ now + 7d, tolerance basada en el delta entre antes/despues.
     const expectedMin = beforeMs + 7 * 24 * 60 * 60 * 1000;
     const expectedMax = afterMs + 7 * 24 * 60 * 60 * 1000;
-    for (const channel of ['email', 'telegram', 'push'] as const) {
-      const mu = byChannel.get(channel)?.muted_until;
-      expect(mu).not.toBeNull();
-      const muMs = new Date(mu!).getTime();
-      expect(muMs).toBeGreaterThanOrEqual(expectedMin);
-      expect(muMs).toBeLessThanOrEqual(expectedMax);
-    }
+    const mu = emailRow?.muted_until;
+    expect(mu).not.toBeNull();
+    const muMs = new Date(mu!).getTime();
+    expect(muMs).toBeGreaterThanOrEqual(expectedMin);
+    expect(muMs).toBeLessThanOrEqual(expectedMax);
   });
 
   it('4. RLS: userA submit no afecta prefs de userB', async () => {
@@ -240,8 +239,50 @@ describe('updateNotificationPrefsAction', () => {
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userAId);
 
-    // Siempre 3 rows (email + telegram + push). El UPSERT con onConflict
-    // updatea el row existente sin insertar duplicados.
-    expect(count).toBe(3);
+    // Post-T-033: el action solo UPSERTea email (los rows de telegram/push
+    // los crea cada flow del canal — webhook telegram, future push setup).
+    // El UPSERT con onConflict updatea el row existente sin insertar duplicados.
+    expect(count).toBe(1);
+  });
+
+  it('6. Post-T-033: telegram pre-existente preservado en submit (no se pisa enabled)', async () => {
+    // Setup: simular que el user ya linkeó telegram → row con enabled=true.
+    await admin.from('notification_channel_prefs').upsert(
+      {
+        user_id: userAId,
+        channel: 'telegram',
+        enabled: true,
+        muted_until: null,
+      },
+      { onConflict: 'user_id,channel' },
+    );
+
+    // Submit del form de notificaciones con mute=7d (UI no toca telegram).
+    await signInAs(emailUserA);
+    const { updateNotificationPrefsAction } =
+      await import('@/app/(app)/settings/notificaciones/actions');
+    const res = await updateNotificationPrefsAction({
+      emailEnabled: true,
+      mute: { type: 'days', days: 7 },
+    });
+    expect(res.ok).toBe(true);
+
+    // El row telegram debe seguir enabled=true (no fue pisado) Y tener
+    // muted_until poblado (el UPDATE global del mute lo aplicó).
+    const { data: tg } = await admin
+      .from('notification_channel_prefs')
+      .select('enabled, muted_until')
+      .eq('user_id', userAId)
+      .eq('channel', 'telegram')
+      .single();
+    expect(tg?.enabled).toBe(true);
+    expect(tg?.muted_until).not.toBeNull();
+
+    // Cleanup para los siguientes tests.
+    await admin
+      .from('notification_channel_prefs')
+      .delete()
+      .eq('user_id', userAId)
+      .eq('channel', 'telegram');
   });
 });

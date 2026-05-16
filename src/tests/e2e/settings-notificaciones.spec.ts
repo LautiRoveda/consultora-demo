@@ -70,11 +70,12 @@ test.describe('Settings · Notificaciones (T-035)', () => {
     await expect(page.getByText('Preferencias actualizadas.')).toBeVisible({ timeout: 5000 });
 
     // Verificar persistencia en DB (sanity rapido).
+    // Post-T-033 refactor: el action SOLO crea/actualiza el row email
+    // (los rows de telegram/push los gestiona cada flow de canal).
     const { data: prefs } = await adminClient
       .from('notification_channel_prefs')
       .select('channel, enabled, muted_until')
       .eq('user_id', userId);
-    expect(prefs).toHaveLength(3);
     const emailPref = prefs?.find((p) => p.channel === 'email');
     expect(emailPref?.enabled).toBe(false);
     expect(emailPref?.muted_until).not.toBeNull();

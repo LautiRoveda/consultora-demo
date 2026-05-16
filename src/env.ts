@@ -53,6 +53,28 @@ export const envSchema = z.object({
   // Server-only — leak permite a cualquiera disparar notificaciones
   // arbitrarias contra el endpoint.
   INTERNAL_CRON_SECRET: z.string().min(32),
+
+  // Telegram Bot API token (T-033). Generado por BotFather con `/newbot`.
+  // Formato: '<bot_id>:<35-char-hash>'. Server-only — leak = bot hijacking
+  // (atacante manda mensajes a todos los usuarios linkeados).
+  // Ver docs/operations/telegram-setup.md.
+  TELEGRAM_BOT_TOKEN: z.string().min(40),
+
+  // Username del bot SIN el @ inicial. Usado para construir el deep-link
+  // `https://t.me/<username>?start=<code>` que el user clickea desde la UI.
+  // Constraint: lo permitido por Telegram (a-zA-Z0-9_).
+  TELEGRAM_BOT_USERNAME: z
+    .string()
+    .min(3)
+    .max(50)
+    .regex(/^[a-zA-Z0-9_]+$/, 'Solo letras, dígitos y underscores (sin @).'),
+
+  // Shared secret entre Telegram y el endpoint POST
+  // /api/webhooks/telegram (T-033). Telegram lo manda como header
+  // X-Telegram-Bot-Api-Secret-Token. Generar con `openssl rand -hex 32`.
+  // Server-only — leak permite a un atacante invocar el webhook
+  // simulando ser Telegram.
+  TELEGRAM_WEBHOOK_SECRET: z.string().min(32),
 });
 
 const parsed = envSchema.safeParse(process.env);
