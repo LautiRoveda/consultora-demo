@@ -520,6 +520,39 @@ export type Database = {
           },
         ];
       };
+      push_subscriptions: {
+        Row: {
+          auth_key: string;
+          created_at: string;
+          endpoint: string;
+          id: string;
+          last_seen_at: string | null;
+          p256dh_key: string;
+          user_agent: string | null;
+          user_id: string;
+        };
+        Insert: {
+          auth_key: string;
+          created_at?: string;
+          endpoint: string;
+          id?: string;
+          last_seen_at?: string | null;
+          p256dh_key: string;
+          user_agent?: string | null;
+          user_id: string;
+        };
+        Update: {
+          auth_key?: string;
+          created_at?: string;
+          endpoint?: string;
+          id?: string;
+          last_seen_at?: string | null;
+          p256dh_key?: string;
+          user_agent?: string | null;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       telegram_subscriptions: {
         Row: {
           blocked_count: number;

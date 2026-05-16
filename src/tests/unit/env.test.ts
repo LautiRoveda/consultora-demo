@@ -27,6 +27,10 @@ vi.hoisted(() => {
   process.env.TELEGRAM_BOT_TOKEN = 'hoisted-tg-token-40-chars-min-aaaaaaaaaaaaaaaa';
   process.env.TELEGRAM_BOT_USERNAME = 'hoisted_bot';
   process.env.TELEGRAM_WEBHOOK_SECRET = 'hoisted-tg-webhook-secret-32-chars-aaaa';
+  // T-034 — VAPID required.
+  process.env.VAPID_PRIVATE_KEY = 'hoisted-vapid-private-key-44-chars-b64url-aaa';
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY =
+    'hoisted-vapid-public-key-88-chars-b64url-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 });
 
 describe('envSchema', () => {
@@ -44,6 +48,9 @@ describe('envSchema', () => {
     TELEGRAM_BOT_TOKEN: '1234567890:AAH-some-bot-token-35char-hash-xx',
     TELEGRAM_BOT_USERNAME: 'consultora_demo_bot',
     TELEGRAM_WEBHOOK_SECRET: 'tg-webhook-secret-32-chars-aaaaaaa',
+    VAPID_PRIVATE_KEY: 'valid-vapid-private-key-44-chars-b64url-aaa',
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY:
+      'valid-vapid-public-key-88-chars-b64url-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
   };
 
   it('acepta vars válidas', () => {
@@ -233,6 +240,57 @@ describe('envSchema', () => {
     const result = envSchema.safeParse({
       ...validInput,
       TELEGRAM_WEBHOOK_SECRET: 'too-short',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza VAPID_PRIVATE_KEY < 40 chars (T-034)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      VAPID_PRIVATE_KEY: 'too-short',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza NEXT_PUBLIC_VAPID_PUBLIC_KEY < 80 chars (T-034)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: 'too-short-public-key',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('VAPID_SUBJECT tiene default mailto: si se omite (T-034)', () => {
+    const result = envSchema.safeParse(validInput);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.VAPID_SUBJECT).toBe('mailto:noreply@mail.consultora-demo.test-ia.cloud');
+    }
+  });
+
+  it('VAPID_SUBJECT acepta override mailto: válido (T-034)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      VAPID_SUBJECT: 'mailto:contacto@consultora-demo.test-ia.cloud',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.VAPID_SUBJECT).toBe('mailto:contacto@consultora-demo.test-ia.cloud');
+    }
+  });
+
+  it('VAPID_SUBJECT acepta https:// (T-034)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      VAPID_SUBJECT: 'https://consultora-demo.test-ia.cloud',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('VAPID_SUBJECT rechaza formato sin mailto:|https:// (T-034)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      VAPID_SUBJECT: 'lautaro@example.com',
     });
     expect(result.success).toBe(false);
   });
