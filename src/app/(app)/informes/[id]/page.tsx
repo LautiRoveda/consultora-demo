@@ -1,22 +1,29 @@
 import type { FieldValues } from 'react-hook-form';
 import type { InformeStatus, InformeTipo } from '../schema';
 import type { AttachmentClientRow } from './editar/AttachmentsSection';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
+import { civilIsoToDate } from '@/app/(app)/calendario/event-form-helpers';
+import { EVENT_STATUS_LABELS } from '@/app/(app)/calendario/labels';
+import { getEventsByInformeId } from '@/app/(app)/calendario/queries';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { createSignedAttachmentUrls } from '@/shared/storage/attachments';
 import { SIGNED_URL_TTL_UI_SEC } from '@/shared/storage/types';
 import { createClient } from '@/shared/supabase/server';
 import { TEMPLATE_CLIENT_REGISTRY } from '@/shared/templates/registry/client';
+import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
-import { Card, CardContent } from '@/shared/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 
 import { getInformeById, getInformeMetadata } from '../queries';
 import { INFORME_STATUS_LABELS, INFORME_TIPO_LABELS } from '../schema';
 import { getInformeAttachments } from './attachments/queries';
 import { DownloadPdfButton } from './DownloadPdfButton';
 import { AttachmentsSection } from './editar/AttachmentsSection';
+import { PublishButton } from './editar/PublishButton';
 import { MarkdownPreview } from './MarkdownPreview';
 
 /**
@@ -56,6 +63,9 @@ export default async function InformeDetallePage({ params }: { params: Promise<{
   // Si no hay attachments, dejamos el array vacio y el componente NO renderea
   // la seccion (el empty state "No hay adjuntos todavía" solo aparece en
   // /editar, ya que aca el caller decide si pasar el componente o no).
+  // T-036: eventos vinculados al informe (seccion al final del detail view).
+  const linkedEvents = await getEventsByInformeId(supabase, informe.id);
+
   const attachmentRows = await getInformeAttachments(supabase, informe.id);
   let attachments: AttachmentClientRow[] = [];
   if (attachmentRows.length > 0) {
@@ -107,6 +117,20 @@ export default async function InformeDetallePage({ params }: { params: Promise<{
               <Link href={`/informes/${informe.id}/editar`}>Editar</Link>
             </Button>
           )}
+          {/* T-036: PublishButton tambien disponible desde detail view sin
+              entrar a /editar. Si toggle OFF + tipo recurrente + publish OK,
+              el modal NO aparece aqui (PostPublishEventDialog vive solo en
+              /editar) — el user recibe toast simple "Informe publicado". */}
+          {consultora && (
+            <PublishButton
+              informeId={informe.id}
+              status={informe.status as InformeStatus}
+              informeTipo={tipo}
+              canPublish={canEdit}
+              autoCreateEventOnSign={consultora.autoCreateEventOnSign}
+              hasLinkedEvent={linkedEvents.length > 0}
+            />
+          )}
         </div>
       </div>
       {metadataRow && SummaryComponent && (
@@ -124,6 +148,54 @@ export default async function InformeDetallePage({ params }: { params: Promise<{
           <MarkdownPreview content={informe.contenido} />
         </CardContent>
       </Card>
+
+      {/* T-036: vencimientos vinculados (eventos con informe_id = este informe).
+          Solo se renderiza si hay al menos uno. NO clutter visual si no hay. */}
+      {linkedEvents.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Vencimientos vinculados</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {linkedEvents.map((ev) => (
+                <li key={ev.id} className="flex flex-wrap items-center gap-2 text-sm">
+                  <Link
+                    href={`/calendario/agenda?event=${ev.id}`}
+                    className="hover:underline"
+                    data-testid={`linked-event-${ev.id}`}
+                  >
+                    <Badge variant={statusBadgeVariant(ev.status)} className="text-xs">
+                      {EVENT_STATUS_LABELS[ev.status as keyof typeof EVENT_STATUS_LABELS] ??
+                        ev.status}
+                    </Badge>
+                    <span className="ml-2 font-medium">{ev.titulo}</span>
+                    <span className="text-muted-foreground ml-2">
+                      ·{' '}
+                      {format(civilIsoToDate(ev.fecha_vencimiento), "d 'de' MMM yyyy", {
+                        locale: es,
+                      })}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
+}
+
+function statusBadgeVariant(status: string): 'default' | 'destructive' | 'outline' | 'secondary' {
+  switch (status) {
+    case 'completed':
+      return 'default';
+    case 'cancelled':
+      return 'secondary';
+    case 'pending':
+      return 'outline';
+    default:
+      return 'outline';
+  }
 }

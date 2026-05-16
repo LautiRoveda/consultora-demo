@@ -143,6 +143,7 @@ export type Database = {
           id: string;
           informe_id: string | null;
           metadata: Json | null;
+          parent_event_id: string | null;
           recurrence_months: number | null;
           reminder_offsets_days: number[];
           status: string;
@@ -161,6 +162,7 @@ export type Database = {
           id?: string;
           informe_id?: string | null;
           metadata?: Json | null;
+          parent_event_id?: string | null;
           recurrence_months?: number | null;
           reminder_offsets_days: number[];
           status?: string;
@@ -179,6 +181,7 @@ export type Database = {
           id?: string;
           informe_id?: string | null;
           metadata?: Json | null;
+          parent_event_id?: string | null;
           recurrence_months?: number | null;
           reminder_offsets_days?: number[];
           status?: string;
@@ -199,6 +202,13 @@ export type Database = {
             columns: ['informe_id'];
             isOneToOne: false;
             referencedRelation: 'informes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'calendar_events_parent_event_id_fkey';
+            columns: ['parent_event_id'];
+            isOneToOne: false;
+            referencedRelation: 'calendar_events';
             referencedColumns: ['id'];
           },
         ];
@@ -241,6 +251,7 @@ export type Database = {
       consultoras: {
         Row: {
           archived_at: string | null;
+          auto_create_event_on_sign: boolean;
           created_at: string;
           cuit: string | null;
           id: string;
@@ -253,6 +264,7 @@ export type Database = {
         };
         Insert: {
           archived_at?: string | null;
+          auto_create_event_on_sign?: boolean;
           created_at?: string;
           cuit?: string | null;
           id?: string;
@@ -265,6 +277,7 @@ export type Database = {
         };
         Update: {
           archived_at?: string | null;
+          auto_create_event_on_sign?: boolean;
           created_at?: string;
           cuit?: string | null;
           id?: string;

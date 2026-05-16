@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { logger } from '@/shared/observability/logger';
@@ -94,4 +95,106 @@ export async function removeConsultoraLogoAction(): Promise<RemoveConsultoraLogo
 
   revalidatePath('/settings/consultora');
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// updateAutoCreateEventToggleAction (T-036)
+// ---------------------------------------------------------------------------
+
+export type UpdateAutoCreateEventToggleResult =
+  | { ok: true; enabled: boolean }
+  | { ok: false; code: 'INVALID_INPUT'; fieldErrors: Record<string, string[]>; message: string }
+  | {
+      ok: false;
+      code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'FORBIDDEN' | 'INTERNAL_ERROR';
+      message: string;
+    };
+
+const toggleSchema = z.object({
+  enabled: z.boolean({ message: 'Valor inválido.' }),
+});
+
+/**
+ * T-036 · Actualiza `consultoras.auto_create_event_on_sign`.
+ *
+ * Owner-only: la columna afecta a TODOS los users del tenant cuando publican
+ * un informe. Patron canonico T-024 (logo es config tenant-wide, mismo gate).
+ *
+ * RLS WITH CHECK de `consultoras_update_own_owner` (T-011) valida que solo el
+ * owner puede UPDATE; el gate explicito aca es defensa en profundidad +
+ * permite devolver FORBIDDEN con mensaje en lugar de INTERNAL_ERROR.
+ */
+export async function updateAutoCreateEventToggleAction(
+  enabled: boolean,
+): Promise<UpdateAutoCreateEventToggleResult> {
+  const parsed = toggleSchema.safeParse({ enabled });
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string[]> = {};
+    for (const issue of parsed.error.issues) {
+      const key = issue.path.map((p) => String(p)).join('.') || '_';
+      (fieldErrors[key] ??= []).push(issue.message);
+    }
+    return { ok: false, code: 'INVALID_INPUT', fieldErrors, message: 'Datos inválidos.' };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, code: 'UNAUTHENTICATED', message: 'Iniciá sesión.' };
+
+  const consultora = await getCurrentConsultora(supabase, user.id);
+  if (!consultora) {
+    return {
+      ok: false,
+      code: 'NO_CONSULTORA',
+      message: 'Tu cuenta no tiene una consultora vinculada.',
+    };
+  }
+
+  if (consultora.role !== 'owner') {
+    return {
+      ok: false,
+      code: 'FORBIDDEN',
+      message: 'Solo el owner puede modificar el workflow de la consultora.',
+    };
+  }
+
+  const { data: updated, error } = await supabase
+    .from('consultoras')
+    .update({ auto_create_event_on_sign: parsed.data.enabled })
+    .eq('id', consultora.id)
+    .select('id');
+
+  if (error) {
+    logger.error(
+      { err: error, consultoraId: consultora.id, userId: user.id, enabled: parsed.data.enabled },
+      'updateAutoCreateEventToggleAction: update fallo',
+    );
+    return { ok: false, code: 'INTERNAL_ERROR', message: 'Error actualizando el workflow.' };
+  }
+  if (!updated || updated.length === 0) {
+    // RLS WITH CHECK rechazo (race entre el SELECT defensivo y el UPDATE).
+    return {
+      ok: false,
+      code: 'FORBIDDEN',
+      message: 'Solo el owner puede modificar el workflow de la consultora.',
+    };
+  }
+
+  revalidatePath('/settings/consultora');
+  // Tambien invalidamos /informes/[id]/editar porque el toggle determina si
+  // PublishButton dispara silent path vs modal en el siguiente publish.
+  revalidatePath('/informes', 'layout');
+
+  logger.info(
+    {
+      consultoraId: consultora.id,
+      userId: user.id,
+      enabled: parsed.data.enabled,
+    },
+    'consultora_auto_create_event_toggle_updated',
+  );
+
+  return { ok: true, enabled: parsed.data.enabled };
 }
