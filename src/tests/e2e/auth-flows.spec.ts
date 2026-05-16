@@ -113,6 +113,9 @@ test.describe('logout flow', () => {
 });
 
 test.describe('recovery flow completo', () => {
+  // FLAKY: ver issue #56 — Chromium + Windows race con el callback URL
+  // (ERR_NAME_NOT_RESOLVED). CI Ubuntu OK con retries=2. Smoke productivo
+  // del runbook valida real flow. NO investigar mas sin demanda real.
   test('recover → callback → cambiar-password → P1 falla, P2 entra', async ({ page }) => {
     const email = uniqueTestEmail('recovery-full');
     const consultoraName = `Test Recovery ${Date.now().toString(36)}`;
