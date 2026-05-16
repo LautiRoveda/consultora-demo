@@ -248,24 +248,54 @@ create index idx_notiflog_event
 
 ### 3.6 `telegram_subscriptions`
 
+**Estado**: ✅ implementado en T-033, schema final (`20260515213829_telegram_subscriptions.sql`).
+Difiere del schema original del discovery en 2 puntos: `telegram_chat_id` ahora
+nullable (la fila se crea al generar el link_code, antes del `/start`); y se
+suma `link_code_expires_at` para TTL declarativo sin cron de cleanup.
+Adicionalmente, las RLS policies son granulares (SELECT/INSERT/UPDATE
+separadas, DELETE default-deny) en lugar de `FOR ALL`, y se suma audit trigger
+con diff guard. Schema implementado:
+
 ```sql
 create table public.telegram_subscriptions (
-  id                uuid primary key default gen_random_uuid(),
-  user_id           uuid not null unique references auth.users(id) on delete cascade,
-  telegram_chat_id  bigint not null unique,
-  telegram_username text,                            -- @handle si está disponible
-  link_code         text unique,                     -- código de 8 chars que el user escribe en /start
-  linked_at         timestamptz,
-  unlinked_at       timestamptz,                     -- nullable: si el user bloquea el bot
-  blocked_count     int not null default 0,          -- incrementa cada vez que Telegram devuelve 403
-  created_at        timestamptz not null default now()
+  id                   uuid primary key default gen_random_uuid(),
+  user_id              uuid not null unique references auth.users(id) on delete cascade,
+  telegram_chat_id     bigint unique,                  -- nullable hasta /start
+  telegram_username    text,
+  link_code            text unique,                    -- 8 chars sin chars ambiguos
+  link_code_expires_at timestamptz,                    -- TTL 15 min vía columna (sin cron cleanup)
+  linked_at            timestamptz,
+  unlinked_at          timestamptz,
+  blocked_count        int not null default 0,         -- incrementa en 403, auto-unlink a los 3
+  created_at           timestamptz not null default now(),
+  updated_at           timestamptz not null default now()
 );
+
+create index idx_telegram_subs_pending_link on public.telegram_subscriptions(link_code)
+  where link_code is not null and linked_at is null;
 
 alter table public.telegram_subscriptions enable row level security;
 
-create policy tg_subs_own on public.telegram_subscriptions
-  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy tg_subs_select_own on public.telegram_subscriptions
+  for select using (user_id = auth.uid());
+
+create policy tg_subs_insert_own on public.telegram_subscriptions
+  for insert with check (user_id = auth.uid());
+
+create policy tg_subs_update_own on public.telegram_subscriptions
+  for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- DELETE: sin policy authenticated (default-deny). Cleanup admin via service-role.
+-- Audit trigger con diff guard sobre (linked_at, unlinked_at, blocked_count,
+--   telegram_chat_id). link_code NUNCA en payload (security: código consumible).
+--   chat_id reducido a boolean chat_id_is_set (PII protection).
 ```
+
+**Nota de schema ajuste T-011 (forzado por T-033)**:
+`audit_log.consultora_id` pasó a nullable (`alter table ... drop not null`)
+en la migration de T-033 — el audit row de una subscription per-user no tiene
+contexto consultora. FK `on delete restrict` queda intacta cuando
+`consultora_id IS NOT NULL`.
 
 ### 3.7 `push_subscriptions`
 
