@@ -23,6 +23,10 @@ vi.hoisted(() => {
   process.env.RESEND_API_KEY = 'hoisted-resend-key';
   process.env.RESEND_FROM_ADDRESS = 'hoisted@example.com';
   process.env.INTERNAL_CRON_SECRET = 'hoisted-cron-secret-32-chars-min-aaa';
+  // T-033 — vars Telegram required.
+  process.env.TELEGRAM_BOT_TOKEN = 'hoisted-tg-token-40-chars-min-aaaaaaaaaaaaaaaa';
+  process.env.TELEGRAM_BOT_USERNAME = 'hoisted_bot';
+  process.env.TELEGRAM_WEBHOOK_SECRET = 'hoisted-tg-webhook-secret-32-chars-aaaa';
 });
 
 describe('envSchema', () => {
@@ -37,6 +41,9 @@ describe('envSchema', () => {
     RESEND_API_KEY: 'resend-key',
     RESEND_FROM_ADDRESS: 'reminders@example.com',
     INTERNAL_CRON_SECRET: 'cron-secret-32-chars-min-aaaaaaaaaa',
+    TELEGRAM_BOT_TOKEN: '1234567890:AAH-some-bot-token-35char-hash-xx',
+    TELEGRAM_BOT_USERNAME: 'consultora_demo_bot',
+    TELEGRAM_WEBHOOK_SECRET: 'tg-webhook-secret-32-chars-aaaaaaa',
   };
 
   it('acepta vars válidas', () => {
@@ -186,6 +193,46 @@ describe('envSchema', () => {
     const result = envSchema.safeParse({
       ...validInput,
       RESEND_REPLY_TO_ADDRESS: 'not-an-email',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza TELEGRAM_BOT_TOKEN < 40 chars (T-033)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      TELEGRAM_BOT_TOKEN: 'too-short',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza TELEGRAM_BOT_USERNAME con @ inicial (T-033)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      TELEGRAM_BOT_USERNAME: '@my_bot',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza TELEGRAM_BOT_USERNAME con guión (T-033)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      TELEGRAM_BOT_USERNAME: 'my-bot',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('acepta TELEGRAM_BOT_USERNAME con underscore y dígitos (T-033)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      TELEGRAM_BOT_USERNAME: 'consultora_demo_2_bot',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rechaza TELEGRAM_WEBHOOK_SECRET < 32 chars (T-033)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      TELEGRAM_WEBHOOK_SECRET: 'too-short',
     });
     expect(result.success).toBe(false);
   });
