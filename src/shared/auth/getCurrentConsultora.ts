@@ -79,7 +79,9 @@ export async function getCurrentConsultora(
   if (claimConsultoraId && claimRole) {
     const { data, error } = await supabase
       .from('consultoras')
-      .select('id, name, slug, plan_tier, trial_ends_at, logo_storage_path')
+      .select(
+        'id, name, slug, plan_tier, trial_ends_at, logo_storage_path, auto_create_event_on_sign',
+      )
       .eq('id', claimConsultoraId)
       .maybeSingle();
 
@@ -100,6 +102,7 @@ export async function getCurrentConsultora(
         trialEndsAt: data.trial_ends_at,
         role: claimRole,
         logoStoragePath: data.logo_storage_path,
+        autoCreateEventOnSign: data.auto_create_event_on_sign,
       };
     }
 
@@ -114,7 +117,9 @@ export async function getCurrentConsultora(
   // 2. Fallback: query a consultora_members (sesión pre-T-016 o claim stale).
   const { data, error } = await supabase
     .from('consultora_members')
-    .select('role, consultoras(id, name, slug, plan_tier, trial_ends_at, logo_storage_path)')
+    .select(
+      'role, consultoras(id, name, slug, plan_tier, trial_ends_at, logo_storage_path, auto_create_event_on_sign)',
+    )
     .eq('user_id', userId)
     .maybeSingle();
 
@@ -138,5 +143,6 @@ export async function getCurrentConsultora(
     trialEndsAt: data.consultoras.trial_ends_at,
     role,
     logoStoragePath: data.consultoras.logo_storage_path,
+    autoCreateEventOnSign: data.consultoras.auto_create_event_on_sign,
   };
 }

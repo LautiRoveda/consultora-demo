@@ -1,12 +1,13 @@
 import { notFound, redirect } from 'next/navigation';
 
+import { getEventsByInformeId } from '@/app/(app)/calendario/queries';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { createSignedAttachmentUrls } from '@/shared/storage/attachments';
 import { SIGNED_URL_TTL_UI_SEC } from '@/shared/storage/types';
 import { createClient } from '@/shared/supabase/server';
 
 import { getInformeById, getInformeMetadata } from '../../queries';
-import { type InformeTipo } from '../../schema';
+import { type InformeStatus, type InformeTipo } from '../../schema';
 import { getInformeAttachments } from '../attachments/queries';
 import { type AttachmentClientRow } from './AttachmentsSection';
 import { EditorView } from './EditorView';
@@ -56,6 +57,21 @@ export default async function InformeEditarPage({ params }: { params: Promise<{ 
     signedUrl: signedUrls.get(a.storage_path) ?? null,
   }));
 
+  // T-036: contexto para PublishButton + PostPublishEventDialog.
+  // - linkedEvents: si > 0, NO mostrar modal post-publish (ya hay evento).
+  // - razonSocial: del metadata si esta presente, fallback al titulo del informe
+  //   (PostPublishEventDialog usa para buildDefaultEventoTitulo).
+  const linkedEvents = await getEventsByInformeId(supabase, informe.id);
+  const metaData = metadataRow?.data;
+  const razonSocial =
+    metaData &&
+    typeof metaData === 'object' &&
+    !Array.isArray(metaData) &&
+    'razon_social' in metaData &&
+    typeof metaData.razon_social === 'string'
+      ? (metaData as { razon_social: string }).razon_social
+      : null;
+
   return (
     <EditorView
       informeId={informe.id}
@@ -63,8 +79,12 @@ export default async function InformeEditarPage({ params }: { params: Promise<{ 
       titulo={informe.titulo}
       initialContent={informe.contenido}
       initialMetadata={metadataRow?.data ?? null}
+      initialStatus={informe.status as InformeStatus}
       attachments={attachmentRows}
       canEdit={canEdit}
+      autoCreateEventOnSign={consultora.autoCreateEventOnSign}
+      hasLinkedEvent={linkedEvents.length > 0}
+      razonSocial={razonSocial}
     />
   );
 }

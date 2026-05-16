@@ -21,4 +21,11 @@ export type CurrentConsultora = {
    * una signed URL con TTL apropiado.
    */
   logoStoragePath: string | null;
+  /**
+   * T-036: si true, al publicar un informe con tipo recurrente
+   * (rgrl / relevamiento / capacitacion) se crea silently el calendar_event
+   * con fecha = today + 12m (sin preguntar). Default false = modal post-firma.
+   * Per-consultora, edit owner-only via updateAutoCreateEventToggleAction.
+   */
+  autoCreateEventOnSign: boolean;
 };

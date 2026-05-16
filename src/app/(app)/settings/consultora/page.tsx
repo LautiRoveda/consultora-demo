@@ -39,6 +39,7 @@ export default async function ConsultoraSettingsPage() {
       consultoraRole={consultora.role}
       logoSignedUrl={logoSignedUrl}
       hasLogo={consultora.logoStoragePath !== null}
+      autoCreateEventOnSign={consultora.autoCreateEventOnSign}
     />
   );
 }

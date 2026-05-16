@@ -1,7 +1,7 @@
 'use client';
 
 import type { FieldValues, UseFormReturn } from 'react-hook-form';
-import type { InformeTipo } from '../../schema';
+import type { InformeStatus, InformeTipo } from '../../schema';
 import type { UpdateInformeContentInput } from '../schema';
 import type { AttachmentClientRow } from './AttachmentsSection';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -45,6 +45,8 @@ import { updateInformeContentAction, updateInformeMetadataAction } from '../acti
 import { MarkdownPreview } from '../MarkdownPreview';
 import { updateInformeInputSchema } from '../schema';
 import { AttachmentsSection } from './AttachmentsSection';
+import { PostPublishEventDialog } from './PostPublishEventDialog';
+import { PublishButton } from './PublishButton';
 
 /**
  * T-025 · State machine extendida. `generating-stream` reemplaza al
@@ -91,8 +93,12 @@ export function EditorView({
   titulo,
   initialContent,
   initialMetadata,
+  initialStatus,
   attachments,
   canEdit,
+  autoCreateEventOnSign,
+  hasLinkedEvent,
+  razonSocial,
 }: {
   informeId: string;
   tipo: InformeTipo;
@@ -104,13 +110,25 @@ export function EditorView({
    * estructuralmente coincide con el shape esperado.
    */
   initialMetadata: unknown;
+  /** T-036: status del informe (draft/published/archived) para el PublishButton. */
+  initialStatus: InformeStatus;
   /** T-024: attachments con signed URLs ya generadas por el server (TTL 1h). */
   attachments: AttachmentClientRow[];
   canEdit: boolean;
+  /** T-036: toggle de la consultora. Si true, silent path en publish; sino modal. */
+  autoCreateEventOnSign: boolean;
+  /** T-036: si el informe ya tiene evento vinculado, NO mostrar modal post-publish. */
+  hasLinkedEvent: boolean;
+  /** T-036: razon_social del metadata para prepop del PostPublishEventDialog. */
+  razonSocial: string | null;
 }) {
   const router = useRouter();
   const [state, setState] = useState<EditorState>('idle');
   const [userPrompt, setUserPrompt] = useState('');
+  // T-036: state local del PostPublishEventDialog. Se abre solo cuando el
+  // PublishButton invoca el callback (condiciones: toggle OFF + tipo recurrente
+  // + sin evento previo + publish OK + autoCreatedEventId null).
+  const [postPublishOpen, setPostPublishOpen] = useState(false);
   /**
    * T-025 · Buffer del stream visible. Update via rAF para no saturar
    * react-markdown con un re-render por chunk. Al `done` se copia a
@@ -458,14 +476,27 @@ export function EditorView({
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-muted-foreground text-sm">
-          <Link href={`/informes/${informeId}`} className="hover:text-foreground hover:underline">
-            ← Volver al informe
-          </Link>
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Editar: {titulo}</h1>
-        <p className="text-muted-foreground text-sm">Tipo: {INFORME_TIPO_LABELS[tipo]}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-muted-foreground text-sm">
+            <Link href={`/informes/${informeId}`} className="hover:text-foreground hover:underline">
+              ← Volver al informe
+            </Link>
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight">Editar: {titulo}</h1>
+          <p className="text-muted-foreground text-sm">Tipo: {INFORME_TIPO_LABELS[tipo]}</p>
+        </div>
+        {/* T-036: PublishButton inline en el header. Dispara silent path o
+            modal post-firma segun consultora.auto_create_event_on_sign. */}
+        <PublishButton
+          informeId={informeId}
+          status={initialStatus}
+          informeTipo={tipo}
+          canPublish={canEdit}
+          autoCreateEventOnSign={autoCreateEventOnSign}
+          hasLinkedEvent={hasLinkedEvent}
+          onPostPublishModalRequested={() => setPostPublishOpen(true)}
+        />
       </div>
 
       <Card>
@@ -623,6 +654,17 @@ export function EditorView({
           </CardContent>
         </Card>
       </div>
+
+      {/* T-036 modal post-firma. Solo aparece cuando PublishButton invoca el
+          callback (toggle OFF + tipo recurrente + sin evento previo). */}
+      <PostPublishEventDialog
+        open={postPublishOpen}
+        onOpenChange={setPostPublishOpen}
+        informeId={informeId}
+        informeTipo={tipo}
+        informeTitulo={titulo}
+        defaultRazonSocial={razonSocial}
+      />
     </div>
   );
 }

@@ -22,6 +22,7 @@ function makeEvent(overrides: Partial<CalendarEventRow>): CalendarEventRow {
     status: overrides.status ?? 'pending',
     completed_at: null,
     completed_by: null,
+    parent_event_id: null,
     reminder_offsets_days: [7, 0],
     metadata: null,
     created_by: '00000000-0000-4000-8000-000000000bbb',

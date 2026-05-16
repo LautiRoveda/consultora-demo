@@ -20,8 +20,10 @@ import {
 } from '@/shared/ui/alert-dialog';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
+import { Switch } from '@/shared/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip';
 
-import { removeConsultoraLogoAction } from './actions';
+import { removeConsultoraLogoAction, updateAutoCreateEventToggleAction } from './actions';
 
 const LOGO_ACCEPT = 'image/png,image/jpeg,image/webp';
 
@@ -50,15 +52,22 @@ export function ConsultoraSettingsView({
   consultoraRole,
   logoSignedUrl,
   hasLogo,
+  autoCreateEventOnSign,
 }: {
   consultoraName: string;
   consultoraRole: 'owner' | 'member';
   logoSignedUrl: string | null;
   hasLogo: boolean;
+  /** T-036: estado actual del toggle "auto-crear vencimiento al firmar". */
+  autoCreateEventOnSign: boolean;
 }) {
   const router = useRouter();
   const [uploading, setUploading] = useState(false);
   const [removing, setRemoving] = useState(false);
+  // T-036: state local del toggle. Sync con prop al recibir refresh + pending
+  // mientras la action corre (useTransition).
+  const [toggleValue, setToggleValue] = useState(autoCreateEventOnSign);
+  const [togglePending, startToggleTransition] = useTransition();
   const [, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -104,6 +113,34 @@ export function ConsultoraSettingsView({
     } finally {
       setRemoving(false);
     }
+  }
+
+  // T-036: handler del toggle workflow. Owner-only por gate UI + server-side.
+  function handleToggle(next: boolean): void {
+    // Optimistic update con rollback en error.
+    setToggleValue(next);
+    startToggleTransition(async () => {
+      const result = await updateAutoCreateEventToggleAction(next);
+      if (!result.ok) {
+        setToggleValue(!next); // rollback
+        switch (result.code) {
+          case 'FORBIDDEN':
+            toast.error('Sin permiso', { description: result.message });
+            return;
+          case 'UNAUTHENTICATED':
+            toast.error('Sesión vencida', { description: result.message });
+            router.push('/login');
+            return;
+          case 'INVALID_INPUT':
+          case 'NO_CONSULTORA':
+          case 'INTERNAL_ERROR':
+            toast.error('Error', { description: result.message });
+            return;
+        }
+      }
+      toast.success(next ? 'Auto-creación activada' : 'Auto-creación desactivada');
+      startTransition(() => router.refresh());
+    });
   }
 
   return (
@@ -195,6 +232,66 @@ export function ConsultoraSettingsView({
                 </AlertDialog>
               )}
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* T-036: Card Workflow con toggle auto-crear vencimiento al firmar.
+          Owner-only edit: si !isOwner, Switch disabled + Tooltip explica.
+          Lectura visible para todos los members. */}
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+          <div>
+            <h2 className="text-base font-semibold tracking-tight">Workflow</h2>
+            <p className="text-muted-foreground mt-1 text-sm">Comportamiento al firmar informes.</p>
+          </div>
+
+          {!isOwner && (
+            <Alert>
+              <AlertTitle>Workflow administrado por el owner</AlertTitle>
+              <AlertDescription>
+                Sos member de <strong>{consultoraName}</strong>. Pedile al owner que ajuste el
+                workflow si lo necesitás.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+            <div className="space-y-1">
+              <span className="text-sm font-medium">Auto-crear vencimiento al firmar</span>
+              <p className="text-muted-foreground text-xs">
+                Al publicar un informe recurrente (RGRL, relevamiento, capacitación) se crea
+                automáticamente el vencimiento del próximo año sin preguntar. Si está desactivado,
+                te preguntamos cada vez con un modal.
+              </p>
+            </div>
+            {isOwner ? (
+              <Switch
+                checked={toggleValue}
+                onCheckedChange={handleToggle}
+                disabled={togglePending}
+                data-testid="toggle-auto-create-event"
+                aria-label="Auto-crear vencimiento al firmar"
+              />
+            ) : (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Switch
+                        checked={toggleValue}
+                        disabled
+                        data-testid="toggle-auto-create-event"
+                        aria-label="Auto-crear vencimiento al firmar"
+                      />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Solo el owner puede modificar el workflow de la consultora
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
         </CardContent>
       </Card>

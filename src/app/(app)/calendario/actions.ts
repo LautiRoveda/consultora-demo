@@ -568,6 +568,10 @@ export async function completeCalendarEventAction(eventId: string): Promise<Comp
     // informe_id = null en el next event (decision plan): el informe original
     // representa el doc del periodo actual, no el siguiente. DA-05 modal
     // post-firma re-vinculara al firmar el informe N+1.
+    //
+    // T-036: parent_event_id = event.id liga el next al original (chain de
+    // recurrencia). Permite a EventViewPanel mostrar "Auto-creado por
+    // recurrencia desde <link>" en lugar de la heuristica no confiable.
     const { data: nextEvent, error: nextErr } = await supabase
       .from('calendar_events')
       .insert({
@@ -577,6 +581,7 @@ export async function completeCalendarEventAction(eventId: string): Promise<Comp
         descripcion: event.descripcion,
         fecha_vencimiento: nextFecha,
         informe_id: null,
+        parent_event_id: event.id,
         recurrence_months: event.recurrence_months,
         metadata: event.metadata,
         reminder_offsets_days: event.reminder_offsets_days,

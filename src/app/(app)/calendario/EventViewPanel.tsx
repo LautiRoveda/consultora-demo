@@ -4,6 +4,7 @@ import type { CalendarEventRow } from './queries';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Pencil } from 'lucide-react';
+import Link from 'next/link';
 
 import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
@@ -63,6 +64,30 @@ export function EventViewPanel({
           <h2 className="text-lg font-semibold tracking-tight" data-testid="event-titulo">
             {event.titulo}
           </h2>
+          {/* T-036: origen del evento. Si parent_event_id != null, viene de auto-recurrencia.
+              Si informe_id != null (sin parent), fue creado al firmar un informe. Eventos
+              creados manual no muestran nada. */}
+          {event.parent_event_id ? (
+            <p className="text-muted-foreground text-xs" data-testid="event-origen">
+              Auto-creado por recurrencia desde{' '}
+              <Link
+                href={`/calendario/agenda?event=${event.parent_event_id}`}
+                className="underline hover:text-foreground"
+              >
+                vencimiento anterior
+              </Link>
+            </p>
+          ) : event.informe_id ? (
+            <p className="text-muted-foreground text-xs" data-testid="event-origen">
+              Creado al firmar{' '}
+              <Link
+                href={`/informes/${event.informe_id}`}
+                className="underline hover:text-foreground"
+              >
+                informe
+              </Link>
+            </p>
+          ) : null}
         </div>
         {canEdit ? (
           <Button
