@@ -39,7 +39,7 @@ export type Database = {
           actor_user_id: string | null;
           after_data: Json | null;
           before_data: Json | null;
-          consultora_id: string;
+          consultora_id: string | null;
           created_at: string;
           entity_id: string | null;
           entity_type: string | null;
@@ -52,7 +52,7 @@ export type Database = {
           actor_user_id?: string | null;
           after_data?: Json | null;
           before_data?: Json | null;
-          consultora_id: string;
+          consultora_id?: string | null;
           created_at?: string;
           entity_id?: string | null;
           entity_type?: string | null;
@@ -65,7 +65,7 @@ export type Database = {
           actor_user_id?: string | null;
           after_data?: Json | null;
           before_data?: Json | null;
-          consultora_id?: string;
+          consultora_id?: string | null;
           created_at?: string;
           entity_id?: string | null;
           entity_type?: string | null;
@@ -506,6 +506,48 @@ export type Database = {
             referencedColumns: ['id'];
           },
         ];
+      };
+      telegram_subscriptions: {
+        Row: {
+          blocked_count: number;
+          created_at: string;
+          id: string;
+          link_code: string | null;
+          link_code_expires_at: string | null;
+          linked_at: string | null;
+          telegram_chat_id: number | null;
+          telegram_username: string | null;
+          unlinked_at: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          blocked_count?: number;
+          created_at?: string;
+          id?: string;
+          link_code?: string | null;
+          link_code_expires_at?: string | null;
+          linked_at?: string | null;
+          telegram_chat_id?: number | null;
+          telegram_username?: string | null;
+          unlinked_at?: string | null;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          blocked_count?: number;
+          created_at?: string;
+          id?: string;
+          link_code?: string | null;
+          link_code_expires_at?: string | null;
+          linked_at?: string | null;
+          telegram_chat_id?: number | null;
+          telegram_username?: string | null;
+          unlinked_at?: string | null;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
       };
     };
     Views: {
