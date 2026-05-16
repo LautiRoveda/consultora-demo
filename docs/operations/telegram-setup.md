@@ -263,3 +263,45 @@ todos los users linkeados):
 A diferencia de Resend, el bot de Telegram funciona INMEDIATAMENTE después
 de `setWebhook` — no hay DNS verification ni propagación. Si `getMe` y
 `getWebhookInfo` devuelven `ok: true`, está listo.
+
+### ⚠️ Lesson learned T-033 smoke productivo · secret mismatch EasyPanel ↔ Vault
+
+**Síntoma**: el cron tick procesa reminders (`process_pending_reminders()` cada
+5 min marca `status='sent'` en `calendar_event_reminders`), pero
+`notification_log` queda vacío. Inspeccionar `net._http_response` (extension
+`pg_net`) muestra `status_code = 401` al endpoint `/api/calendar/dispatch-reminder`.
+
+**Causa raíz**: el secret `INTERNAL_CRON_SECRET` cargado en EasyPanel
+(env var del service) no es idéntico al que está en Supabase Vault como
+`cron_dispatch_secret`. La función SQL `process_pending_reminders()` lee
+de Vault y lo pasa como header `X-Internal-Cron-Secret` al POST; el route
+handler compara contra `env.INTERNAL_CRON_SECRET` (EasyPanel). Mismatch
+→ 401 silent del lado server → log row nunca se inserta (el endpoint
+returna antes del dispatch).
+
+Fuentes de drift típicas al copiar secrets entre 2 UIs (Vault Studio +
+EasyPanel env vars):
+- Espacios invisibles al inicio/final del valor pegado.
+- Truncado por límite de caracteres de la UI si el secret es muy largo.
+- Re-encoding silente (UTF-8 → ASCII) si el secret tiene caracteres no
+  imprimibles.
+
+**Fix**: NO copiar secrets entre UIs. Generar fresh + pegar inmediato en
+ambos lados sin intermediarios:
+
+```bash
+openssl rand -hex 32
+# Copiar el output UNA VEZ y pegarlo:
+# 1. En EasyPanel → Service consultora-demo → Env vars → INTERNAL_CRON_SECRET
+# 2. En Supabase Studio → Vault → cron_dispatch_secret (vía RPC set_cron_vault_secret)
+```
+
+**Verificación**: tras pegar, hacer `select decrypted_secret from vault.decrypted_secrets where name = 'cron_dispatch_secret'` en SQL Editor + comparar string-a-string contra
+el valor de EasyPanel. Trigger un cron tick manual con
+`select process_pending_reminders();` y mirar `net._http_response` —
+debe devolver `status_code = 200`.
+
+Aplica también para `TELEGRAM_WEBHOOK_SECRET` (cargado solo en EasyPanel)
+si se rota — Telegram debe recibir el nuevo valor via `setWebhook`
+inmediatamente después del cambio en EasyPanel (mismo principio: 1
+generación → 2 destinos paralelos, sin intermediarios).
