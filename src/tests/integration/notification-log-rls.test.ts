@@ -152,7 +152,7 @@ describe('notification_log RLS', () => {
         consultora_id: cAId,
         channel: 'telegram',
         status: 'skipped',
-        error_code: 'NO_CHANNEL_IMPL_T033',
+        error_code: 'TELEGRAM_NOT_LINKED',
       })
       .select('id')
       .single();
