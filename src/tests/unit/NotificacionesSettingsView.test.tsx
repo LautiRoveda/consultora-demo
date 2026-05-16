@@ -47,6 +47,18 @@ vi.mock('@/app/(app)/settings/notificaciones/actions', () => ({
   updateNotificationPrefsAction: (input: unknown) => mockAction(input),
 }));
 
+// T-033 — mock de telegram-actions (importa env.ts que valida secretos
+// y rompe el test unit sin .env.local cargado).
+vi.mock('@/app/(app)/settings/notificaciones/telegram-actions', () => ({
+  generateTelegramLinkCodeAction: vi.fn().mockResolvedValue({
+    ok: true,
+    code: 'ABCD2345',
+    deepLink: 'https://t.me/testbot?start=ABCD2345',
+    expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+  }),
+  unlinkTelegramAction: vi.fn().mockResolvedValue({ ok: true }),
+}));
+
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
@@ -82,6 +94,7 @@ describe('NotificacionesSettingsView — render', () => {
       <NotificacionesSettingsView
         userEmail="test@example.com"
         initialPrefs={makePrefs({ emailEnabled: true, emailMutedUntil: null })}
+        telegramInitialState={{ kind: 'unlinked' }}
       />,
     );
 
@@ -97,6 +110,7 @@ describe('NotificacionesSettingsView — render', () => {
       <NotificacionesSettingsView
         userEmail="test@example.com"
         initialPrefs={makePrefs({ emailEnabled: false })}
+        telegramInitialState={{ kind: 'unlinked' }}
       />,
     );
 
@@ -112,6 +126,7 @@ describe('NotificacionesSettingsView — render', () => {
       <NotificacionesSettingsView
         userEmail="test@example.com"
         initialPrefs={makePrefs({ emailEnabled: true, emailMutedUntil: futureIso })}
+        telegramInitialState={{ kind: 'unlinked' }}
       />,
     );
 
@@ -126,20 +141,25 @@ describe('NotificacionesSettingsView — render', () => {
     expect(trigger.textContent).not.toBe('Elegir fecha');
   });
 
-  it('4. Telegram y Push rows visualmente disabled (toggle disabled + opacity-60)', () => {
+  it('4. Push row visualmente disabled. Telegram row activo (unlinked + "Vincular Telegram")', () => {
     render(
-      <NotificacionesSettingsView userEmail="test@example.com" initialPrefs={makePrefs({})} />,
+      <NotificacionesSettingsView
+        userEmail="test@example.com"
+        initialPrefs={makePrefs({})}
+        telegramInitialState={{ kind: 'unlinked' }}
+      />,
     );
 
-    const rowTelegram = screen.getByTestId('row-telegram');
+    // Push sigue disabled (T-034 no implementado).
     const rowPush = screen.getByTestId('row-push');
-    expect(rowTelegram.className).toContain('opacity-60');
     expect(rowPush.className).toContain('opacity-60');
+    expect(screen.getByTestId('toggle-push')).toBeDisabled();
 
-    const toggleTelegram = screen.getByTestId('toggle-telegram');
-    const togglePush = screen.getByTestId('toggle-push');
-    expect(toggleTelegram).toBeDisabled();
-    expect(togglePush).toBeDisabled();
+    // Telegram (T-033) ahora activo: data-state="unlinked" + badge + botón Vincular.
+    const rowTelegram = screen.getByTestId('row-telegram');
+    expect(rowTelegram).toHaveAttribute('data-state', 'unlinked');
+    expect(screen.getByTestId('telegram-badge-unlinked')).toBeInTheDocument();
+    expect(screen.getByTestId('telegram-link-btn')).toBeInTheDocument();
   });
 });
 
@@ -147,7 +167,11 @@ describe('NotificacionesSettingsView — submit', () => {
   it('5. submit con radio "7 dias" → action llamada con mute={type:days,days:7}', async () => {
     const user = userEvent.setup();
     render(
-      <NotificacionesSettingsView userEmail="test@example.com" initialPrefs={makePrefs({})} />,
+      <NotificacionesSettingsView
+        userEmail="test@example.com"
+        initialPrefs={makePrefs({})}
+        telegramInitialState={{ kind: 'unlinked' }}
+      />,
     );
 
     await user.click(screen.getByRole('radio', { name: /7 días/i }));
@@ -166,7 +190,11 @@ describe('NotificacionesSettingsView — submit', () => {
     // abrir el date picker para este test, solo verificar el wiring del submit.
     const user = userEvent.setup();
     render(
-      <NotificacionesSettingsView userEmail="test@example.com" initialPrefs={makePrefs({})} />,
+      <NotificacionesSettingsView
+        userEmail="test@example.com"
+        initialPrefs={makePrefs({})}
+        telegramInitialState={{ kind: 'unlinked' }}
+      />,
     );
 
     await user.click(screen.getByRole('radio', { name: /Hasta fecha específica/i }));
@@ -194,6 +222,7 @@ describe('NotificacionesSettingsView — submit', () => {
       <NotificacionesSettingsView
         userEmail="test@example.com"
         initialPrefs={makePrefs({ emailEnabled: true })}
+        telegramInitialState={{ kind: 'unlinked' }}
       />,
     );
 
