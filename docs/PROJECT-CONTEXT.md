@@ -1,6 +1,6 @@
 # ConsultoraDemo — Project Context
 
-**Versión del documento:** 2026-05-13 (post-T-023)
+**Versión del documento:** 2026-05-17 (post-T-037 + T-034 — Sprint 3 cerrado)
 **Owner:** Lautaro Roveda (lautaroeroveda@gmail.com)
 **Propósito:** snapshot completo del proyecto para que el orquestador tenga contexto en cada conversación nueva del Project. Mantener actualizado tras cerrar tickets grandes o cambiar decisiones técnicas mayores.
 
@@ -87,9 +87,7 @@ Sos mi tech lead y orquestador. Yo (Lautaro) soy el puente entre vos y Claude Co
 | T-017  | Layout autenticado con route group `(app)` + sidebar shell          |
 | T-018  | E2E auth flow con Playwright                                        |
 
-## 7. Sprint 2 (Informes) — IN PROGRESS
-
-**Cerrados (6):**
+## 7. Sprint 2 (Informes) — CERRADO 8/8
 
 | Ticket   | Tema                                                                                          |
 | -------- | --------------------------------------------------------------------------------------------- |
@@ -99,21 +97,37 @@ Sos mi tech lead y orquestador. Yo (Lautaro) soy el puente entre vos y Claude Co
 | T-022    | Templates para los 4 tipos restantes (capacitación, relevamiento, accidente, otros)           |
 | T-022.5  | Migración Vercel → VPS Hostinger + EasyPanel + Docker                                         |
 | T-023    | Export PDF con Puppeteer + Chromium-alpine                                                    |
+| T-025    | Streaming de generación IA en EditorView                                                      |
+| T-024    | Imágenes/adjuntos en informes + logo consultora                                               |
 
-**Siguiente en pipeline (sujeto a feedback de amigo HyS):**
+## 8. Sprint 3 (Calendario + Notificaciones) — CERRADO 10/10
 
-- T-024 Imágenes/adjuntos en relevamiento + upload logo consultora
-- T-025 Streaming + versionado de generaciones IA
-- T-026 Módulo Clientes (entidad reusable cross-informe)
-- T-027 Módulo Empleados (lista por cliente + tracking exámenes médicos)
-- T-028 Módulo EPP (planilla Res. 299/11)
-- T-029 Calendario unificado de vencimientos + notificaciones email
-- T-030 Planes pagos + integración MercadoPago
+| Ticket   | Tema                                                                                          |
+| -------- | --------------------------------------------------------------------------------------------- |
+| T-027    | Migration calendar_events + calendar_event_reminders + RLS + audit                            |
+| T-028    | Server actions CRUD eventos + reminders + helper scheduling                                   |
+| T-029    | UI calendario mensual + form crear/editar + drawer reusable                                   |
+| T-030    | UI agenda lista + panel dashboard "Próximos vencimientos"                                     |
+| T-031    | Cron pg_net + dispatcher reminders + canal Email (Resend)                                     |
+| T-035    | UI Settings notificaciones + mute temporal                                                    |
+| T-033    | Canal Telegram (bot + webhook + sender + UI vinculación)                                      |
+| T-036    | Integración Informes ↔ Calendario (modal post-firma + parent_event_id)                       |
+| T-034    | Canal Web Push (VAPID + Service Worker + sender real)                                         |
+| T-037    | Tests E2E + smoke productivo cierre Sprint 3                                                  |
 
-**Tests totales:** 235 verdes en CI (80 unit/component + 117 integration + 38 E2E).
-**Costo Claude API hasta hoy:** ~USD 0.22.
+## 9. Operativo / Plataforma
 
-## 8. Decisiones técnicas establecidas (no re-discutir sin razón fuerte)
+| Ticket   | Tema                                                                                          |
+| -------- | --------------------------------------------------------------------------------------------- |
+| T-079    | Email templates de Supabase Auth con branding ConsultoraDemo                                  |
+| T-038    | Cleanup roadmap legacy + marca tickets ejecutados + renumeración pendientes (este ticket)     |
+
+**Siguiente sprint:** Sprint 4 real = Clientes + Empleados + EPP (cerrar Fase 1 MVP cobrable). Pagos + Mercado Pago renumerado a T-039..T-046 en `docs/technical/10-roadmap.md` post-T-038.
+
+**Tests totales:** ~493 verdes en CI post-T-037 (423 unit/component + 69 E2E + 1 skipped; integration corre solo local con ~365 tests).
+**Costo Claude API hasta hoy:** ~USD 0.22 (smoke + tests; producción aún sin clientes pagando).
+
+## 10. Decisiones técnicas establecidas (no re-discutir sin razón fuerte)
 
 ### Hosting
 
@@ -164,7 +178,7 @@ Sos mi tech lead y orquestador. Yo (Lautaro) soy el puente entre vos y Claude Co
 - Márgenes A4: 25mm top / 22mm sides / 38mm bottom.
 - Page break CSS: `@media print` con `page-break-inside: avoid` en tablas/listas/secciones, `orphans`/`widows` en `p` y `li`.
 
-## 9. Convenciones del repo (no negociables)
+## 11. Convenciones del repo (no negociables)
 
 - Migrations: `supabase/migrations/<YYYYMMDDHHMMSS>_<snake>.sql`
 - Functions SQL: `language sql/plpgsql` + `stable`/`immutable` + `security definer` + `set search_path = ''` + grants explícitos
@@ -175,7 +189,7 @@ Sos mi tech lead y orquestador. Yo (Lautaro) soy el puente entre vos y Claude Co
 - Tests independientes con cleanup `afterEach` (`admin.deleteUser`).
 - EOL normalization aplicada via `.gitattributes` (T-021-FU1 cerrado).
 
-## 10. Estructura de directorios
+## 12. Estructura de directorios
 
 ```
 consultora-demo/
@@ -224,7 +238,7 @@ consultora-demo/
 └── CLAUDE.md                         # snapshot del sprint actual
 ```
 
-## 11. Follow-ups abiertos (GitHub Issues)
+## 13. Follow-ups abiertos (GitHub Issues)
 
 | Issue       | Título                                                                     | Estado                  | Prioridad                  |
 | ----------- | -------------------------------------------------------------------------- | ----------------------- | -------------------------- |
@@ -235,7 +249,7 @@ consultora-demo/
 | T-022.5-FU2 | Decommission Vercel hot-backup                                             | scheduled `2026-06-09`  | calendar reminder          |
 | #37         | T-022-FU2 · Flaky retry `informes-editar.spec.ts:65`                       | abierto                 | Baja                       |
 
-## 12. Lecciones aprendidas (no repetir)
+## 14. Lecciones aprendidas (no repetir)
 
 - NUNCA `supabase config push --yes` sin diff validado item-por-item. En T-016 pisó 7 settings de auth en prod (`site_url`, `redirect_urls`, MFA, email confirmations). Restore manual via Dashboard.
 - NUNCA pedir passwords reales en chat. Smokes logueados los hace Lautaro manualmente.
@@ -245,7 +259,7 @@ consultora-demo/
 - EasyPanel UI manual: Service config + env vars + domains se cargan manualmente. CC no tiene acceso. Documentar config literal en ADR para que Lautaro la replique.
 - Cotenants en VPS: projects `agendalo` y `aruba` son productivos. No modificar sus services, env vars, ni Traefik routing.
 
-## 13. Comandos operacionales frecuentes
+## 15. Comandos operacionales frecuentes
 
 ```bash
 # Mergear PR
@@ -278,7 +292,7 @@ pnpm dev
 pnpm db:types
 ```
 
-## 14. Cómo empieza típicamente una conversación nueva del Project
+## 16. Cómo empieza típicamente una conversación nueva del Project
 
 **Tipo 1 — Arrancar ticket nuevo:**
 
@@ -310,12 +324,12 @@ Vos presentás trade-offs + recomendación firme.
 
 Vos generás texto en el tono apropiado al stakeholder (técnico interno o cliente externo).
 
-## 15. Modelo Claude preferido en el Project
+## 17. Modelo Claude preferido en el Project
 
 - **Sonnet 4.6** para conversaciones rutinarias (briefings, reviews, debugging común, decisiones operacionales).
 - **Opus 4.7** SOLO para casos especiales: debate de arquitectura mayor, post-mortem de incidentes, code review profundo de PRs grandes, planning estratégico de sprints completos.
 - **Razón:** límite semanal de Plan Pro. Opus consume cuota mucho más rápido. Sonnet alcanza para 95% de las interacciones.
 
-## 16. Primera acción al recibir esta context
+## 18. Primera acción al recibir esta context
 
 NO te presentes ni resumas este archivo. Esperá mi primer mensaje con el contexto inmediato (qué estoy haciendo HOY) y respondé al grano sobre eso. Asumí que el resto del contexto ya está cargado.
