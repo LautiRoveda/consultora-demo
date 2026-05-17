@@ -167,3 +167,56 @@ Aplica el mismo principio a otros secrets compartidos entre 2 sistemas:
   via `setWebhook` curl al rotar — sincronizar inmediato sino Telegram
   reintenta cada minuto con el secret viejo).
 - Futuros: webhook secrets de Resend, MercadoPago, etc.
+
+---
+
+## ⚠️ Lesson learned (T-034 smoke productivo) · placeholder check vulnerable a typos
+
+**Síntoma observado durante smoke T-034**: el cron tick procesaba reminders
+pero `notification_log` quedaba vacío. Inspeccionar `net._http_response`
+mostraba `error_msg='Couldn't connect to server'` o `status_code=401`.
+
+**Causa raíz**: el secret de Vault `cron_dispatch_secret` tenía typo:
+`REPLACE_ME_POST_DEPLOy` (con `y` minúscula al final).
+El check del helper SQL `process_pending_reminders()` usa equality exacta:
+
+```sql
+if v_secret = 'REPLACE_ME_POST_DEPLOY' then
+  raise notice 'placeholder, skipping tick';
+  return;
+end if;
+```
+
+`'REPLACE_ME_POST_DEPLOy'` con y minúscula **NO matcheó** este check (el
+helper assume Y mayúscula end-to-end) → el guard NO disparó → el cron continuó
+intentando dispatch → fallaba 401 silenciosa porque el secret tampoco matchea
+el de EasyPanel.
+
+**Mitigación inmediata**: regenerar `cron_dispatch_secret` fresh con
+`openssl rand -hex 32` (procedimiento principal arriba). Esto sobrescribe el
+typo con un valor válido de 64 chars.
+
+**Fix recomendado para próxima migration que toque
+`20260515100457_set_cron_vault_secret_helper.sql`**: reemplazar la
+equality con un check más robusto a typos:
+
+```sql
+-- Opción A — regex matchea cualquier variante REPLACE_ME*
+if v_secret like 'REPLACE_ME%' then
+  raise notice 'cron_dispatch_secret todavía es placeholder, saltando tick';
+  return;
+end if;
+
+-- Opción B — length check (openssl rand -hex 32 siempre produce 64 chars)
+if length(v_secret) != 64 then
+  raise notice 'cron_dispatch_secret length inválido (%), saltando tick', length(v_secret);
+  return;
+end if;
+```
+
+Pendiente como follow-up bajo prioridad: el typo de Lautaro era humano,
+no técnico; el fix solo aplica si se vuelve a setear placeholder a mano
+en un futuro re-deploy. **No bloqueante para Sprint 4**.
+
+Documentado también en [push-setup.md](push-setup.md) sección lessons
+learned T-034 (donde se descubrió el síntoma).
