@@ -75,6 +75,33 @@ export const envSchema = z.object({
   // Server-only — leak permite a un atacante invocar el webhook
   // simulando ser Telegram.
   TELEGRAM_WEBHOOK_SECRET: z.string().min(32),
+
+  // Web Push VAPID keys (T-034). Generar UNA VEZ con
+  // `npx web-push generate-vapid-keys`. NUNCA regenerar productivo: invalida
+  // todas las subscriptions existentes (el Push Service asocia la public key
+  // al endpoint al momento del subscribe).
+  //
+  // Private key: base64url ~44 chars. Server-only — leak = atacante puede
+  // enviar push spam a todos los users subscritos.
+  VAPID_PRIVATE_KEY: z.string().min(40),
+
+  // Public key: base64url ~88 chars. Inlinada al bundle del cliente (prefix
+  // NEXT_PUBLIC_) porque el browser la necesita en pushManager.subscribe()
+  // como applicationServerKey. No es secret — su exposición es by-design.
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().min(80),
+
+  // Subject identificando al sender al Push Service. Spec web-push exige
+  // `mailto:` o `https://` (los Push Services rechazan otros formatos).
+  // Default sensato: mail no-reply del subdominio Resend (mismo patrón
+  // RESEND_REPLY_TO_ADDRESS T-031). Override en EasyPanel si Lautaro quiere
+  // un mailto: contacto distinto sin redeploy.
+  VAPID_SUBJECT: z
+    .string()
+    .regex(
+      /^(mailto:|https:\/\/)/,
+      'Debe empezar con mailto: o https:// (requerido por web-push spec).',
+    )
+    .default('mailto:noreply@mail.consultora-demo.test-ia.cloud'),
 });
 
 const parsed = envSchema.safeParse(process.env);

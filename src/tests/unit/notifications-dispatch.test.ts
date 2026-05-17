@@ -6,7 +6,7 @@
  * - Orquestacion correcta de los 3 canales.
  * - Skip por enabled=false / muted_until>now / ALREADY_SENT.
  * - Mapping de DispatchResult a notification_log row.
- * - NO_CHANNEL_IMPL_* -> status='skipped' (no failed).
+ * - TELEGRAM_NOT_LINKED / PUSH_NO_SUBSCRIPTIONS -> status='skipped' (no failed).
  * - Email sin recipient.email -> errorCode='NO_RECIPIENT_EMAIL'.
  */
 import type { ReminderWithEvent } from '@/shared/notifications/types';
@@ -145,16 +145,23 @@ beforeEach(() => {
   mockSendTelegram.mockReset();
   mockSendPush.mockReset();
 
-  // Defaults: telegram y push stubs.
+  // Default mocks: pre-condition real-but-empty
+  //  - telegram: si el dispatcher decide invocar el sender (caso con sub linkeada
+  //    en el fixture), retornaría este default; los tests sin sub linkeada
+  //    nunca llegan a este mock porque el dispatcher devuelve TELEGRAM_NOT_LINKED
+  //    ANTES de invocar.
+  //  - push: análogo — el sender real returna PUSH_NO_SUBSCRIPTIONS si no hay
+  //    subs en DB. Los tests dispatcher mockean el sender directo, así que
+  //    el mock retorna eso por default.
   mockSendTelegram.mockResolvedValue({
     ok: false,
-    errorCode: 'NO_CHANNEL_IMPL_T033',
-    errorDetail: 'stub',
+    errorCode: 'TELEGRAM_NOT_LINKED',
+    errorDetail: 'fallback default mock',
   });
   mockSendPush.mockResolvedValue({
     ok: false,
-    errorCode: 'NO_CHANNEL_IMPL_T034',
-    errorDetail: 'stub',
+    errorCode: 'PUSH_NO_SUBSCRIPTIONS',
+    errorDetail: 'fallback default mock',
   });
 });
 
@@ -185,7 +192,9 @@ describe('dispatchReminderToChannels · happy path', () => {
       message_id: 'rsd_test_1',
     });
     // Post-T-033: sin sub linkeada → dispatcher devuelve TELEGRAM_NOT_LINKED
-    // ANTES de invocar al sender. Push sigue como stub T-034.
+    // ANTES de invocar al sender.
+    // Post-T-034: push sender real es invocado y returna PUSH_NO_SUBSCRIPTIONS
+    // (mock default) por no haber rows en push_subscriptions.
     expect(outcomes[1]).toEqual({
       channel: 'telegram',
       status: 'skipped',
@@ -194,7 +203,7 @@ describe('dispatchReminderToChannels · happy path', () => {
     expect(outcomes[2]).toEqual({
       channel: 'push',
       status: 'skipped',
-      error_code: 'NO_CHANNEL_IMPL_T034',
+      error_code: 'PUSH_NO_SUBSCRIPTIONS',
     });
 
     // 3 rows escritas a notification_log.
@@ -405,7 +414,7 @@ describe('dispatchReminderToChannels · email sin recipient.email', () => {
   });
 });
 
-describe('dispatchReminderToChannels · stubs T-033/T-034', () => {
+describe('dispatchReminderToChannels · senders reales T-033/T-034', () => {
   it('11. Telegram sin sub linkeada -> skipped TELEGRAM_NOT_LINKED + log row (post-T-033)', async () => {
     mockSendEmail.mockResolvedValueOnce({ ok: true, messageId: 'rsd_test_6' });
     const admin = makeAdminMock({});
@@ -465,5 +474,92 @@ describe('dispatchReminderToChannels · stubs T-033/T-034', () => {
       chatId: 12345,
       userId: 'u1',
     });
+  });
+
+  it('13. Push sender retorna ok → status=sent + log row (post-T-034)', async () => {
+    mockSendEmail.mockResolvedValueOnce({ ok: true, messageId: 'rsd_test_8' });
+    mockSendPush.mockResolvedValueOnce({ ok: true, messageId: 'push:1/1' });
+    const admin = makeAdminMock({});
+
+    const outcomes = await dispatchReminderToChannels({
+      admin: admin as never,
+      reminder: makeReminder(),
+      recipient: { email: 'user@example.com', name: null, userId: 'u1' },
+      prefs: [
+        { channel: 'email', enabled: true, muted_until: null },
+        { channel: 'push', enabled: true, muted_until: null },
+      ],
+    });
+
+    expect(outcomes[2]).toEqual({
+      channel: 'push',
+      status: 'sent',
+      message_id: 'push:1/1',
+    });
+    expect(mockSendPush).toHaveBeenCalledOnce();
+    expect(mockSendPush.mock.calls[0]![0]).toMatchObject({
+      userId: 'u1',
+      reminder: expect.objectContaining({ id: 'rem-uuid-1' }),
+    });
+
+    const pushRow = admin._logInsertedRows.find((r) => r.channel === 'push');
+    expect(pushRow?.status).toBe('sent');
+    expect(pushRow?.provider_message_id).toBe('push:1/1');
+  });
+
+  it('14. Push sender retorna PUSH_NO_SUBSCRIPTIONS → status=skipped (no failed)', async () => {
+    mockSendEmail.mockResolvedValueOnce({ ok: true, messageId: 'rsd_test_9' });
+    // default mock retorna PUSH_NO_SUBSCRIPTIONS
+    const admin = makeAdminMock({});
+
+    const outcomes = await dispatchReminderToChannels({
+      admin: admin as never,
+      reminder: makeReminder(),
+      recipient: { email: 'user@example.com', name: null, userId: 'u1' },
+      prefs: [
+        { channel: 'email', enabled: true, muted_until: null },
+        { channel: 'push', enabled: true, muted_until: null },
+      ],
+    });
+
+    expect(outcomes[2]).toEqual({
+      channel: 'push',
+      status: 'skipped',
+      error_code: 'PUSH_NO_SUBSCRIPTIONS',
+    });
+
+    const pushRow = admin._logInsertedRows.find((r) => r.channel === 'push');
+    expect(pushRow?.status).toBe('skipped');
+    expect(pushRow?.error_code).toBe('PUSH_NO_SUBSCRIPTIONS');
+  });
+
+  it('15. Push sender retorna PUSH_ALL_FAILED → status=failed', async () => {
+    mockSendEmail.mockResolvedValueOnce({ ok: true, messageId: 'rsd_test_10' });
+    mockSendPush.mockResolvedValueOnce({
+      ok: false,
+      errorCode: 'PUSH_ALL_FAILED',
+      errorDetail: '0/2 exitosas',
+    });
+    const admin = makeAdminMock({});
+
+    const outcomes = await dispatchReminderToChannels({
+      admin: admin as never,
+      reminder: makeReminder(),
+      recipient: { email: 'user@example.com', name: null, userId: 'u1' },
+      prefs: [
+        { channel: 'email', enabled: true, muted_until: null },
+        { channel: 'push', enabled: true, muted_until: null },
+      ],
+    });
+
+    expect(outcomes[2]).toEqual({
+      channel: 'push',
+      status: 'failed',
+      error_code: 'PUSH_ALL_FAILED',
+    });
+
+    const pushRow = admin._logInsertedRows.find((r) => r.channel === 'push');
+    expect(pushRow?.status).toBe('failed');
+    expect(pushRow?.error_code).toBe('PUSH_ALL_FAILED');
   });
 });

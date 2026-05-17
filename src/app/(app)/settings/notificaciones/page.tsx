@@ -84,11 +84,19 @@ export default async function NotificacionesSettingsPage() {
     return { kind: 'unlinked' };
   })();
 
+  // T-034 — VAPID public key inlined al client. NEXT_PUBLIC_* prefix garantiza
+  // que Next la sustituye en build time (sin runtime fetch). No leemos de
+  // src/env.ts (server-only) — la pasamos como prop al view.
+  // El client la convierte a Uint8Array via urlBase64ToUint8Array para
+  // pushManager.subscribe().
+  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? '';
+
   return (
     <NotificacionesSettingsView
       userEmail={user.email ?? ''}
       initialPrefs={initialPrefs}
       telegramInitialState={telegramInitial}
+      vapidPublicKey={vapidPublicKey}
     />
   );
 }

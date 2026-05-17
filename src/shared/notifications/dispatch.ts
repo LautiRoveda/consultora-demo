@@ -31,8 +31,9 @@ type ChannelPref = {
  * Senders en serie: 3 canales * 1 user, paralelizar no aporta y complica
  * error handling.
  *
- * Stubs T-033/T-034: el sender devuelve {ok:false, errorCode:'NO_CHANNEL_IMPL_T0XX'}.
- * El dispatcher mapea esto a status='skipped' (no es failure, es expected).
+ * Skip silencioso (status='skipped'): TELEGRAM_NOT_LINKED (T-033) y
+ * PUSH_NO_SUBSCRIPTIONS (T-034) — el user no completó setup del canal, no es
+ * failure. Resto cae a 'failed' (provider rechazó, network down, etc).
  */
 export async function dispatchReminderToChannels(args: {
   admin: SupabaseClient<Database>;
@@ -143,20 +144,35 @@ async function dispatchOneChannel(args: {
       }
     }
   } else {
-    result = await sendPushReminder();
+    // T-034: lookup push_subscriptions del user (multi-device). Sin sub →
+    // skip silencioso (no es failure: el user no activó push en ningún device).
+    if (!recipient.userId) {
+      result = {
+        ok: false,
+        errorCode: 'NO_RECIPIENT_PUSH_USERID',
+        errorDetail: 'recipient.userId es null',
+      };
+    } else {
+      result = await sendPushReminder({
+        reminder,
+        admin,
+        userId: recipient.userId,
+      });
+    }
   }
 
   // Persist + outcome.
   // `skipped` cubre los casos no-failure pero tampoco sent:
-  //  - NO_CHANNEL_IMPL_* (stubs T-034 push).
   //  - TELEGRAM_NOT_LINKED (user no completó vinculación, no es bug nuestro).
-  //  - NO_RECIPIENT_TELEGRAM_USERID (defensa edge case).
+  //  - NO_RECIPIENT_TELEGRAM_USERID / NO_RECIPIENT_PUSH_USERID (defensa edge case).
+  //  - PUSH_NO_SUBSCRIPTIONS (user no activó push en ningún device — T-034).
   // El resto cae a `failed` (provider rechazó, network down, etc).
   const isSkippableCode =
     !result.ok &&
-    (result.errorCode.startsWith('NO_CHANNEL_IMPL') ||
-      result.errorCode === 'TELEGRAM_NOT_LINKED' ||
-      result.errorCode === 'NO_RECIPIENT_TELEGRAM_USERID');
+    (result.errorCode === 'TELEGRAM_NOT_LINKED' ||
+      result.errorCode === 'NO_RECIPIENT_TELEGRAM_USERID' ||
+      result.errorCode === 'NO_RECIPIENT_PUSH_USERID' ||
+      result.errorCode === 'PUSH_NO_SUBSCRIPTIONS');
   const finalStatus: 'sent' | 'skipped' | 'failed' = result.ok
     ? 'sent'
     : isSkippableCode

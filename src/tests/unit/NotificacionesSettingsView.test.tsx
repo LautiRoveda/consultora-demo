@@ -95,6 +95,7 @@ describe('NotificacionesSettingsView — render', () => {
         userEmail="test@example.com"
         initialPrefs={makePrefs({ emailEnabled: true, emailMutedUntil: null })}
         telegramInitialState={{ kind: 'unlinked' }}
+        vapidPublicKey="dummy-vapid-public-key-base64url-for-tests"
       />,
     );
 
@@ -111,6 +112,7 @@ describe('NotificacionesSettingsView — render', () => {
         userEmail="test@example.com"
         initialPrefs={makePrefs({ emailEnabled: false })}
         telegramInitialState={{ kind: 'unlinked' }}
+        vapidPublicKey="dummy-vapid-public-key-base64url-for-tests"
       />,
     );
 
@@ -127,6 +129,7 @@ describe('NotificacionesSettingsView — render', () => {
         userEmail="test@example.com"
         initialPrefs={makePrefs({ emailEnabled: true, emailMutedUntil: futureIso })}
         telegramInitialState={{ kind: 'unlinked' }}
+        vapidPublicKey="dummy-vapid-public-key-base64url-for-tests"
       />,
     );
 
@@ -141,21 +144,23 @@ describe('NotificacionesSettingsView — render', () => {
     expect(trigger.textContent).not.toBe('Elegir fecha');
   });
 
-  it('4. Push row visualmente disabled. Telegram row activo (unlinked + "Vincular Telegram")', () => {
+  it('4. Push row presente + Telegram row activo. Push state inicial = loading (mount no completó)', () => {
     render(
       <NotificacionesSettingsView
         userEmail="test@example.com"
         initialPrefs={makePrefs({})}
         telegramInitialState={{ kind: 'unlinked' }}
+        vapidPublicKey="dummy-vapid-public-key-base64url-for-tests"
       />,
     );
 
-    // Push sigue disabled (T-034 no implementado).
+    // T-034 — PushChannelRow renderea con state inicial 'loading' hasta que
+    // el useEffect resuelve (jsdom sin SW). El test verifica que el row está
+    // presente; el render exhaustivo de los 4 estados está en PushChannelRow.test.tsx.
     const rowPush = screen.getByTestId('row-push');
-    expect(rowPush.className).toContain('opacity-60');
-    expect(screen.getByTestId('toggle-push')).toBeDisabled();
+    expect(rowPush).toBeInTheDocument();
 
-    // Telegram (T-033) ahora activo: data-state="unlinked" + badge + botón Vincular.
+    // Telegram (T-033) activo: data-state="unlinked" + badge + botón Vincular.
     const rowTelegram = screen.getByTestId('row-telegram');
     expect(rowTelegram).toHaveAttribute('data-state', 'unlinked');
     expect(screen.getByTestId('telegram-badge-unlinked')).toBeInTheDocument();
@@ -171,6 +176,7 @@ describe('NotificacionesSettingsView — submit', () => {
         userEmail="test@example.com"
         initialPrefs={makePrefs({})}
         telegramInitialState={{ kind: 'unlinked' }}
+        vapidPublicKey="dummy-vapid-public-key-base64url-for-tests"
       />,
     );
 
@@ -194,6 +200,7 @@ describe('NotificacionesSettingsView — submit', () => {
         userEmail="test@example.com"
         initialPrefs={makePrefs({})}
         telegramInitialState={{ kind: 'unlinked' }}
+        vapidPublicKey="dummy-vapid-public-key-base64url-for-tests"
       />,
     );
 
@@ -223,6 +230,7 @@ describe('NotificacionesSettingsView — submit', () => {
         userEmail="test@example.com"
         initialPrefs={makePrefs({ emailEnabled: true })}
         telegramInitialState={{ kind: 'unlinked' }}
+        vapidPublicKey="dummy-vapid-public-key-base64url-for-tests"
       />,
     );
 

@@ -5,7 +5,7 @@ import type { TelegramRowState } from './TelegramChannelRow';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Bell, CalendarIcon, Mail, Smartphone } from 'lucide-react';
+import { Bell, CalendarIcon, Mail } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -21,10 +21,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover';
 import { RadioGroup, RadioGroupItem } from '@/shared/ui/radio-group';
 import { Switch } from '@/shared/ui/switch';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip';
+import { TooltipProvider } from '@/shared/ui/tooltip';
 
 import { updateNotificationPrefsAction } from './actions';
 import { getMuteStatus } from './mute-helpers';
+import { PushChannelRow } from './PushChannelRow';
 import { TelegramChannelRow } from './TelegramChannelRow';
 
 export type ChannelPrefRow = {
@@ -102,10 +103,12 @@ export function NotificacionesSettingsView({
   userEmail,
   initialPrefs,
   telegramInitialState,
+  vapidPublicKey,
 }: {
   userEmail: string;
   initialPrefs: { email: ChannelPrefRow; telegram: ChannelPrefRow; push: ChannelPrefRow };
   telegramInitialState: TelegramRowState;
+  vapidPublicKey: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -191,32 +194,7 @@ export function NotificacionesSettingsView({
 
               <TelegramChannelRow initialState={telegramInitialState} />
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    className="flex items-center justify-between gap-4 rounded-md border p-3 opacity-60"
-                    data-testid="row-push"
-                    tabIndex={0}
-                  >
-                    <div className="flex items-start gap-3">
-                      <Smartphone className="text-muted-foreground mt-0.5 h-4 w-4" />
-                      <div className="space-y-0.5">
-                        <span className="text-sm font-medium">Push web</span>
-                        <p className="text-muted-foreground text-xs">No soportado todavía.</p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={false}
-                      disabled
-                      aria-label="Recibir reminders por Push web (proximamente)"
-                      data-testid="toggle-push"
-                    />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Próximamente (T-034) — Push web habilitado próximamente.
-                </TooltipContent>
-              </Tooltip>
+              <PushChannelRow vapidPublicKey={vapidPublicKey} />
             </CardContent>
           </Card>
 
