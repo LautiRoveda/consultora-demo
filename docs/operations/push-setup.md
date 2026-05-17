@@ -233,6 +233,37 @@ Solo si hay compromiso de la private key:
 
 Feature detect en [`src/app/(app)/settings/notificaciones/PushChannelRow.tsx`](../../src/app/(app)/settings/notificaciones/PushChannelRow.tsx) captura todos los casos no soportados → muestra Alert "Navegador incompatible" + sugiere browsers OK.
 
+## ⚠️ Lesson learned (T-034 smoke productivo) · placeholder check Vault vulnerable a typos
+
+**Síntoma observado durante smoke T-034 pre-Lautaro confirm**: el cron tick procesaba reminders pero `notification_log` quedaba vacío. Inspeccionar `net._http_response` mostraba `error_msg='Couldn't connect to server'` o `status_code=401` para los POSTs disparados por `process_pending_reminders`.
+
+**Causa raíz**: el secret de Vault `cron_dispatch_secret` tenía typo: `REPLACE_ME_POST_DEPLOy` (con `y` minúscula al final), que **NO matcheaba ni con el placeholder check ni con `INTERNAL_CRON_SECRET` de EasyPanel**.
+
+El check del helper SQL `process_pending_reminders()` hace:
+
+```sql
+if v_secret = 'REPLACE_ME_POST_DEPLOY' then
+  raise notice 'cron_dispatch_secret todavía es placeholder, saltando tick';
+  return;
+end if;
+```
+
+El `=` exact match con `'REPLACE_ME_POST_DEPLOY'` (Y mayúscula) **no captura** la variante con `y` minúscula → el guard returnea normal → el cron continúa intentando dispatch → falla 401 silenciosa.
+
+**Mitigación inmediata**: regenerar `cron_dispatch_secret` fresh con `openssl rand -hex 32` + pegarlo idéntico en EasyPanel `INTERNAL_CRON_SECRET` (procedimiento principal de `cron-secret-rotation.md`).
+
+**Fix recomendado para próxima migration que toque `set_cron_vault_secret_helper.sql`**: reemplazar el check de equality con uno robusto a typos:
+
+```sql
+-- Opción A: regex (matchea cualquier variante REPLACE_ME*)
+if v_secret like 'REPLACE_ME%' then ...
+
+-- Opción B: length check (un valor `openssl rand -hex 32` siempre es 64 chars)
+if length(v_secret) != 64 then ...
+```
+
+Documentado también en [cron-secret-rotation.md](cron-secret-rotation.md) lessons learned.
+
 ## Referencias
 
 - Plan T-034: contexto, decisiones cerradas, estructura del módulo.

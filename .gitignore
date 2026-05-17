@@ -67,3 +67,6 @@ next-env.d.ts
 
 # Dumps temporales de debug (T-023-FU4)
 /.tmp/
+
+# Claude Code harness runtime (wake-up schedules, sessions, etc)
+/.claude/
