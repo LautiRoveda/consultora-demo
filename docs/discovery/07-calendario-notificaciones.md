@@ -297,7 +297,7 @@ en la migration de T-033 — el audit row de una subscription per-user no tiene
 contexto consultora. FK `on delete restrict` queda intacta cuando
 `consultora_id IS NOT NULL`.
 
-### 3.7 `push_subscriptions`
+### 3.7 `push_subscriptions` ✅ (implementado T-034)
 
 ```sql
 create table public.push_subscriptions (
@@ -314,9 +314,22 @@ create table public.push_subscriptions (
 
 alter table public.push_subscriptions enable row level security;
 
-create policy push_subs_own on public.push_subscriptions
-  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+-- Implementación T-034: policies granulares (SELECT/INSERT/DELETE per user) en
+-- lugar del `for all`. UPDATE default-deny — solo service-role del sender
+-- updatea last_seen_at. UPSERT desde subscribe endpoint usa service-role server-side
+-- (user.id desde session, no del body).
+create policy push_subs_select_own on public.push_subscriptions
+  for select using (user_id = auth.uid());
+create policy push_subs_insert_own on public.push_subscriptions
+  for insert with check (user_id = auth.uid());
+create policy push_subs_delete_own on public.push_subscriptions
+  for delete using (user_id = auth.uid());
+
+-- + audit trigger INSERT/DELETE (last_seen_at operacional, sin diff guard UPDATE).
+-- Payload NUNCA incluye endpoint/p256dh_key/auth_key (PII + secret de routing).
 ```
+
+Ver migration completa: [`supabase/migrations/20260516211602_push_subscriptions.sql`](../../supabase/migrations/20260516211602_push_subscriptions.sql).
 
 ### 3.8 Campos críticos detallados
 
@@ -482,13 +495,14 @@ Constructora del Sur · Vence el 15\\-06\\-2026
 
 **Costos:** USD 0. Telegram Bot API es gratis sin límites realistas para nuestro volumen (Telegram permite ~30 msg/seg por bot, muy por arriba de nuestras necesidades).
 
-### 6.3 Web Push
+### 6.3 Web Push ✅ (implementado T-034)
 
 **Setup operativo:**
 
-- Generar par VAPID (public + private) una sola vez. Server: `VAPID_PRIVATE_KEY` env var. Cliente: `VAPID_PUBLIC_KEY` env var public (exposable).
-- Service Worker en `public/sw.js` registrado por el cliente al primer login post-permiso.
+- Generar par VAPID (public + private) una sola vez. Server: `VAPID_PRIVATE_KEY` env var. Cliente: `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (inlined al bundle). Plus `VAPID_SUBJECT` (`mailto:` o `https://`, requerido por web-push spec).
+- Service Worker estático en [`public/sw.js`](../../public/sw.js) registrado on-demand cuando el user clickea "Activar" en Settings.
 - Tabla `push_subscriptions` (sección 3.7) guarda endpoint + keys del browser.
+- Runbook completo: [`docs/operations/push-setup.md`](../operations/push-setup.md).
 
 **Flow de permisos en browser:**
 
