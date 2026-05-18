@@ -9,11 +9,22 @@ import { getSystemPromptForTipo } from '@/shared/ai/prompts';
 import { streamAnthropicMessage } from '@/shared/ai/stream';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { logger } from '@/shared/observability/logger';
+import { getRateLimiter } from '@/shared/security/rate-limit';
 import { createClient } from '@/shared/supabase/server';
 import { createServiceRoleClient } from '@/shared/supabase/service-role';
 import { getServerTemplate } from '@/shared/templates/registry/server';
 
 import { generateStreamBodySchema } from './schema';
+
+// T-081 · Rate limit AI generation por user_id (NO por IP).
+// Razón: users legítimos en red corporativa NATted comparten IP — IP-based
+// bloquearía false positives masivos. user_id es la identidad real del costo
+// Claude API. 20/1h ≈ USD 50/h de tokens si el atacante hammerea.
+const aiGenerationLimiter = getRateLimiter({
+  identifier: 'ai-generation-user',
+  limit: 20,
+  window: '1 h',
+});
 
 /**
  * T-025 · POST /api/informes/[id]/generate-stream
@@ -116,6 +127,32 @@ export async function POST(
       403,
       'FORBIDDEN',
       'Solo el creador del informe o un owner pueden editarlo.',
+    );
+  }
+
+  // 7.5. T-081 · Rate limit AI generation. Post-permission-gate: cuenta solo
+  // intentos válidos del user con permiso. El cliente EditorView ya tiene
+  // handling de RATE_LIMITED en handleErrorCode (toast genérico con
+  // description que trae el retry hint del backend).
+  const rl = await aiGenerationLimiter.limit(user.id);
+  if (!rl.success) {
+    logger.warn(
+      { userId: user.id, consultoraId: consultora.id, informeId: id, code: 'RATE_LIMITED' },
+      'ai_generation_rate_limited',
+    );
+    return new Response(
+      JSON.stringify({
+        code: 'RATE_LIMITED',
+        message: `Demasiadas generaciones. Reintentá en ${rl.retryAfterSeconds}s.`,
+        retryAfterSeconds: rl.retryAfterSeconds,
+      }),
+      {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(rl.retryAfterSeconds),
+        },
+      },
     );
   }
 

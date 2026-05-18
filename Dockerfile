@@ -74,6 +74,15 @@ ARG TELEGRAM_WEBHOOK_SECRET
 ARG VAPID_PRIVATE_KEY
 ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY
 ARG VAPID_SUBJECT
+# T-081: rate limiting via Upstash Redis. Optional en src/env.ts — si no se
+# pasan vars, getRateLimiter devuelve un noop stub. En prod ambas SE DEBEN
+# pasar para que el rate limit aplique. Ver docs/operations/rate-limiting.md.
+ARG UPSTASH_REDIS_REST_URL
+ARG UPSTASH_REDIS_REST_TOKEN
+# T-081: GIT_SHA opcional para exponer la versión deployada en /api/health.
+# Si no se pasa, el endpoint reporta `version: 'dev'`. Workflow CI/EasyPanel
+# auto-deploy puede inyectarlo con el SHA del commit.
+ARG GIT_SHA
 
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
@@ -95,6 +104,9 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     VAPID_PRIVATE_KEY=$VAPID_PRIVATE_KEY \
     NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY \
     VAPID_SUBJECT=$VAPID_SUBJECT \
+    UPSTASH_REDIS_REST_URL=$UPSTASH_REDIS_REST_URL \
+    UPSTASH_REDIS_REST_TOKEN=$UPSTASH_REDIS_REST_TOKEN \
+    GIT_SHA=$GIT_SHA \
     NEXT_TELEMETRY_DISABLED=1
 
 RUN pnpm build

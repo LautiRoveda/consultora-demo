@@ -1,10 +1,43 @@
 'use server';
 
+import { headers } from 'next/headers';
+
 import { env } from '@/env';
 import { logger } from '@/shared/observability/logger';
+import { getClientIpFromHeaders, normalizeEmailKey } from '@/shared/security/identify';
+import { getRateLimiter } from '@/shared/security/rate-limit';
 import { createClient } from '@/shared/supabase/server';
 
 import { loginInputSchema, magicLinkInputSchema } from './schema';
+
+// T-081 · Rate limit login: multi-dim IP + email.
+// IP: 10/15min — permite retry legítimo (typo de password) sin friccion.
+// Email: 5/15min — botnet con muchas IPs no puede brute force una cuenta
+// específica más allá de 5 intentos en 15 min.
+const loginIpLimiter = getRateLimiter({
+  identifier: 'login-ip',
+  limit: 10,
+  window: '15 m',
+});
+const loginEmailLimiter = getRateLimiter({
+  identifier: 'login-email',
+  limit: 5,
+  window: '15 m',
+});
+
+// T-081 · Rate limit magic link: multi-dim IP + email, MAS estricto que login.
+// IP: 3/15min — magic link spam mitigation (UX: 1 intent + 2 retries por typo).
+// Email: 1/15min — anti-enumeration agresivo, evita disparar emails a granel.
+const magicLinkIpLimiter = getRateLimiter({
+  identifier: 'magic-link-ip',
+  limit: 3,
+  window: '15 m',
+});
+const magicLinkEmailLimiter = getRateLimiter({
+  identifier: 'magic-link-email',
+  limit: 1,
+  window: '15 m',
+});
 
 /**
  * Resultados como discriminated unions: la action NUNCA tira. El cliente
@@ -17,21 +50,30 @@ export type LoginActionResult =
   | { ok: true; redirectTo: string }
   | {
       ok: false;
-      code:
-        | 'INVALID_INPUT'
-        | 'INVALID_CREDENTIALS'
-        | 'EMAIL_NOT_CONFIRMED'
-        | 'RATE_LIMITED'
-        | 'INTERNAL_ERROR';
+      code: 'INVALID_INPUT' | 'INVALID_CREDENTIALS' | 'EMAIL_NOT_CONFIRMED' | 'INTERNAL_ERROR';
       message: string;
+    }
+  | {
+      // T-081: variante con retryAfterSeconds type-safe.
+      ok: false;
+      code: 'RATE_LIMITED';
+      message: string;
+      retryAfterSeconds: number;
     };
 
 export type MagicLinkActionResult =
   | { ok: true; message: string }
   | {
       ok: false;
-      code: 'INVALID_INPUT' | 'RATE_LIMITED' | 'INTERNAL_ERROR';
+      code: 'INVALID_INPUT' | 'INTERNAL_ERROR';
       message: string;
+    }
+  | {
+      // T-081: variante con retryAfterSeconds type-safe.
+      ok: false;
+      code: 'RATE_LIMITED';
+      message: string;
+      retryAfterSeconds: number;
     };
 
 /**
@@ -62,6 +104,37 @@ export async function loginAction(input: unknown): Promise<LoginActionResult> {
   }
 
   const { email, password } = parsed.data;
+
+  // T-081: rate limit multi-dim (IP + email) post-Zod, pre-Supabase.
+  // Promise.all evalúa ambos atomicamente — el "desperdicio" de consumir
+  // bucket IP cuando email ya excedido ES feature: atacante rotando IPs
+  // contra una cuenta sangra ambos buckets.
+  const ip = getClientIpFromHeaders(await headers());
+  const emailKey = normalizeEmailKey(email);
+  const [ipResult, emailResult] = await Promise.all([
+    loginIpLimiter.limit(ip),
+    loginEmailLimiter.limit(emailKey),
+  ]);
+  if (!ipResult.success || !emailResult.success) {
+    const retryAfterSeconds = Math.max(ipResult.retryAfterSeconds, emailResult.retryAfterSeconds);
+    logger.warn(
+      {
+        ip,
+        email,
+        ipExceeded: !ipResult.success,
+        emailExceeded: !emailResult.success,
+        code: 'RATE_LIMITED',
+      },
+      'login_rate_limited',
+    );
+    return {
+      ok: false,
+      code: 'RATE_LIMITED',
+      message: `Demasiados intentos de login. Reintentá en ${retryAfterSeconds}s.`,
+      retryAfterSeconds,
+    };
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
@@ -90,11 +163,14 @@ export async function loginAction(input: unknown): Promise<LoginActionResult> {
       };
     }
     if (error.status === 429) {
-      logger.warn({ email, code: 'RATE_LIMITED' }, 'signin_failed');
+      // Supabase Auth rate limit interno (separado del nuestro de T-081).
+      // SDK no expone Retry-After exacto — defaulteamos a 60s.
+      logger.warn({ email, code: 'RATE_LIMITED', source: 'supabase' }, 'signin_failed');
       return {
         ok: false,
         code: 'RATE_LIMITED',
         message: 'Demasiados intentos. Esperá unos minutos y volvé a intentar.',
+        retryAfterSeconds: 60,
       };
     }
     logger.error({ error, email }, 'signInWithPassword falló con error inesperado');
@@ -143,6 +219,34 @@ export async function magicLinkAction(input: unknown): Promise<MagicLinkActionRe
   }
 
   const { email } = parsed.data;
+
+  // T-081: rate limit multi-dim (IP + email) post-Zod, pre-Supabase.
+  const ip = getClientIpFromHeaders(await headers());
+  const emailKey = normalizeEmailKey(email);
+  const [ipResult, emailResult] = await Promise.all([
+    magicLinkIpLimiter.limit(ip),
+    magicLinkEmailLimiter.limit(emailKey),
+  ]);
+  if (!ipResult.success || !emailResult.success) {
+    const retryAfterSeconds = Math.max(ipResult.retryAfterSeconds, emailResult.retryAfterSeconds);
+    logger.warn(
+      {
+        ip,
+        email,
+        ipExceeded: !ipResult.success,
+        emailExceeded: !emailResult.success,
+        code: 'RATE_LIMITED',
+      },
+      'magic_link_rate_limited',
+    );
+    return {
+      ok: false,
+      code: 'RATE_LIMITED',
+      message: `Demasiados intentos. Reintentá en ${retryAfterSeconds}s.`,
+      retryAfterSeconds,
+    };
+  }
+
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({
     email,
@@ -160,11 +264,13 @@ export async function magicLinkAction(input: unknown): Promise<MagicLinkActionRe
 
   if (error) {
     if (error.status === 429) {
-      logger.warn({ email, code: 'RATE_LIMITED' }, 'magic_link_failed');
+      // Supabase Auth rate limit interno (separado del nuestro de T-081).
+      logger.warn({ email, code: 'RATE_LIMITED', source: 'supabase' }, 'magic_link_failed');
       return {
         ok: false,
         code: 'RATE_LIMITED',
         message: 'Demasiados intentos. Esperá unos minutos.',
+        retryAfterSeconds: 60,
       };
     }
 

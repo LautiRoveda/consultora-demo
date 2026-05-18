@@ -1,11 +1,25 @@
 'use server';
 
+import { headers } from 'next/headers';
+
 import { env } from '@/env';
 import { logger } from '@/shared/observability/logger';
+import { getClientIpFromHeaders } from '@/shared/security/identify';
+import { getRateLimiter } from '@/shared/security/rate-limit';
 import { createClient } from '@/shared/supabase/server';
 import { createServiceRoleClient } from '@/shared/supabase/service-role';
 
 import { signupInputSchema } from './schema';
+
+// T-081 · Rate limit: 5 signups/hora/IP. Generoso para legítimos (1-3 trials
+// por curiosidad), agresivo para bots (script de 100/h choca rápido).
+// Solo IP — un atacante puede usar emails random distintos, rate limit por
+// email no aporta.
+const signupIpLimiter = getRateLimiter({
+  identifier: 'signup-ip',
+  limit: 5,
+  window: '1 h',
+});
 
 /**
  * Resultado de la server action de signup como discriminated union.
@@ -20,13 +34,15 @@ export type SignupActionResult =
   | { ok: true; redirectTo: string }
   | {
       ok: false;
-      code:
-        | 'INVALID_INPUT'
-        | 'EMAIL_ALREADY_REGISTERED'
-        | 'WEAK_PASSWORD'
-        | 'RATE_LIMITED'
-        | 'INTERNAL_ERROR';
+      code: 'INVALID_INPUT' | 'EMAIL_ALREADY_REGISTERED' | 'WEAK_PASSWORD' | 'INTERNAL_ERROR';
       message: string;
+    }
+  | {
+      // T-081: variante separada para preservar `retryAfterSeconds` type-safe.
+      ok: false;
+      code: 'RATE_LIMITED';
+      message: string;
+      retryAfterSeconds: number;
     };
 
 /**
@@ -57,6 +73,22 @@ export async function signupAction(input: unknown): Promise<SignupActionResult> 
   }
 
   const { email, password, consultoraName } = parsed.data;
+
+  // T-081: rate limit check post-Zod, pre-Supabase. Zod fails no consumen
+  // bucket (junk input no merece tracking). Una request válida en shape SÍ
+  // cuenta — el atacante puede craftear payloads válidos.
+  const ip = getClientIpFromHeaders(await headers());
+  const rl = await signupIpLimiter.limit(ip);
+  if (!rl.success) {
+    logger.warn({ ip, code: 'RATE_LIMITED' }, 'signup_rate_limited');
+    return {
+      ok: false,
+      code: 'RATE_LIMITED',
+      message: `Demasiados registros desde esta red. Reintentá en ${rl.retryAfterSeconds}s.`,
+      retryAfterSeconds: rl.retryAfterSeconds,
+    };
+  }
+
   const supabase = await createClient();
 
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -89,10 +121,13 @@ export async function signupAction(input: unknown): Promise<SignupActionResult> 
       };
     }
     if (signUpError.status === 429) {
+      // Supabase Auth rate limit interno (separado del nuestro). El SDK no
+      // expone Retry-After exacto — defaulteamos a 60s (window típico Supabase).
       return {
         ok: false,
         code: 'RATE_LIMITED',
         message: 'Demasiados intentos. Esperá unos minutos y volvé a intentar.',
+        retryAfterSeconds: 60,
       };
     }
     logger.error(signUpError, 'signUp falló con error inesperado');
