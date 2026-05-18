@@ -455,6 +455,7 @@ export type Database = {
       };
       informes: {
         Row: {
+          cliente_id: string | null;
           consultora_id: string;
           contenido: string | null;
           created_at: string;
@@ -466,6 +467,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          cliente_id?: string | null;
           consultora_id: string;
           contenido?: string | null;
           created_at?: string;
@@ -477,6 +479,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          cliente_id?: string | null;
           consultora_id?: string;
           contenido?: string | null;
           created_at?: string;
@@ -488,6 +491,13 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'informes_cliente_id_fkey';
+            columns: ['cliente_id'];
+            isOneToOne: false;
+            referencedRelation: 'clientes';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'informes_consultora_id_fkey';
             columns: ['consultora_id'];
