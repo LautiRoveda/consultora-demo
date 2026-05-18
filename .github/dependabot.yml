@@ -1,0 +1,88 @@
+# T-080 · Dependabot config para auto-update de dependencias.
+#
+# Schedule weekly Monday 09:00 UTC (= 06:00 ART). Lautaro revisa PRs
+# auto el lunes inicio de sprint.
+#
+# Ecosystems:
+#   - npm: cubre pnpm-lock.yaml (dependabot soporta pnpm via npm ecosystem).
+#   - github-actions: versiona acciones (actions/checkout@v5, setup-node@v5, etc).
+#
+# Decisiones cerradas T-080:
+#   - Dev-deps minor+patch agrupados en 1 PR semanal (eficiencia).
+#   - Runtime deps PRs individuales (crítico, revisar uno por uno).
+#   - Major bumps de runtime libs ignorados (revisar manual, no automatizar).
+#   - Open PR limit 3 por ecosystem (evita inundación).
+#   - versioning-strategy: increase (incrementa caret, no pin exacto).
+#
+# Ver `docs/operations/security.md` para procedimiento de revisión.
+
+version: 2
+updates:
+  # === Ecosystem: npm (cubre pnpm-lock.yaml) ===
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'Etc/UTC'
+    open-pull-requests-limit: 3
+    versioning-strategy: 'increase'
+    # NOTA: dependabot v2 NO soporta labels per-group; los labels top-level
+    # aplican a TODOS los PRs del ecosystem (runtime individuales + dev-deps
+    # agrupadas). Por eso no usamos `area:runtime-deps` acá (sería engañoso).
+    # Para filtrar visualmente: el commit prefix `chore(deps)` + el título
+    # del PR (dependabot incluye el nombre del paquete) alcanzan.
+    labels:
+      - 'dependencies'
+      - 'auto-pr'
+    commit-message:
+      prefix: 'chore(deps)'
+      include: 'scope'
+    # Dev-deps minor+patch agrupados en 1 PR semanal.
+    groups:
+      dev-deps-minor-patch:
+        dependency-type: 'development'
+        update-types:
+          - 'minor'
+          - 'patch'
+    # Ignore major bumps de runtime libs críticas (revisar manual).
+    ignore:
+      - dependency-name: 'next'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'react'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'react-dom'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@supabase/supabase-js'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@supabase/ssr'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@anthropic-ai/sdk'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'puppeteer-core'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'sharp'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'tailwindcss'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'eslint'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
+
+  # === Ecosystem: github-actions ===
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'Etc/UTC'
+    open-pull-requests-limit: 3
+    labels:
+      - 'dependencies'
+      - 'auto-pr'
+      - 'area:ci'
+    commit-message:
+      prefix: 'chore(actions)'

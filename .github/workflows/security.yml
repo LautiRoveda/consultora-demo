@@ -1,0 +1,66 @@
+name: Security audit
+
+# T-080 · Workflow separado de ci.yml para auditoría de seguridad de deps.
+#
+# Triggers:
+#   - push a main: cada merge corre audit (visibility post-merge).
+#   - pull_request: cada PR corre audit (visibility pre-merge).
+#   - schedule: weekly Monday 09:00 UTC (detecta CVEs publicados durante la semana).
+#   - workflow_dispatch: disparable manual desde Actions UI.
+#
+# El job es non-blocking (continue-on-error: true) — visibility por annotation
+# pero NO bloquea merge. Razón: vulnerabilidades aparecen sin previo aviso,
+# no queremos bloquear deploys legítimos por dep transitiva con CVE medium-ish.
+# Si aparece HIGH/CRITICAL en runtime dep crítica, escalar a hotfix manual
+# (ver docs/operations/security.md).
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Monday 09:00 UTC = 06:00 ART (matchea schedule dependabot).
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+# Cancela runs previos del mismo branch al pushear nuevo commit.
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: pnpm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # pnpm va ANTES que setup-node (mismo patrón que ci.yml — setup-node@v5
+      # detecta packageManager y intenta caching automático de pnpm, requiere
+      # pnpm en PATH).
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Run pnpm audit
+        continue-on-error: true
+        run: |
+          set +e
+          pnpm audit --audit-level=high
+          EXIT_CODE=$?
+          set -e
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "::notice::pnpm audit clean — no HIGH/CRITICAL vulnerabilities."
+          else
+            echo "::warning::pnpm audit found HIGH/CRITICAL findings (exit $EXIT_CODE) — visibility only, NOT blocking merge. Escalate per docs/operations/security.md."
+          fi
+          exit 0
