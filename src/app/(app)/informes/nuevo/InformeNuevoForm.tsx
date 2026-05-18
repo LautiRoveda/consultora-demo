@@ -1,11 +1,12 @@
 'use client';
 
+import type { ClienteSummary } from '@/app/(app)/clientes/queries';
 import type { AccidenteMetadata } from '@/shared/templates/accidente/schema';
 import type { CapacitacionMetadata } from '@/shared/templates/capacitacion/schema';
 import type { OtrosMetadata } from '@/shared/templates/otros/schema';
 import type { RelevamientoMetadata } from '@/shared/templates/relevamiento/schema';
 import type { RgrlMetadata } from '@/shared/templates/rgrl/schema';
-import type { UseFormReturn } from 'react-hook-form';
+import type { FieldValues, UseFormReturn } from 'react-hook-form';
 import type { CreateInformeInput, InformeTipo } from '../schema';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -43,6 +44,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 import { createInformeAction } from '../actions';
 import { createInformeSchema, INFORME_TIPO_LABELS, INFORME_TIPOS } from '../schema';
+import { mapClienteToFormValues } from './cliente-form-mapper';
+import { ClienteAutocomplete } from './ClienteAutocomplete';
 
 /**
  * T-021 · Wizard de creacion de informes (2 steps).
@@ -125,6 +128,12 @@ export function InformeNuevoForm() {
   const [step, setStep] = useState<WizardStep>('tipo');
   const [isPending, setIsPending] = useState(false);
 
+  // T-050 · Cliente vinculado (opcional). Se preserva al cambiar de tipo dentro
+  // del wizard (decisión 12 del plan T-050: UX simple sin re-populate auto al
+  // cambiar tipo — user re-clickea el resultado para repopular el nuevo form).
+  const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null);
+  const [selectedRazonSocial, setSelectedRazonSocial] = useState<string | null>(null);
+
   const baseForm = useForm<CreateInformeInput>({
     resolver: zodResolver(createInformeSchema),
     defaultValues: { tipo: 'relevamiento', titulo: '' },
@@ -137,10 +146,44 @@ export function InformeNuevoForm() {
   // PARADA #3: todos los 5 tipos tienen metadata, asi que siempre hay step 2.
   const tipoHasMetadata = TEMPLATE_CLIENT_REGISTRY[tipoWatch] !== null;
 
+  /**
+   * T-050 · Al seleccionar (o limpiar) un cliente del autocomplete, populamos
+   * los fields del form activo según el subset que use el tipo
+   * (rgrl/relevamiento → 5 fields; capacitacion/accidente → 3; otros → 2).
+   *
+   * `shouldDirty: true` marca el field como modificado (RHF UI feedback).
+   * `shouldValidate: true` dispara la validación inline post-set (si la
+   * provincia legacy quedó '' por fallback, el error se muestra al user).
+   */
+  function handleClienteSelect(cliente: ClienteSummary | null) {
+    if (cliente === null) {
+      setSelectedClienteId(null);
+      setSelectedRazonSocial(null);
+      // NO reseteamos los fields del form — user puede haber editado manual
+      // y queremos preservar ese trabajo.
+      return;
+    }
+    setSelectedClienteId(cliente.id);
+    setSelectedRazonSocial(cliente.razon_social);
+
+    const tipo = baseForm.getValues('tipo');
+    const values = mapClienteToFormValues(cliente, tipo);
+    const activeForm = forms[tipo] as unknown as UseFormReturn<FieldValues>;
+
+    for (const [key, value] of Object.entries(values)) {
+      if (value === undefined) continue;
+      activeForm.setValue(key, value, { shouldDirty: true, shouldValidate: true });
+    }
+  }
+
   async function submitWithMetadata(metadata: MetadataByTipo[InformeTipo] | undefined) {
     setIsPending(true);
     const values = baseForm.getValues();
-    const result = await createInformeAction({ ...values, metadata });
+    const result = await createInformeAction({
+      ...values,
+      metadata,
+      cliente_id: selectedClienteId,
+    });
 
     if (result.ok) {
       if (metadata && !result.metadataPersisted) {
@@ -158,6 +201,16 @@ export function InformeNuevoForm() {
     setIsPending(false);
 
     if (result.code === 'INVALID_INPUT') {
+      // T-050 · Si el error vino del cross-tenant defense del cliente_id, limpiar
+      // la selección y mantenerlo en step 2 (no tiene sentido volver a step 1 —
+      // el field cliente_id NO está en step 1). El toast con `result.message` ya
+      // dice "Revisá la selección de cliente.".
+      if ('cliente_id' in result.fieldErrors) {
+        setSelectedClienteId(null);
+        setSelectedRazonSocial(null);
+        toast.error('Cliente inválido', { description: result.message });
+        return;
+      }
       for (const [field, messages] of Object.entries(result.fieldErrors)) {
         if (field === 'tipo' || field === 'titulo') {
           baseForm.setError(field, { message: messages[0] });
@@ -278,6 +331,20 @@ export function InformeNuevoForm() {
                   Esta información se inyecta al prompt de la IA para que genere un borrador 80-90%
                   completo en lugar de placeholders.
                 </p>
+              </div>
+
+              {/* T-050 · Cliente vinculado (opcional, autopopula los fields del form). */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Vincular cliente (opcional)</p>
+                <p className="text-muted-foreground text-xs">
+                  Seleccioná un cliente existente para autocompletar los datos de identificación.
+                </p>
+                <ClienteAutocomplete
+                  selectedClienteId={selectedClienteId}
+                  selectedRazonSocial={selectedRazonSocial}
+                  onSelect={handleClienteSelect}
+                  disabled={isPending}
+                />
               </div>
 
               <FormComponent form={activeForm} disabled={isPending} />

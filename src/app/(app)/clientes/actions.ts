@@ -1,6 +1,7 @@
 'use server';
 
 import type { Database } from '@/shared/supabase/types';
+import type { ClienteSummary } from './queries';
 import { revalidatePath } from 'next/cache';
 
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
@@ -8,6 +9,7 @@ import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
 import { normalizeCuit } from '@/shared/templates/common/cuit';
 
+import { searchClientesByRazonSocial } from './queries';
 import { clienteIdSchema, createClienteSchema, updateClientePatchSchema } from './schema';
 
 type ClienteUpdate = Database['public']['Tables']['clientes']['Update'];
@@ -546,4 +548,62 @@ export async function unarchiveClienteAction(id: unknown): Promise<UnarchiveClie
     'unarchiveClienteAction: unarchived',
   );
   return { ok: true, clienteId };
+}
+
+// ============ T-050 · searchClientesAction (wrapper RSC) ============
+
+export type SearchClientesResult =
+  | { ok: true; results: ClienteSummary[] }
+  | {
+      ok: false;
+      code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'INTERNAL_ERROR';
+      message: string;
+    };
+
+/**
+ * T-050 · Wrapper RSC para `searchClientesByRazonSocial` (queries.ts es
+ * `server-only` y no expone funciones invocables desde Client Components).
+ *
+ * Patrón: discriminated union (consistente con resto del módulo), NUNCA tira.
+ * El query helper hace cap min-2-chars + escape wildcards + limit 10 — esta
+ * action solo agrega la verificación de sesión + consultora.
+ */
+export async function searchClientesAction(q: unknown): Promise<SearchClientesResult> {
+  const qStr = typeof q === 'string' ? q : '';
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return {
+      ok: false,
+      code: 'UNAUTHENTICATED',
+      message: 'Iniciá sesión.',
+    };
+  }
+
+  const consultora = await getCurrentConsultora(supabase, user.id);
+  if (!consultora) {
+    return {
+      ok: false,
+      code: 'NO_CONSULTORA',
+      message: 'Necesitás pertenecer a una consultora.',
+    };
+  }
+
+  try {
+    const results = await searchClientesByRazonSocial(supabase, qStr);
+    return { ok: true, results };
+  } catch (err) {
+    logger.error(
+      { err, userId: user.id, consultoraId: consultora.id },
+      'searchClientesAction: failed',
+    );
+    return {
+      ok: false,
+      code: 'INTERNAL_ERROR',
+      message: 'Error buscando clientes.',
+    };
+  }
 }

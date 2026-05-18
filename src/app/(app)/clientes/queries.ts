@@ -4,7 +4,30 @@ import type { Database } from '@/shared/supabase/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type ClienteRow = Database['public']['Tables']['clientes']['Row'];
-export type ClienteSummary = Pick<ClienteRow, 'id' | 'razon_social' | 'cuit'>;
+
+/**
+ * Shape devuelto por `searchClientesByRazonSocial` (autocomplete del wizard
+ * de informes T-050). Incluye los 5 campos que el autocomplete autopopula
+ * en el form del informe (rgrl/relevamiento usan los 5; capacitacion/accidente
+ * usan razon_social+cuit+domicilio; otros usa solo razon_social+cuit). Extender
+ * el SELECT en T-050 (vs el shape mínimo id+razon_social+cuit de T-048) evita
+ * un fetch N+1 al clickear un resultado del dropdown — costo trivial (~80
+ * bytes extra por result × cap 10).
+ */
+export type ClienteSummary = Pick<
+  ClienteRow,
+  'id' | 'razon_social' | 'cuit' | 'domicilio' | 'localidad' | 'provincia'
+>;
+
+/**
+ * Shape devuelto por `getInformesByClienteId` (sección "Informes vinculados"
+ * del detail view T-050). Solo campos mostrables: titulo + tipo + status +
+ * fecha. NO traemos `contenido` (puede pesar KBs).
+ */
+export type InformeLink = Pick<
+  Database['public']['Tables']['informes']['Row'],
+  'id' | 'tipo' | 'titulo' | 'status' | 'created_at'
+>;
 
 export type GetClientesOptions = {
   includeArchived?: boolean;
@@ -68,11 +91,34 @@ export async function searchClientesByRazonSocial(
 
   const { data } = await supabase
     .from('clientes')
-    .select('id, razon_social, cuit')
+    .select('id, razon_social, cuit, domicilio, localidad, provincia')
     .is('archived_at', null)
     .ilike('razon_social', `%${escaped}%`)
     .order('razon_social', { ascending: true })
     .limit(10);
 
+  return data ?? [];
+}
+
+/**
+ * T-050 · Informes vinculados al cliente (reverse lookup desde detail view).
+ *
+ * Cap 50 hard (defensa contra clientes con muchos informes históricos); la UI
+ * corta a 10 (sin "Ver todos →" link — follow-up T-050-FU2 cuando aparezca
+ * el filter `/informes?cliente_id=X`).
+ *
+ * RLS de `informes` filtra automáticamente cross-tenant. NO recibimos
+ * `consultora_id` como param — la fuente de verdad es el JWT.
+ */
+export async function getInformesByClienteId(
+  supabase: SupabaseClient<Database>,
+  clienteId: string,
+): Promise<InformeLink[]> {
+  const { data } = await supabase
+    .from('informes')
+    .select('id, tipo, titulo, status, created_at')
+    .eq('cliente_id', clienteId)
+    .order('created_at', { ascending: false })
+    .limit(50);
   return data ?? [];
 }

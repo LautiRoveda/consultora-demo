@@ -54,6 +54,13 @@ export const createInformeSchema = z.object({
    * user completa los datos despues en /editar (no bloqueante).
    */
   metadata: z.unknown().optional(),
+  /**
+   * T-050 · Cliente vinculado opcional. Si viene, el wizard step 2 autopopuló
+   * los fields desde el cliente; el action hace SELECT defensive RLS-aware
+   * pre-INSERT para prevenir cross-tenant link (el FK valida existencia pero
+   * NO respeta RLS — ver actions.ts y migration 20260518000001).
+   */
+  cliente_id: z.string().uuid({ message: 'UUID de cliente inválido.' }).nullable().optional(),
 });
 
 export type CreateInformeInput = z.infer<typeof createInformeSchema>;

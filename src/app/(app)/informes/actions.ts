@@ -99,6 +99,34 @@ export async function createInformeAction(input: unknown): Promise<CreateInforme
     };
   }
 
+  // T-050 · Cross-tenant defense.
+  // El FK `informes.cliente_id REFERENCES clientes(id)` valida que la row exista
+  // pero NO respeta RLS — un user podría pasar un cliente_id de OTRO tenant y
+  // el INSERT pasaría (data leak: link cross-tenant + información de existencia).
+  // Defensa: SELECT RLS-aware sobre clientes. Si la query devuelve null bajo el
+  // JWT del user actual → el cliente no existe o es de otro tenant.
+  if (parsed.data.cliente_id) {
+    const { data: cli } = await supabase
+      .from('clientes')
+      .select('id')
+      .eq('id', parsed.data.cliente_id)
+      .maybeSingle();
+    if (!cli) {
+      logger.warn(
+        { userId: user.id, consultoraId: consultora.id, clienteId: parsed.data.cliente_id },
+        'createInformeAction: cliente_id no visible bajo RLS — posible cross-tenant',
+      );
+      return {
+        ok: false,
+        code: 'INVALID_INPUT',
+        fieldErrors: {
+          cliente_id: ['Cliente no encontrado o no pertenece a tu consultora.'],
+        },
+        message: 'Revisá la selección de cliente.',
+      };
+    }
+  }
+
   const { data, error } = await supabase
     .from('informes')
     .insert({
@@ -106,6 +134,7 @@ export async function createInformeAction(input: unknown): Promise<CreateInforme
       tipo: parsed.data.tipo,
       titulo: parsed.data.titulo,
       created_by: user.id,
+      cliente_id: parsed.data.cliente_id ?? null,
     })
     .select('id')
     .single();

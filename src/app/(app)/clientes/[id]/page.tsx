@@ -1,12 +1,14 @@
+import type { InformeStatus, InformeTipo } from '@/app/(app)/informes/schema';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
+import { INFORME_STATUS_LABELS, INFORME_TIPO_LABELS } from '@/app/(app)/informes/schema';
 import { createClient } from '@/shared/supabase/server';
 import { Badge } from '@/shared/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
 
 import { formatDateEs, isArchived, provinciaLabel } from '../labels';
-import { getClienteById } from '../queries';
+import { getClienteById, getInformesByClienteId } from '../queries';
 import { ClienteActionsButtons } from './ClienteActionsButtons';
 
 /**
@@ -29,6 +31,10 @@ export default async function ClienteDetallePage({ params }: { params: Promise<{
 
   const cliente = await getClienteById(supabase, id);
   if (!cliente) notFound();
+
+  // T-050 · Informes vinculados (cap 10 visible, query cap 50 hard).
+  const linkedInformes = await getInformesByClienteId(supabase, id);
+  const visibleInformes = linkedInformes.slice(0, 10);
 
   const provincia = provinciaLabel(cliente.provincia);
   const hasUbicacion = !!(cliente.domicilio || cliente.localidad || cliente.provincia);
@@ -129,6 +135,45 @@ export default async function ClienteDetallePage({ params }: { params: Promise<{
           </CardHeader>
           <CardContent>
             <p className="text-sm whitespace-pre-wrap">{cliente.notas}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {visibleInformes.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Informes vinculados</CardTitle>
+            <CardDescription>
+              {linkedInformes.length === 1
+                ? '1 informe asociado a este cliente.'
+                : `${linkedInformes.length} informes asociados a este cliente.`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y">
+              {visibleInformes.map((inf) => (
+                <li key={inf.id} className="flex items-center justify-between gap-4 py-3">
+                  <Link href={`/informes/${inf.id}`} className="flex-1 min-w-0 hover:underline">
+                    <div className="truncate font-medium">{inf.titulo}</div>
+                    <div className="text-muted-foreground text-xs">
+                      {INFORME_TIPO_LABELS[inf.tipo as InformeTipo]} ·{' '}
+                      {formatDateEs(inf.created_at)}
+                    </div>
+                  </Link>
+                  <Badge
+                    variant={
+                      inf.status === 'published'
+                        ? 'default'
+                        : inf.status === 'archived'
+                          ? 'secondary'
+                          : 'outline'
+                    }
+                  >
+                    {INFORME_STATUS_LABELS[inf.status as InformeStatus]}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}
