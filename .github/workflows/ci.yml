@@ -89,7 +89,7 @@ jobs:
           run_install: false
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           # Node 22 LTS: necesario para `@supabase/realtime-js` que requiere
           # WebSocket nativo (en Node 20 falla con "Node.js 20 detected
