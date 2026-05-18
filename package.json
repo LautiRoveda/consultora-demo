@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
+    "audit": "pnpm audit --audit-level=high",
     "test": "vitest run --project unit --project component",
     "test:watch": "vitest --project unit --project component",
     "test:unit": "vitest run --project unit",
