@@ -213,6 +213,77 @@ export type Database = {
           },
         ];
       };
+      clientes: {
+        Row: {
+          archived_at: string | null;
+          art: string | null;
+          consultora_id: string;
+          contacto_email: string | null;
+          contacto_nombre: string | null;
+          contacto_telefono: string | null;
+          created_at: string;
+          created_by: string | null;
+          cuit: string;
+          domicilio: string | null;
+          id: string;
+          industria: string | null;
+          localidad: string | null;
+          nombre_fantasia: string | null;
+          notas: string | null;
+          provincia: string | null;
+          razon_social: string;
+          updated_at: string;
+        };
+        Insert: {
+          archived_at?: string | null;
+          art?: string | null;
+          consultora_id: string;
+          contacto_email?: string | null;
+          contacto_nombre?: string | null;
+          contacto_telefono?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          cuit: string;
+          domicilio?: string | null;
+          id?: string;
+          industria?: string | null;
+          localidad?: string | null;
+          nombre_fantasia?: string | null;
+          notas?: string | null;
+          provincia?: string | null;
+          razon_social: string;
+          updated_at?: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          art?: string | null;
+          consultora_id?: string;
+          contacto_email?: string | null;
+          contacto_nombre?: string | null;
+          contacto_telefono?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          cuit?: string;
+          domicilio?: string | null;
+          id?: string;
+          industria?: string | null;
+          localidad?: string | null;
+          nombre_fantasia?: string | null;
+          notas?: string | null;
+          provincia?: string | null;
+          razon_social?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'clientes_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       consultora_members: {
         Row: {
           consultora_id: string;
