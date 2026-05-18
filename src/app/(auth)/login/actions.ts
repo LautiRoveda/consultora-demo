@@ -115,6 +115,18 @@ export async function loginAction(input: unknown): Promise<LoginActionResult> {
     loginIpLimiter.limit(ip),
     loginEmailLimiter.limit(emailKey),
   ]);
+  // FIX-DEBUG T-081 (temporal): diagnóstico de bug productivo. Muestra
+  // estado completo de ambos limiters tras Promise.all. REMOVER cuando se
+  // identifique root cause + se aplique fix definitivo.
+  logger.warn(
+    {
+      ip,
+      emailKey,
+      ipResult: { success: ipResult.success, remaining: ipResult.remaining },
+      emailResult: { success: emailResult.success, remaining: emailResult.remaining },
+    },
+    'login_rate_limit_state',
+  );
   if (!ipResult.success || !emailResult.success) {
     const retryAfterSeconds = Math.max(ipResult.retryAfterSeconds, emailResult.retryAfterSeconds);
     logger.warn(
