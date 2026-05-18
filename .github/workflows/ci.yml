@@ -75,6 +75,13 @@ jobs:
       VAPID_PRIVATE_KEY: ci_placeholder_vapid_private_key_44_chars_b64url_aaa
       NEXT_PUBLIC_VAPID_PUBLIC_KEY: ci_placeholder_vapid_public_key_88_chars_b64url_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       VAPID_SUBJECT: mailto:ci-placeholder@example.com
+      # T-081: rate limiting via Upstash Redis. Optional en src/env.ts.
+      # NO seteamos vars en CI — los integration tests mockean el helper
+      # @/shared/security/rate-limit con vi.mock, no pegan a Upstash real.
+      # En prod ambas DEBEN estar en EasyPanel post-merge
+      # (docs/operations/rate-limiting.md). Sin valores, el helper devuelve
+      # noop stub que siempre allows — adecuado para CI donde el rate limit
+      # no se ejercita end-to-end.
     steps:
       - name: Checkout
         uses: actions/checkout@v5

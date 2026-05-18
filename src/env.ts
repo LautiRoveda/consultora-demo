@@ -102,6 +102,14 @@ export const envSchema = z.object({
       'Debe empezar con mailto: o https:// (requerido por web-push spec).',
     )
     .default('mailto:noreply@mail.consultora-demo.test-ia.cloud'),
+
+  // Upstash Redis para rate limiting (T-081). Optional: si NO presentes, el
+  // helper getRateLimiter devuelve un noop stub que siempre allows — útil para
+  // dev local sin cuenta Upstash. EN PRODUCCIÓN ambas DEBEN estar seteadas en
+  // EasyPanel (ver docs/operations/rate-limiting.md). Sin estas vars en prod,
+  // los rate limits NO aplican y los endpoints quedan expuestos a abuse.
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
