@@ -132,6 +132,32 @@ false positives masivos. user_id es la identidad real del costo Claude API.
 | Sentry warns recurrentes `rate_limit_check_failed_failing_open` | Upstash outage o token rotado sin sync | Verificar Upstash status page + match del token en ambos lados |
 | Usuario legítimo bloqueado | Rate limit configurado muy bajo o uso compartido de IP | Considerar override per-tenant (T-081-FU2, post-MVP) |
 | Spike de `signup-ip` keys en Upstash dashboard | Bot bombing attack en curso | Revisar logs Sentry para patrones de IPs, considerar block en Cloudflare/WAF |
+| Rate limit no dispara + logs `NOPERM evalsha` | User "default" Upstash Free Tier sin permisos `@scripting` (bloquea EVALSHA del Lua slidingWindow) | Crear user ACL custom con `+@all` (ver sub-sección abajo) |
+
+### Rate limit no dispara en producción + logs muestran "NOPERM evalsha"
+
+**Síntoma**: rate limit nunca bloquea aunque se hagan muchos intentos. EasyPanel logs muestran error:
+
+```
+UpstashError: Command failed: NOPERM this user has no permissions to run the 'evalsha' command
+```
+
+**Causa**: el user "default" de Upstash Free Tier viene con permisos restringidos que NO incluyen `@scripting` (necesario para los Lua scripts de `@upstash/ratelimit` slidingWindow).
+
+**Fix**:
+
+1. Upstash dashboard → tu DB → tab **"ACL"**.
+2. Click **"Add User"**:
+   - Username: `app-default` (o similar).
+   - Status: **On**.
+   - Keys: `~*` (todas).
+   - Categories: `+@all` (full permissions — es DB del rate limit, no hay nada sensible).
+3. Click **Create** → copiar el password autogenerado.
+4. Dashboard del DB → tab **"Connect"** → switchear al nuevo user → copiar el nuevo token.
+5. EasyPanel → reemplazar `UPSTASH_REDIS_REST_TOKEN` con el nuevo valor del paso 4.
+6. Save → redeploy → verificar con 11 logins productivos consecutivos en `/login` (el 6º debe disparar `RATE_LIMITED` por email límite 5/15min).
+
+**Validación visual**: Upstash dashboard → tab **"Metrics"** debe mostrar `Writes > 0` después del smoke (antes mostraba `Writes=0` aunque hubiera Reads).
 
 ---
 
