@@ -115,17 +115,18 @@ export async function loginAction(input: unknown): Promise<LoginActionResult> {
     loginIpLimiter.limit(ip),
     loginEmailLimiter.limit(emailKey),
   ]);
-  // FIX-DEBUG T-081 (temporal): diagnóstico de bug productivo. Muestra
-  // estado completo de ambos limiters tras Promise.all. REMOVER cuando se
+  // FIX-DEBUG T-081 v2 (temporal): pino logger.warn no visible en EasyPanel
+  // Registros UI. Pivot a console.log con prefix distintivo para garantizar
+  // visibility (EasyPanel siempre muestra stdout plain). REMOVER cuando se
   // identifique root cause + se aplique fix definitivo.
-  logger.warn(
-    {
-      ip,
-      emailKey,
-      ipResult: { success: ipResult.success, remaining: ipResult.remaining },
-      emailResult: { success: emailResult.success, remaining: emailResult.remaining },
-    },
-    'login_rate_limit_state',
+  console.log(
+    'LOGIN_RATE_LIMIT_STATE ' +
+      JSON.stringify({
+        ip,
+        emailKey,
+        ipResult: { success: ipResult.success, remaining: ipResult.remaining },
+        emailResult: { success: emailResult.success, remaining: emailResult.remaining },
+      }),
   );
   if (!ipResult.success || !emailResult.success) {
     const retryAfterSeconds = Math.max(ipResult.retryAfterSeconds, emailResult.retryAfterSeconds);

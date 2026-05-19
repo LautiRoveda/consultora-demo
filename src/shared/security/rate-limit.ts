@@ -129,20 +129,20 @@ export function getRateLimiter(config: RateLimitConfig): RateLimiter {
       try {
         const result = await inner.limit(key);
         const retryAfterSeconds = Math.max(1, Math.ceil((result.reset - Date.now()) / 1000));
-        // FIX-DEBUG T-081 (temporal): diagnóstico de bug productivo con
-        // Writes=0 en Upstash. Muestra qué identifier/key se usa + qué devuelve
-        // Upstash (success+remaining+reset). REMOVER cuando se identifique
-        // root cause + se aplique fix definitivo.
-        logger.warn(
-          {
-            identifier: config.identifier,
-            key,
-            success: result.success,
-            remaining: result.remaining,
-            reset: result.reset,
-            retryAfterSeconds,
-          },
-          'rate_limit_check_debug',
+        // FIX-DEBUG T-081 v2 (temporal): pino logger.warn no visible en
+        // EasyPanel Registros UI. Pivot a console.log con prefix distintivo
+        // para garantizar visibility (EasyPanel siempre muestra stdout plain).
+        // REMOVER cuando se identifique root cause + se aplique fix definitivo.
+        console.log(
+          'RATE_LIMIT_DEBUG ' +
+            JSON.stringify({
+              identifier: config.identifier,
+              key,
+              success: result.success,
+              remaining: result.remaining,
+              reset: result.reset,
+              retryAfterSeconds,
+            }),
         );
         return {
           success: result.success,
