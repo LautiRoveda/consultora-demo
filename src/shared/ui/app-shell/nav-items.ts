@@ -29,7 +29,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: Home, status: 'live' },
   { href: '/informes', label: 'Informes', icon: FileText, status: 'live' },
   { href: '/clientes', label: 'Clientes', icon: Users, status: 'live' },
-  { href: '/empleados', label: 'Empleados', icon: UserCheck, status: 'soon', ticket: 'T-021' },
+  { href: '/empleados', label: 'Empleados', icon: UserCheck, status: 'live' },
   { href: '/epp', label: 'EPP', icon: HardHat, status: 'soon', ticket: 'T-022' },
   { href: '/calendario', label: 'Calendario', icon: Calendar, status: 'live' },
   { href: '/settings/consultora', label: 'Configuración', icon: Settings, status: 'live' },

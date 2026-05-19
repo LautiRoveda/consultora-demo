@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { cuitField } from '@/shared/templates/common/cuit';
+import { dniField } from '@/shared/templates/common/dni';
 
 // Bounds — matchean los CHECK SQL de T-052 (20260519114309_empleados.sql) sin drift (1:1).
 const NOMBRE_MIN = 2;
@@ -27,13 +28,8 @@ const apellidoField = z
 
 // DNI: aceptamos input permisivo (con puntos, espacios o guiones) que la action
 // canonicaliza a digits-only pre-INSERT matcheando CHECK SQL `^\d{7,8}$`.
-// Rango total de chars: 7-12 (7 dígitos puros hasta 11 chars con 4 separadores).
-const dniField = z
-  .string()
-  .trim()
-  .regex(/^\d[\d.\s-]{6,11}$/, {
-    message: 'DNI inválido. Formato: 7-8 dígitos (con o sin puntos/espacios).',
-  });
+// `dniField` vive en `shared/templates/common/dni.ts` (T-054) — reusamos para
+// que UI + actions + queries compartan la misma regla.
 
 // CUIL formato matchea CUIT 1:1 — reusamos `cuitField` de common/cuit.ts.
 // La action normaliza con `normalizeCuit()` pre-INSERT (con o sin guiones).

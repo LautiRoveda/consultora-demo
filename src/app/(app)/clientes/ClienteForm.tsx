@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
+import { optionalString } from '@/shared/lib/zod-form-helpers';
 import { CUIT_REGEX, cuitField, normalizeCuit } from '@/shared/templates/common/cuit';
 import { PROVINCIAS_AR } from '@/shared/templates/common/site';
 import { Button } from '@/shared/ui/button';
@@ -34,14 +35,6 @@ import { createClienteAction, updateClienteAction } from './actions';
  * SQL CHECK) garantizan que datos inválidos no llegan a DB.
  */
 
-const optionalText = (min: number, max: number, label: string) =>
-  z
-    .string()
-    .trim()
-    .refine((v) => v === '' || (v.length >= min && v.length <= max), {
-      message: `Si lo completás, ${label} debe tener entre ${min} y ${max} caracteres.`,
-    });
-
 const optionalEmail = z
   .string()
   .trim()
@@ -56,15 +49,15 @@ const clienteFormSchema = z.object({
     .min(2, { message: 'Mínimo 2 caracteres.' })
     .max(200, { message: 'Máximo 200 caracteres.' }),
   cuit: cuitField,
-  nombre_fantasia: optionalText(1, 120, 'nombre fantasía'),
-  domicilio: optionalText(3, 200, 'domicilio'),
-  localidad: optionalText(2, 80, 'localidad'),
-  provincia: optionalText(1, 100, 'provincia'),
-  contacto_nombre: optionalText(2, 120, 'nombre de contacto'),
+  nombre_fantasia: optionalString({ max: 120, label: 'nombre fantasía' }),
+  domicilio: optionalString({ min: 3, max: 200, label: 'domicilio' }),
+  localidad: optionalString({ min: 2, max: 80, label: 'localidad' }),
+  provincia: optionalString({ max: 100, label: 'provincia' }),
+  contacto_nombre: optionalString({ min: 2, max: 120, label: 'nombre de contacto' }),
   contacto_email: optionalEmail,
-  contacto_telefono: optionalText(6, 30, 'teléfono'),
-  industria: optionalText(1, 80, 'industria'),
-  art: optionalText(1, 100, 'ART'),
+  contacto_telefono: optionalString({ min: 6, max: 30, label: 'teléfono' }),
+  industria: optionalString({ max: 80, label: 'industria' }),
+  art: optionalString({ max: 100, label: 'ART' }),
   notas: z.string().trim().max(2000, { message: 'Máximo 2000 caracteres.' }),
 });
 

@@ -47,10 +47,10 @@ describe('AppSidebarNav', () => {
     const items = nav.querySelectorAll('li');
     // T-029: Calendario paso de soon → live. T-035: Notificaciones salio del sidebar
     // (vive como sub-tab de Configuracion). T-049: Clientes paso de soon → live.
-    // Total 7 (4 live + 2 soon + 1 settings).
+    // T-054: Empleados paso de soon → live. Total 7 (5 live + 1 soon + 1 settings).
     expect(items.length).toBe(7);
 
-    const expectedSoonLabels = ['Empleados', 'EPP'];
+    const expectedSoonLabels = ['EPP'];
     const soonButtons = nav.querySelectorAll<HTMLButtonElement>(
       'button[aria-disabled="true"][disabled]',
     );
@@ -73,6 +73,13 @@ describe('AppSidebarNav', () => {
     renderNav();
     const link = screen.getByRole('link', { name: /Clientes/i });
     expect(link).toHaveAttribute('href', '/clientes');
+    expect(link).not.toHaveAttribute('aria-current', 'page');
+  });
+
+  it('Empleados es link live (T-054) — sin aria-current en /dashboard', () => {
+    renderNav();
+    const link = screen.getByRole('link', { name: /Empleados/i });
+    expect(link).toHaveAttribute('href', '/empleados');
     expect(link).not.toHaveAttribute('aria-current', 'page');
   });
 });

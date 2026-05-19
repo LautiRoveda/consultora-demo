@@ -3,6 +3,8 @@ import 'server-only';
 import type { Database } from '@/shared/supabase/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { normalizeDni } from '@/shared/templates/common/dni';
+
 export type EmpleadoRow = Database['public']['Tables']['empleados']['Row'];
 
 /**
@@ -103,10 +105,7 @@ export async function searchEmpleadosByDni(
   supabase: SupabaseClient<Database>,
   q: string,
 ): Promise<EmpleadoSummary[]> {
-  const digits = q
-    .replace(/[.\s-]/g, '')
-    .trim()
-    .slice(0, 8);
+  const digits = normalizeDni(q).slice(0, 8);
   if (digits.length < 3) return [];
   if (!/^\d+$/.test(digits)) return [];
 
