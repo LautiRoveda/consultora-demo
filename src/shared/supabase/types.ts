@@ -361,6 +361,81 @@ export type Database = {
         };
         Relationships: [];
       };
+      empleados: {
+        Row: {
+          apellido: string;
+          archived_at: string | null;
+          cliente_id: string;
+          consultora_id: string;
+          created_at: string;
+          created_by: string | null;
+          cuil: string | null;
+          dni: string;
+          email: string | null;
+          fecha_ingreso: string | null;
+          fecha_nacimiento: string | null;
+          id: string;
+          nombre: string;
+          notas: string | null;
+          puesto: string | null;
+          telefono: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          apellido: string;
+          archived_at?: string | null;
+          cliente_id: string;
+          consultora_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          cuil?: string | null;
+          dni: string;
+          email?: string | null;
+          fecha_ingreso?: string | null;
+          fecha_nacimiento?: string | null;
+          id?: string;
+          nombre: string;
+          notas?: string | null;
+          puesto?: string | null;
+          telefono?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          apellido?: string;
+          archived_at?: string | null;
+          cliente_id?: string;
+          consultora_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          cuil?: string | null;
+          dni?: string;
+          email?: string | null;
+          fecha_ingreso?: string | null;
+          fecha_nacimiento?: string | null;
+          id?: string;
+          nombre?: string;
+          notas?: string | null;
+          puesto?: string | null;
+          telefono?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'empleados_cliente_id_fkey';
+            columns: ['cliente_id'];
+            isOneToOne: false;
+            referencedRelation: 'clientes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'empleados_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       informe_attachments: {
         Row: {
           caption: string | null;
