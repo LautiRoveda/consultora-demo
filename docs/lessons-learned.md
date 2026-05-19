@@ -202,9 +202,9 @@ Si cron procesa pero `notification_log` queda vacío + `net._http_response` mues
 
 **Origen**: T-031 smoke productivo. Dominio muestra badge "Verified" en dashboard cuando DNS records resuelven (SPF+DKIM+DMARC green), PERO la verificación completa en el backend del provider toma **~4 min más** post-badge verde. Síntoma: primer envío real falla con `RESEND_VALIDATION_ERROR`. NO es bug del código — race entre DNS check inicial y backend verification. Mitigación: esperar 5+ min post-badge verde antes del smoke productivo.
 
-### VPS reboot recovery (Hostinger + Docker swarm)
+### VPS reboot recovery (Hostinger + Docker swarm) — pattern recurrente confirmado
 
-**Origen**: T-052 mid-merge. **Follow-up**: T-052-FU1 docs.
+**Origen**: T-052 mid-merge (19/05/2026 AM). **Incidents confirmados**: 2 (19/05/2026 AM + PM). **Runbook copy-paste**: [docs/operations/vps-reboot-recovery.md](operations/vps-reboot-recovery.md).
 
 Tras reboot del VPS Hostinger por mantenimiento, el VIP allocation del swarm queda inconsistente — todos los services del swarm devuelven "Host unreachable" desde Traefik aunque containers estén Ready (afecta TODOS los dominios productivos, no solo consultora-demo). Diagnóstico: `docker exec traefik wget http://service_name:80/api/health` falla con "Host is unreachable" pero `wget` directo al IP del container respondé OK → VIP fantasma. Fix: `docker service update --endpoint-mode dnsrr` en cada service del swarm. `dnsrr` (DNS round-robin) bypasea el VIP — DNS resuelve directo al IP del task, sin downtime adicional.
 
