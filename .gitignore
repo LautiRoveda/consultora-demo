@@ -68,5 +68,8 @@ next-env.d.ts
 # Dumps temporales de debug (T-023-FU4)
 /.tmp/
 
+# Backups manuales de Storage (T-082) — contienen PII de clientes, NUNCA al repo
+/backups/
+
 # Claude Code harness runtime (wake-up schedules, sessions, etc)
 /.claude/
