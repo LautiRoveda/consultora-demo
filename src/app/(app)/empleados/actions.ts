@@ -7,6 +7,7 @@ import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
 import { normalizeCuit } from '@/shared/templates/common/cuit';
+import { normalizeDni } from '@/shared/templates/common/dni';
 
 import { createEmpleadoSchema, empleadoIdSchema, updateEmpleadoPatchSchema } from './schema';
 
@@ -121,10 +122,6 @@ function isDniUniqueViolation(err: { code?: string; message?: string } | null): 
   if (!err) return false;
   if (err.code !== UNIQUE_VIOLATION_CODE) return false;
   return (err.message ?? '').includes(DNI_UNIQUE_INDEX);
-}
-
-function normalizeDni(raw: string): string {
-  return raw.replace(/[.\s-]/g, '').trim();
 }
 
 // ============ Actions ============
