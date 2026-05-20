@@ -80,10 +80,10 @@ const FAQS = [
 export default function HomePage() {
   return (
     <>
-      {/* Skip-link a11y — visible solo al focus por teclado. */}
+      {/* Skip-link a11y — visible solo al focus por teclado (NO al tap mobile). */}
       <a
         href="#main-content"
-        className="bg-primary text-primary-foreground sr-only z-50 rounded-md px-3 py-2 focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-primary focus-visible:px-3 focus-visible:py-2 focus-visible:text-primary-foreground focus-visible:shadow-lg"
       >
         Saltar al contenido principal
       </a>
@@ -109,17 +109,21 @@ export default function HomePage() {
 
       <main id="main-content" className="flex-1">
         {/* ── Hero ───────────────────────────────────────────────────────── */}
-        <section className="mx-auto max-w-5xl px-4 py-16 sm:py-24">
+        <section className="relative mx-auto max-w-5xl overflow-hidden px-4 py-16 sm:py-24">
+          <div
+            className="from-primary/8 via-primary/3 pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b to-transparent"
+            aria-hidden="true"
+          />
           <div className="mx-auto max-w-3xl text-center">
             <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
               Tu consultora de Higiene y Seguridad Laboral, en piloto automático
             </h1>
-            <p className="text-muted-foreground mt-6 text-lg sm:text-xl">
+            <p className="text-foreground/80 mt-6 text-lg sm:text-xl">
               El asistente argentino que escribe tus informes con IA y nunca te deja olvidar un
               vencimiento. Para consultores HyS por USD 30 al mes.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button asChild size="lg">
+              <Button asChild size="lg" className="shadow-md transition-shadow hover:shadow-lg">
                 <Link href="/signup">Empezar prueba de 7 días</Link>
               </Button>
               <Button asChild size="lg" variant="outline">
@@ -147,10 +151,12 @@ export default function HomePage() {
           </div>
           <div className="mt-10 grid gap-4 sm:grid-cols-3">
             {PROBLEMS.map(({ icon: Icon, title, body }) => (
-              <Card key={title}>
+              <Card key={title} className="hover:border-border/80 transition-colors">
                 <CardHeader>
-                  <Icon className="text-muted-foreground size-6" aria-hidden="true" />
-                  <CardTitle className="text-base">{title}</CardTitle>
+                  <span className="bg-severity-warning/10 text-severity-warning flex size-10 items-center justify-center rounded-md">
+                    <Icon className="size-5" aria-hidden="true" />
+                  </span>
+                  <CardTitle className="mt-3 text-base">{title}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground text-sm">{body}</p>
@@ -174,10 +180,16 @@ export default function HomePage() {
             </p>
           </div>
           <div className="mt-10 grid gap-4 sm:grid-cols-3">
-            {PILLARS.map(({ icon: Icon, title, body }) => (
-              <Card key={title} className="border-primary/20">
+            {PILLARS.map(({ icon: Icon, title, body }, idx) => (
+              <Card
+                key={title}
+                className="border-primary/30 transition-all hover:-translate-y-0.5 hover:shadow-md"
+              >
                 <CardHeader>
-                  <span className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-md">
+                  <span className="text-primary/40 text-xs font-bold">
+                    {String(idx + 1).padStart(2, '0')}
+                  </span>
+                  <span className="bg-primary/10 text-primary mt-1 flex size-10 items-center justify-center rounded-md">
                     <Icon className="size-5" aria-hidden="true" />
                   </span>
                   <CardTitle className="text-lg">{title}</CardTitle>
@@ -200,7 +212,10 @@ export default function HomePage() {
               Un consultor, un plan. Pricing público, sin comercial intermediario.
             </p>
           </div>
-          <Card className="mx-auto mt-10 max-w-md">
+          <Card className="border-primary shadow-primary/10 relative mx-auto mt-10 max-w-md border-2 shadow-lg">
+            <span className="bg-primary text-primary-foreground absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-xs font-medium">
+              Recomendado
+            </span>
             <CardHeader>
               <CardTitle>
                 <span className="text-4xl font-semibold">USD 30</span>
@@ -239,9 +254,12 @@ export default function HomePage() {
           <h2 className="text-center text-3xl font-semibold tracking-tight">
             Preguntas frecuentes
           </h2>
-          <div className="divide-border mt-10 divide-y border-y">
+          <div className="mt-10 space-y-3">
             {FAQS.map(({ q, a }) => (
-              <details key={q} className="group py-4">
+              <details
+                key={q}
+                className="group bg-card hover:border-border/80 open:bg-muted/30 rounded-lg border px-4 py-3 transition-colors"
+              >
                 <summary className="flex cursor-pointer list-none items-center justify-between text-left font-medium">
                   <span>{q}</span>
                   <span
@@ -251,7 +269,7 @@ export default function HomePage() {
                     +
                   </span>
                 </summary>
-                <p className="text-muted-foreground mt-3 text-sm">{a}</p>
+                <p className="text-muted-foreground mt-3 text-sm leading-relaxed">{a}</p>
               </details>
             ))}
           </div>
@@ -259,23 +277,28 @@ export default function HomePage() {
       </main>
 
       <footer className="border-t">
-        <div className="text-muted-foreground mx-auto max-w-5xl px-4 py-10 text-sm">
+        <div className="text-muted-foreground mx-auto max-w-5xl px-4 py-12 text-sm md:py-16">
           <div className="flex flex-col gap-6 sm:flex-row sm:justify-between">
             <div>
-              <p className="text-foreground font-semibold">ConsultoraDemo</p>
-              <p className="mt-1">© 2026 · Hecho en Argentina.</p>
+              <div className="flex items-center gap-2">
+                <span className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-md text-sm font-bold">
+                  CD
+                </span>
+                <span className="text-foreground font-semibold">ConsultoraDemo</span>
+              </div>
+              <p className="mt-2">© 2026 · Hecho en Argentina.</p>
             </div>
             <nav className="flex flex-wrap gap-x-6 gap-y-2">
-              <Link href="/terminos" className="hover:text-foreground">
+              <Link href="/terminos" className="hover:text-foreground transition-colors">
                 Términos
               </Link>
-              <Link href="/privacidad" className="hover:text-foreground">
+              <Link href="/privacidad" className="hover:text-foreground transition-colors">
                 Privacidad
               </Link>
-              <Link href="/prototipo" className="hover:text-foreground">
+              <Link href="/prototipo" className="hover:text-foreground transition-colors">
                 Demo
               </Link>
-              <Link href="/login" className="hover:text-foreground">
+              <Link href="/login" className="hover:text-foreground transition-colors">
                 Iniciar sesión
               </Link>
             </nav>
