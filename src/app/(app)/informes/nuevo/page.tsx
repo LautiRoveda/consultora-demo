@@ -30,8 +30,8 @@ export default async function InformeNuevoPage() {
           Nuevo informe
         </h1>
         <p className="text-muted-foreground text-sm">
-          Elegí el tipo y dale un título. En el próximo sprint vas a poder generar el contenido con
-          IA.
+          Elegí el tipo y dale un título. Después vas a poder generar el contenido con IA en el
+          editor.
         </p>
       </div>
       <InformeNuevoForm />

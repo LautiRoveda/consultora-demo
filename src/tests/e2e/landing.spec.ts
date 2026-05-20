@@ -13,16 +13,8 @@ test('landing carga con hero, CTAs y FAQ', async ({ page }) => {
   // CTA primario.
   await expect(page.getByRole('link', { name: 'Empezar prueba de 7 días' }).first()).toBeVisible();
 
-  // CTA secundario al prototipo.
-  await expect(page.getByRole('link', { name: 'Ver demo' })).toBeVisible();
-
   // FAQ render con `<details>`.
   await expect(page.getByText('¿Necesito tarjeta de crédito para probar?')).toBeVisible();
-});
-
-test('prototipo Fase 0 sigue siendo accesible', async ({ page }) => {
-  await page.goto('/prototipo');
-  await expect(page).toHaveTitle(/ConsultoraDemo/);
 });
 
 test('skip-link al main content existe y es navegable por teclado', async ({ page }) => {
