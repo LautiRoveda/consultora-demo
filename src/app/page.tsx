@@ -111,7 +111,7 @@ export default function HomePage() {
         {/* ── Hero ───────────────────────────────────────────────────────── */}
         <section className="relative mx-auto max-w-5xl overflow-hidden px-4 py-16 sm:py-24">
           <div
-            className="from-primary/5 to-background pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b"
+            className="from-primary/8 via-primary/3 pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b to-transparent"
             aria-hidden="true"
           />
           <div className="mx-auto max-w-3xl text-center">
