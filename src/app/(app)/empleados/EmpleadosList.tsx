@@ -18,6 +18,14 @@ interface Props {
   empleados: EmpleadoRow[];
   initialQ: string;
   initialIncludeArchived: boolean;
+  /**
+   * T-055 · Override del path base para reusar el componente desde el tab
+   * Empleados del detail cliente (`/clientes/[id]/empleados`). Si
+   * `listBasePath === '/empleados'` (default), `cliente_id` va en query string
+   * (módulo Empleados standalone). Si distinto, asumimos que `cliente_id` ya
+   * está en el path → solo `q` y `archived` en query.
+   */
+  listBasePath?: string;
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -38,25 +46,37 @@ function matchesQuery(empleado: EmpleadoRow, q: string): boolean {
   return false;
 }
 
-function buildHref(clienteId: string, q: string, includeArchived: boolean): string {
+function buildHref(
+  basePath: string,
+  clienteId: string,
+  q: string,
+  includeArchived: boolean,
+): string {
   const params = new URLSearchParams();
-  params.set('cliente_id', clienteId);
+  if (basePath === '/empleados') params.set('cliente_id', clienteId);
   if (q) params.set('q', q);
   if (includeArchived) params.set('archived', '1');
-  return `/empleados?${params.toString()}`;
+  const qs = params.toString();
+  return qs ? `${basePath}?${qs}` : basePath;
 }
 
-export function EmpleadosList({ clienteId, empleados, initialQ, initialIncludeArchived }: Props) {
+export function EmpleadosList({
+  clienteId,
+  empleados,
+  initialQ,
+  initialIncludeArchived,
+  listBasePath = '/empleados',
+}: Props) {
   const router = useRouter();
   const [q, setQ] = useState(initialQ);
 
   useEffect(() => {
     if (q === initialQ) return;
     const handle = setTimeout(() => {
-      router.push(buildHref(clienteId, q, initialIncludeArchived));
+      router.push(buildHref(listBasePath, clienteId, q, initialIncludeArchived));
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(handle);
-  }, [q, initialQ, initialIncludeArchived, clienteId, router]);
+  }, [q, initialQ, initialIncludeArchived, clienteId, listBasePath, router]);
 
   const filtered = useMemo(() => empleados.filter((e) => matchesQuery(e, q)), [empleados, q]);
 
@@ -71,6 +91,7 @@ export function EmpleadosList({ clienteId, empleados, initialQ, initialIncludeAr
             clienteId={clienteId}
             checked={initialIncludeArchived}
             currentQ=""
+            basePath={listBasePath}
           />
         </div>
         <Card>
@@ -101,6 +122,7 @@ export function EmpleadosList({ clienteId, empleados, initialQ, initialIncludeAr
           clienteId={clienteId}
           checked={initialIncludeArchived}
           currentQ={q}
+          basePath={listBasePath}
         />
       </div>
 
