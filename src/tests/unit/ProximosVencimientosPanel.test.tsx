@@ -87,15 +87,15 @@ describe('ProximosVencimientosPanel', () => {
     const ui = await ProximosVencimientosPanel();
     render(ui);
 
-    const hoyRow = screen.getByTestId('count-hoy');
+    const hoyRow = screen.getByTestId('stat-hoy');
     expect(hoyRow.dataset.count).toBe('2'); // 1 overdue + 1 today
-    const sieteRow = screen.getByTestId('count-siete');
+    const sieteRow = screen.getByTestId('stat-siete');
     expect(sieteRow.dataset.count).toBe('2'); // 2d y 7d
-    const treintaRow = screen.getByTestId('count-treinta');
+    const treintaRow = screen.getByTestId('stat-treinta');
     expect(treintaRow.dataset.count).toBe('3'); // 10d, 15d, 28d
   });
 
-  it('mas urgente con overdue: prioriza el mas viejo (fecha menor)', async () => {
+  it('top events con overdue: prioriza el mas viejo (fecha menor) en posicion 0', async () => {
     getOverdueMock.mockResolvedValue([
       makeEvent({ id: 'old', titulo: 'Mas viejo', fecha_vencimiento: isoDaysFromNow(-30) }),
       makeEvent({ id: 'recent', titulo: 'Menos viejo', fecha_vencimiento: isoDaysFromNow(-2) }),
@@ -107,12 +107,12 @@ describe('ProximosVencimientosPanel', () => {
     const ui = await ProximosVencimientosPanel();
     render(ui);
 
-    const masUrgente = screen.getByTestId('panel-mas-urgente');
-    expect(masUrgente).toHaveTextContent(/Mas viejo/);
-    expect(masUrgente).toHaveAttribute('href', '/calendario/agenda?event=old');
+    const urgentItems = screen.getAllByTestId(/^urgent-event-/);
+    expect(urgentItems[0]).toHaveTextContent(/Mas viejo/);
+    expect(urgentItems[0]).toHaveAttribute('href', '/calendario/agenda?event=old');
   });
 
-  it('mas urgente sin overdue: el mas proximo (today o 7d)', async () => {
+  it('top events sin overdue: el mas proximo (today o 7d) en posicion 0', async () => {
     getOverdueMock.mockResolvedValue([]);
     getUpcomingMock.mockResolvedValue([
       makeEvent({ id: 'a', titulo: 'Vence hoy', fecha_vencimiento: isoDaysFromNow(0) }),
@@ -122,9 +122,9 @@ describe('ProximosVencimientosPanel', () => {
     const ui = await ProximosVencimientosPanel();
     render(ui);
 
-    const masUrgente = screen.getByTestId('panel-mas-urgente');
-    expect(masUrgente).toHaveTextContent(/Vence hoy/);
-    expect(masUrgente).toHaveAttribute('href', '/calendario/agenda?event=a');
+    const urgentItems = screen.getAllByTestId(/^urgent-event-/);
+    expect(urgentItems[0]).toHaveTextContent(/Vence hoy/);
+    expect(urgentItems[0]).toHaveAttribute('href', '/calendario/agenda?event=a');
   });
 
   it('empty state cuando totalCount=0: CTA "Crear vencimiento" → /calendario', async () => {
@@ -135,7 +135,10 @@ describe('ProximosVencimientosPanel', () => {
     render(ui);
 
     expect(screen.getByTestId('vencimientos-panel-empty')).toBeInTheDocument();
-    expect(screen.getByText(/No hay vencimientos próximos/i)).toBeInTheDocument();
+    expect(screen.getByText(/Todo al día/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/No tenés vencimientos próximos\. Aprovechá para sumar uno nuevo\./i),
+    ).toBeInTheDocument();
     const cta = screen.getByRole('link', { name: /Crear vencimiento/i });
     expect(cta).toHaveAttribute('href', '/calendario');
   });
