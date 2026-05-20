@@ -197,8 +197,9 @@ function StatCard({
       <span className={iconClasses}>{icon}</span>
       <div className="mt-1">
         <div className="text-2xl font-bold leading-tight">{count}</div>
-        <div className="text-muted-foreground text-xs">
-          <span className="text-foreground font-medium">{label}</span> · {sublabel}
+        <div className="text-xs leading-tight">
+          <div className="text-foreground font-medium">{label}</div>
+          <div className="text-muted-foreground">{sublabel}</div>
         </div>
       </div>
     </div>
