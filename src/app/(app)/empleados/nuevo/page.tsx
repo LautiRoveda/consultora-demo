@@ -46,7 +46,9 @@ export default async function NuevoEmpleadoPage({
             ← Volver a Empleados de {cliente.razon_social}
           </Link>
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Nuevo empleado</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-balance break-words">
+          Nuevo empleado
+        </h1>
         <p className="text-muted-foreground text-sm">
           Cargá los datos del empleado — los campos opcionales podés completarlos después.
         </p>

@@ -35,9 +35,11 @@ export default async function ClientesPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-balance break-words">
+            Clientes
+          </h1>
           <p className="text-muted-foreground text-sm">
             Gestioná los clientes de tu consultora — al generar informes vas a poder elegirlos del
             listado en lugar de tipear los datos cada vez.

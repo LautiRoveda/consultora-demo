@@ -26,9 +26,11 @@ export async function EmpleadosListContainer({ searchParams }: { searchParams: S
     const clientes = await getClientesForConsultora(supabase);
     return (
       <div className="space-y-6">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Empleados</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-balance break-words">
+              Empleados
+            </h1>
             <p className="text-muted-foreground text-sm">
               Elegí un cliente para ver y administrar sus empleados.
             </p>
@@ -48,14 +50,14 @@ export async function EmpleadosListContainer({ searchParams }: { searchParams: S
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <p className="text-muted-foreground text-sm">
             <Link href="/empleados" className="hover:text-foreground hover:underline">
               ← Volver a Empleados
             </Link>
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-balance break-words">
             Empleados de {cliente.razon_social}
           </h1>
           <p className="text-muted-foreground text-sm">

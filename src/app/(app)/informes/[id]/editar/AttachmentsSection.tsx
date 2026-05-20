@@ -194,7 +194,7 @@ export function AttachmentsSection({
   return (
     <Card>
       <CardContent className="space-y-4 pt-6">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-base font-semibold tracking-tight">Adjuntos</h2>
             <p className="text-muted-foreground mt-1 text-sm">
@@ -204,7 +204,7 @@ export function AttachmentsSection({
             </p>
           </div>
           {canEdit && (
-            <div className="flex shrink-0 gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
               <input
                 type="file"
                 accept={IMAGE_ACCEPT}

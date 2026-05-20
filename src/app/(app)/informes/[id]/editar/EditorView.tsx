@@ -476,14 +476,16 @@ export function EditorView({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-muted-foreground text-sm">
             <Link href={`/informes/${informeId}`} className="hover:text-foreground hover:underline">
               ← Volver al informe
             </Link>
           </p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">Editar: {titulo}</h1>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-balance break-words">
+            Editar: {titulo}
+          </h1>
           <p className="text-muted-foreground text-sm">Tipo: {INFORME_TIPO_LABELS[tipo]}</p>
         </div>
         {/* T-036: PublishButton inline en el header. Dispara silent path o

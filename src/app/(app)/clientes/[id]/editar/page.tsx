@@ -31,7 +31,9 @@ export default async function EditarClientePage({ params }: { params: Promise<{ 
             ← Volver al detalle
           </Link>
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Editar cliente</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-balance break-words">
+          Editar cliente
+        </h1>
         <p className="text-muted-foreground text-sm">
           Modificá los datos de {cliente.razon_social}. Solo se guardan los cambios.
         </p>

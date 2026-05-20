@@ -38,7 +38,9 @@ export default async function EditarEmpleadoPage({ params }: { params: Promise<{
             ← Volver al detalle
           </Link>
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Editar empleado</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-balance break-words">
+          Editar empleado
+        </h1>
         <p className="text-muted-foreground text-sm">
           Modificá los datos de {empleado.apellido}, {empleado.nombre}. Solo se guardan los cambios.
         </p>

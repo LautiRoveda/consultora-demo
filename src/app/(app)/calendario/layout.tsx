@@ -21,7 +21,9 @@ export default function CalendarioLayout({ children }: { children: ReactNode }) 
   return (
     <div className="space-y-4">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Calendario</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-balance break-words">
+          Calendario
+        </h1>
         <p className="text-muted-foreground text-sm">
           Gestioná vencimientos de protocolos, EPP, calibraciones y capacitaciones.
         </p>

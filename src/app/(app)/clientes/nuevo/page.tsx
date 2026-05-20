@@ -25,7 +25,9 @@ export default async function NuevoClientePage() {
             ← Volver a Clientes
           </Link>
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Nuevo cliente</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-balance break-words">
+          Nuevo cliente
+        </h1>
         <p className="text-muted-foreground text-sm">
           Cargá los datos del cliente — los campos opcionales podés completarlos después.
         </p>
