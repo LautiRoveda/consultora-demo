@@ -11,3 +11,7 @@ Templates aplicables via `Supabase Dashboard → Authentication → Email Templa
 URL VPS `consultora-demo.test-ia.cloud` reemplaza todas las menciones del `consultora-demo.vercel.app` deprecado desde T-022.5. SMTP queda en default Supabase para trial — evaluar Resend custom SMTP si el rate limit (~30 emails/h por proyecto free tier) se vuelve cuello de botella.
 
 Cierra referencia circular pre-existente en `supabase/README.md` L161-167 (decía "wording final en el PR de T-012/T-013/T-014" y los PRs decían "wording final en supabase/README.md" — ahora ambos apuntan al doc operativo).
+
+## T-052-FU2 ✅ Cierre lite — runbook escenario 2 + monitor Better Stack
+
+Documentado el trigger secundario del incident T-052 (EasyPanel deploy via webhook resetea `endpoint-mode` → 502 hasta SSH manual). Decisión Lautaro 20/05/2026: NO investigar empíricamente ni automatizar stopgap por baja frecuencia esperada (1-2 deploys/sprint en esta fase, sin users productivos reales). Mitigación intermedia: monitor uptime free (Better Stack + alerta Telegram) detecta 502 > 5 min sostenidos, fix manual ~30s siguiendo runbook escenario 2. Setup operativo: `docs/operations/uptime-monitoring.md`. Decisión NO-auto-fix global (T-052-FU1) sigue vigente; el monitor sólo notifica, no toca el swarm. Reactivar T-052-FU2 full (investigación empírica + stopgap automatizado) si: >3 incidents/sprint, O 1 incident con 502 > 30 min, O llegan users productivos reales con SLA implícito.

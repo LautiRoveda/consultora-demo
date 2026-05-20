@@ -208,6 +208,10 @@ Si cron procesa pero `notification_log` queda vacío + `net._http_response` mues
 
 Tras reboot del VPS Hostinger por mantenimiento, el VIP allocation del swarm queda inconsistente — todos los services del swarm devuelven "Host unreachable" desde Traefik aunque containers estén Ready (afecta TODOS los dominios productivos, no solo consultora-demo). Diagnóstico: `docker exec traefik wget http://service_name:80/api/health` falla con "Host is unreachable" pero `wget` directo al IP del container respondé OK → VIP fantasma. Fix: `docker service update --endpoint-mode dnsrr` en cada service del swarm. `dnsrr` (DNS round-robin) bypasea el VIP — DNS resuelve directo al IP del task, sin downtime adicional.
 
+### EasyPanel resetea endpoint-mode en cada deploy productivo
+
+**Origen**: T-052-FU2 post-T-055 deploy (20/05/2026 00:34 GMT). EasyPanel CE self-hosted aplica `docker service update` en cada deploy via webhook sin preservar `--endpoint-mode dnsrr` manual — cada merge a main revierte el service a `vip` default → reproduce el VIP fantasma del escenario 1 (T-052-FU1) scoped al service deployado → 502. Decisión 20/05: NO investigar empíricamente ni implementar stopgap automatizado por baja frecuencia esperada (1-2 deploys/sprint en esta fase). Mitigación intermedia: monitor uptime + alerta Telegram via Better Stack free tier + fix manual ~30s (`docker service update --endpoint-mode dnsrr agendalo_consultora-demo`). Reactivar full si frecuencia >3 incidents/sprint o llegan users productivos reales. Runbook: [docs/operations/vps-reboot-recovery.md](operations/vps-reboot-recovery.md) escenario 2. Monitor setup: [docs/operations/uptime-monitoring.md](operations/uptime-monitoring.md).
+
 ### EasyPanel Auto Deploy via GitHub webhook
 
 **Origen**: T-022.5-FU3. Push a `main` dispara deploy automático sin intervención. Habilitado en EasyPanel CE self-hosted. Pre-FU3 era click manual "Implementar" en EasyPanel UI tras cada merge.
