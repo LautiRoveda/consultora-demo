@@ -109,32 +109,34 @@ export default function HomePage() {
 
       <main id="main-content" className="flex-1">
         {/* ── Hero ───────────────────────────────────────────────────────── */}
-        <section className="relative mx-auto max-w-5xl overflow-hidden px-4 py-16 sm:py-24">
+        <div className="relative overflow-hidden">
           <div
             className="from-primary/8 via-primary/3 pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b to-transparent"
             aria-hidden="true"
           />
-          <div className="mx-auto max-w-3xl text-center">
-            <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
-              Tu consultora de Higiene y Seguridad Laboral, en piloto automático
-            </h1>
-            <p className="text-foreground/80 mt-6 text-lg sm:text-xl">
-              El asistente argentino que escribe tus informes con IA y nunca te deja olvidar un
-              vencimiento. Para consultores HyS por USD 30 al mes.
-            </p>
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button asChild size="lg" className="shadow-md transition-shadow hover:shadow-lg">
-                <Link href="/signup">Empezar prueba de 7 días</Link>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href="/prototipo">Ver demo</Link>
-              </Button>
+          <section className="mx-auto max-w-5xl px-4 py-16 sm:py-24">
+            <div className="mx-auto max-w-3xl text-center">
+              <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
+                Tu consultora de Higiene y Seguridad Laboral, en piloto automático
+              </h1>
+              <p className="text-foreground/80 mt-6 text-lg sm:text-xl">
+                El asistente argentino que escribe tus informes con IA y nunca te deja olvidar un
+                vencimiento. Para consultores HyS por USD 30 al mes.
+              </p>
+              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Button asChild size="lg" className="shadow-md transition-shadow hover:shadow-lg">
+                  <Link href="/signup">Empezar prueba de 7 días</Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                  <Link href="/prototipo">Ver demo</Link>
+                </Button>
+              </div>
+              <p className="text-muted-foreground mt-6 text-sm">
+                Hecho en Argentina · cumplimiento SRT
+              </p>
             </div>
-            <p className="text-muted-foreground mt-6 text-sm">
-              Hecho en Argentina · cumplimiento SRT
-            </p>
-          </div>
-        </section>
+          </section>
+        </div>
 
         <Separator />
 
