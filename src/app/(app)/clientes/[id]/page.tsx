@@ -7,9 +7,10 @@ import { createClient } from '@/shared/supabase/server';
 import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
 
-import { formatDateEs, isArchived, provinciaLabel } from '../labels';
+import { formatDateEs, provinciaLabel } from '../labels';
 import { getClienteById, getInformesByClienteId } from '../queries';
-import { ClienteActionsButtons } from './ClienteActionsButtons';
+import { ClienteDetailHeader } from './ClienteDetailHeader';
+import { ClienteTabsNav } from './ClienteTabsNav';
 
 /**
  * T-049 · Detalle de cliente (read-only).
@@ -47,27 +48,8 @@ export default async function ClienteDetallePage({ params }: { params: Promise<{
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <p className="text-muted-foreground text-sm">
-            <Link href="/clientes" className="hover:text-foreground hover:underline">
-              ← Volver a Clientes
-            </Link>
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{cliente.razon_social}</h1>
-            {isArchived(cliente) && <Badge variant="secondary">Archivado</Badge>}
-          </div>
-          <p className="text-muted-foreground text-sm">
-            {cliente.cuit} · Creado el {formatDateEs(cliente.created_at)}
-          </p>
-        </div>
-        <ClienteActionsButtons
-          clienteId={cliente.id}
-          razonSocial={cliente.razon_social}
-          archived={isArchived(cliente)}
-        />
-      </div>
+      <ClienteDetailHeader cliente={cliente} />
+      <ClienteTabsNav clienteId={cliente.id} />
 
       <Card>
         <CardHeader>

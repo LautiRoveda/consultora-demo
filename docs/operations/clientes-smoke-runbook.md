@@ -29,6 +29,7 @@ Validación manual end-to-end del módulo Clientes (T-047..T-051) en el VPS prod
 8. [Autocomplete en wizard RGRL (T-050)](#8-autocomplete-en-wizard-rgrl)
 9. [Detail cliente con Informes vinculados (T-050)](#9-detail-cliente-con-informes-vinculados)
 10. [Cross-tenant adversarial (T-050) — opcional](#10-cross-tenant-adversarial--opcional)
+11. [Tab Empleados desde detail cliente (T-055)](#11-tab-empleados-desde-detail-cliente)
 
 Plus: [Cleanup post-smoke](#cleanup-post-smoke)
 
@@ -552,6 +553,102 @@ Si querés validar la segunda capa de defensa (action-level), abrí DevTools →
 
 ---
 
+## 11. Tab Empleados desde detail cliente
+
+**Validar la integración Clientes ↔ Empleados via tab nav dentro del detail view del cliente (T-055)**.
+
+### 11.1 Prerequisito
+
+Usar el cliente `Smoke Productivo EDITADO` de §3-§6 (debe estar activo — si lo archivaste, desarchivar antes). Si no querés reusar, podés crear un cliente nuevo + 2 empleados fixture en Studio:
+
+```sql
+-- Empleados fixture para el smoke del tab.
+insert into public.empleados
+  (consultora_id, cliente_id, nombre, apellido, dni, puesto, created_by)
+values
+  ((select consultora_id from public.consultora_members where user_id = auth.uid() limit 1),
+   (select id from public.clientes where razon_social = 'Smoke Productivo EDITADO' order by created_at desc limit 1),
+   'Juan', 'AlfaSmoke', '20111000', 'Operario', auth.uid()),
+  ((select consultora_id from public.consultora_members where user_id = auth.uid() limit 1),
+   (select id from public.clientes where razon_social = 'Smoke Productivo EDITADO' order by created_at desc limit 1),
+   'Ana', 'BetaSmoke', '20222000', 'Supervisora', auth.uid());
+```
+
+### 11.2 Tabs visibles en el detail
+
+1. Sidebar → `Clientes` → click `Smoke Productivo EDITADO`. URL `/clientes/<id>`.
+2. Verificar arriba (debajo del header + botones Editar/Archivar) **2 tabs visibles**:
+   - `Detalle` (icon `Info`) — activo por default (highlight + `aria-current="page"`).
+   - `Empleados` (icon `UserCheck`) — inactivo.
+3. Confirmar que el header del detail (razón social + CUIT + fecha) se ve idéntico a antes — el refactor T-055 lo extrajo a `ClienteDetailHeader` sin cambios visuales.
+
+### 11.3 Click tab Empleados → cambio de URL
+
+1. Click sobre el tab `Empleados`.
+2. URL pasa a `/clientes/<id>/empleados`.
+3. Tab `Empleados` ahora activo (highlight + `aria-current="page"`); tab `Detalle` inactivo.
+4. Sub-header visible: h2 `Empleados` + descripción `Cargá los empleados de este cliente…`.
+5. Lista de 2 empleados visible (`AlfaSmoke, Juan` + `BetaSmoke, Ana`).
+6. Botón `Nuevo empleado` visible en el sub-header (link a `/empleados/nuevo?cliente_id=<id>`).
+
+### 11.4 Search inline dentro del tab
+
+1. Tipear `Alfa` en el search box.
+2. Post-debounce 300ms, URL pasa a `/clientes/<id>/empleados?q=Alfa` (NO `cliente_id` en query — va en path).
+3. Solo `AlfaSmoke, Juan` visible.
+4. Limpiar search → ambos empleados visibles, URL pasa a `/clientes/<id>/empleados`.
+
+### 11.5 Toggle "Ver archivados" dentro del tab
+
+1. Click toggle `Ver archivados`.
+2. URL pasa a `/clientes/<id>/empleados?archived=1` (sin `cliente_id` en query).
+3. Si tenés empleados archivados del cliente, aparecen con Badge `Archivado`. Si no, list se mantiene igual.
+4. Click toggle de nuevo → URL pasa a `/clientes/<id>/empleados`.
+
+### 11.6 CTA "Nuevo empleado" desde el tab
+
+1. Click `Nuevo empleado`.
+2. URL pasa a `/empleados/nuevo?cliente_id=<id>` (flow canónico del módulo Empleados — NO `/clientes/<id>/empleados/nuevo`).
+3. Form pre-popula el cliente (`Smoke Productivo EDITADO` visible en el header del form).
+4. Cancelar (volver atrás del browser o navegar) — la creación real se valida en §3 del runbook del módulo Empleados.
+
+### 11.7 Tab Empleados con cliente sin empleados (empty state)
+
+1. Crear o usar un cliente sin empleados (ej `Smoke Other A` del §7 si todavía existe, o uno nuevo).
+2. Goto `/clientes/<id>/empleados`.
+3. Verificar:
+   - Sub-header h2 + descripción visible (igual que con empleados).
+   - Botón `Nuevo empleado` del sub-header **NO visible** (solo aparece con empleados ≥ 1).
+   - Empty state visible: `Todavía no tenés empleados en este cliente` + CTA `Crear primer empleado` (link a `/empleados/nuevo?cliente_id=<id>`).
+   - Toggle `Ver archivados` visible arriba del empty state.
+
+### 11.8 Volver al tab Detalle
+
+1. Click sobre el tab `Detalle`.
+2. URL pasa a `/clientes/<id>`.
+3. Todas las cards del tab Detalle visibles intactas (Identificación, Ubicación, Contacto, Detalles, Notas, Informes vinculados).
+4. Header con razón social + CUIT + fecha igual que en §11.2.
+
+### 11.9 Edit cliente NO renderiza tabs
+
+1. Desde `/clientes/<id>`, click `Editar` (link al header).
+2. URL pasa a `/clientes/<id>/editar`.
+3. Verificar: **NO se renderizan los tabs Detalle/Empleados** en esta page (decisión T-055 — editar mantiene header limpio sin tabs).
+4. Cancelar / volver atrás.
+
+### Criterios de éxito
+
+- ✅ 2 tabs visibles en `/clientes/[id]` y `/clientes/[id]/empleados`.
+- ✅ Active state se actualiza al clickear.
+- ✅ Lista de empleados visible en el tab Empleados (sin truncate, default 50 del query).
+- ✅ Search + toggle archivados funcionan con URL state correcto (sin `cliente_id` en query, va en path).
+- ✅ CTA "Nuevo empleado" linkea a `/empleados/nuevo?cliente_id=...`.
+- ✅ Empty state del tab funciona idéntico al módulo Empleados standalone.
+- ✅ Tab Detalle intacto (cards + Informes vinculados).
+- ✅ Page de editar NO muestra tabs.
+
+---
+
 ## Cleanup post-smoke
 
 Limpiar todos los artifacts del smoke. Studio:
@@ -561,6 +658,11 @@ Limpiar todos los artifacts del smoke. Studio:
 -- si el cliente se elimina antes, pero borramos los informes explícito).
 delete from public.informes
  where titulo like 'Smoke RGRL T-051%' or titulo like 'Cross-tenant smoke%';
+
+-- Borrar empleados del smoke (FK empleados.cliente_id ON DELETE RESTRICT —
+-- hay que borrarlos antes que los clientes). T-055.
+delete from public.empleados
+ where apellido in ('AlfaSmoke', 'BetaSmoke');
 
 -- Borrar clientes del smoke.
 delete from public.clientes
@@ -606,4 +708,4 @@ select count(*) as remaining_smoke_clientes
 
 ---
 
-**Última actualización**: 2026-05-18 (post-merge T-051).
+**Última actualización**: 2026-05-19 (post-merge T-055 — sección 11 tab Empleados).

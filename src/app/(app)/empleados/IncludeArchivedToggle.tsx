@@ -9,17 +9,30 @@ interface Props {
   clienteId: string;
   checked: boolean;
   currentQ: string;
+  /**
+   * T-055 · Permite reusar el toggle desde el tab Empleados del detail cliente
+   * (`/clientes/[id]/empleados`). Si `basePath === '/empleados'` (default),
+   * `cliente_id` va en query. Si distinto, asumimos que `cliente_id` ya está
+   * en el path → solo `q` y `archived` en query.
+   */
+  basePath?: string;
 }
 
-export function IncludeArchivedToggle({ clienteId, checked, currentQ }: Props) {
+export function IncludeArchivedToggle({
+  clienteId,
+  checked,
+  currentQ,
+  basePath = '/empleados',
+}: Props) {
   const router = useRouter();
 
   function handleChange(next: boolean) {
     const params = new URLSearchParams();
-    params.set('cliente_id', clienteId);
+    if (basePath === '/empleados') params.set('cliente_id', clienteId);
     if (currentQ) params.set('q', currentQ);
     if (next) params.set('archived', '1');
-    router.push(`/empleados?${params.toString()}`);
+    const qs = params.toString();
+    router.push(qs ? `${basePath}?${qs}` : basePath);
   }
 
   return (
