@@ -14,7 +14,9 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Configuración</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-balance break-words">
+          Configuración
+        </h1>
         <p className="text-muted-foreground text-sm">
           Gestioná los datos de tu consultora y tus preferencias de notificación.
         </p>

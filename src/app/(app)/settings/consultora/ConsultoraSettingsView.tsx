@@ -256,7 +256,7 @@ export function ConsultoraSettingsView({
             </Alert>
           )}
 
-          <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+          <div className="flex flex-col gap-4 rounded-md border p-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
               <span className="text-sm font-medium">Auto-crear vencimiento al firmar</span>
               <p className="text-muted-foreground text-xs">

@@ -191,7 +191,7 @@ export function PushChannelRow({
 
   return (
     <div className="space-y-2 rounded-md border p-3" data-testid="row-push" data-state={state.kind}>
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <Smartphone className="text-muted-foreground mt-0.5 h-4 w-4" />
           <div className="space-y-1">

@@ -40,7 +40,7 @@ export function AccidenteMetadataSummary({ metadata: m }: Props) {
         <Collapsible open={effectiveOpen} onOpenChange={setOpen}>
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
                 <h2 className="text-base font-semibold tracking-tight">Datos del accidente</h2>
                 <StatusBadge complete={isComplete} />
               </div>

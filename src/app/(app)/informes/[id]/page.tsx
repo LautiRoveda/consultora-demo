@@ -95,19 +95,21 @@ export default async function InformeDetallePage({ params }: { params: Promise<{
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-muted-foreground text-sm">
             <Link href="/informes" className="hover:text-foreground hover:underline">
               ← Volver a Informes
             </Link>
           </p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">{informe.titulo}</h1>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-balance break-words">
+            {informe.titulo}
+          </h1>
           <p className="text-muted-foreground text-sm">
             {tipoLabel} · {statusLabel} · Creado {createdAt}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <DownloadPdfButton
             informeId={informe.id}
             hasContent={!!informe.contenido && informe.contenido.trim() !== ''}

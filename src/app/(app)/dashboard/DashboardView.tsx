@@ -35,7 +35,9 @@ export function DashboardView({ showResetSuccess }: DashboardViewProps) {
       <ProximosVencimientosPanel />
 
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Bienvenido a ConsultoraDemo</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-balance break-words">
+          Bienvenido a ConsultoraDemo
+        </h1>
         <p className="text-muted-foreground text-sm">
           Pronto vas a poder gestionar informes técnicos, clientes, EPP y vencimientos desde acá.
         </p>
@@ -87,7 +89,7 @@ function FeatureCard({
   return (
     <Card className="opacity-80">
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="bg-muted text-muted-foreground flex size-9 items-center justify-center rounded-md">
             {icon}
           </div>

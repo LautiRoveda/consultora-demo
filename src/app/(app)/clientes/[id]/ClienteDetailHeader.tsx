@@ -17,7 +17,7 @@ interface Props {
  */
 export function ClienteDetailHeader({ cliente }: Props) {
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="space-y-1">
         <p className="text-muted-foreground text-sm">
           <Link href="/clientes" className="hover:text-foreground hover:underline">
@@ -25,7 +25,9 @@ export function ClienteDetailHeader({ cliente }: Props) {
           </Link>
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{cliente.razon_social}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-balance break-words">
+            {cliente.razon_social}
+          </h1>
           {isArchived(cliente) && <Badge variant="secondary">Archivado</Badge>}
         </div>
         <p className="text-muted-foreground text-sm">

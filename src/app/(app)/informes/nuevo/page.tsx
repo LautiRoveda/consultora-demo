@@ -26,7 +26,9 @@ export default async function InformeNuevoPage() {
             ← Volver a Informes
           </Link>
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Nuevo informe</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-balance break-words">
+          Nuevo informe
+        </h1>
         <p className="text-muted-foreground text-sm">
           Elegí el tipo y dale un título. En el próximo sprint vas a poder generar el contenido con
           IA.

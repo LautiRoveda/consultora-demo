@@ -41,7 +41,7 @@ export default async function EmpleadoDetallePage({ params }: { params: Promise<
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <p className="text-muted-foreground text-sm">
             <Link
@@ -52,7 +52,7 @@ export default async function EmpleadoDetallePage({ params }: { params: Promise<
             </Link>
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">
+            <h1 className="text-2xl font-semibold tracking-tight text-balance break-words">
               {empleado.apellido}, {empleado.nombre}
             </h1>
             {isArchived(empleado) && <Badge variant="secondary">Archivado</Badge>}
