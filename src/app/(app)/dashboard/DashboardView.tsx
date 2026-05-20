@@ -1,4 +1,5 @@
-import { FileText, HardHat, Users } from 'lucide-react';
+import { Calendar, FileText, UserCheck, Users } from 'lucide-react';
+import Link from 'next/link';
 
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
@@ -9,6 +10,33 @@ type DashboardViewProps = {
   showResetSuccess?: boolean;
 };
 
+const QUICK_LINKS = [
+  {
+    href: '/informes',
+    icon: FileText,
+    title: 'Informes',
+    description: 'Generá informes técnicos con IA.',
+  },
+  {
+    href: '/clientes',
+    icon: Users,
+    title: 'Clientes',
+    description: 'Gestioná tu cartera de empresas.',
+  },
+  {
+    href: '/empleados',
+    icon: UserCheck,
+    title: 'Empleados',
+    description: 'Empleados por cliente con tracking.',
+  },
+  {
+    href: '/calendario',
+    icon: Calendar,
+    title: 'Calendario',
+    description: 'Vencimientos y alertas proactivas.',
+  },
+] as const;
+
 /**
  * Contenido del dashboard.
  *
@@ -16,8 +44,7 @@ type DashboardViewProps = {
  * el `<AppShell>` aguas arriba — acá va el contenido específico de la página:
  *  - Banner post-recovery (T-014).
  *  - Panel "Próximos vencimientos" (T-030) — server async child embedido.
- *  - Cards "Próximamente" de features faltantes (Informes ya live; Clientes/
- *    EPP siguen pending — drift legacy fuera de scope T-030).
+ *  - Sección "Accesos rápidos" con 4 cards a los módulos live (T-095).
  *
  * Server component sync con async child: React Server Components soporta
  * embed async children sin convertir el padre a async.
@@ -39,67 +66,37 @@ export function DashboardView({ showResetSuccess }: DashboardViewProps) {
           Bienvenido a ConsultoraDemo
         </h1>
         <p className="text-muted-foreground text-sm">
-          Pronto vas a poder gestionar informes técnicos, clientes, EPP y vencimientos desde acá.
+          Gestioná tus informes, clientes y vencimientos desde un solo lugar.
         </p>
       </header>
 
-      <section aria-labelledby="proximamente-heading" className="space-y-3">
+      <section aria-labelledby="accesos-rapidos-heading" className="space-y-3">
         <h2
-          id="proximamente-heading"
+          id="accesos-rapidos-heading"
           className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
         >
-          Próximamente
+          Accesos rápidos
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <FeatureCard
-            icon={<FileText className="size-5" aria-hidden="true" />}
-            title="Informes"
-            description="Generá informes técnicos en minutos con IA."
-            ticket="T-019"
-          />
-          <FeatureCard
-            icon={<Users className="size-5" aria-hidden="true" />}
-            title="Clientes"
-            description="Tu cartera de empresas con todos sus datos."
-            ticket="T-020"
-          />
-          <FeatureCard
-            icon={<HardHat className="size-5" aria-hidden="true" />}
-            title="EPP"
-            description="Tracking de entregas y planilla Res. 299/11."
-            ticket="T-022"
-          />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {QUICK_LINKS.map(({ href, icon: Icon, title, description }) => (
+            <Link
+              key={href}
+              href={href}
+              className="group block rounded-lg outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <Card className="h-full transition-all group-hover:border-primary/40 group-hover:shadow-sm">
+                <CardHeader>
+                  <div className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-md">
+                    <Icon className="size-5" aria-hidden="true" />
+                  </div>
+                  <CardTitle className="mt-3 text-base">{title}</CardTitle>
+                  <CardDescription>{description}</CardDescription>
+                </CardHeader>
+              </Card>
+            </Link>
+          ))}
         </div>
       </section>
     </div>
-  );
-}
-
-function FeatureCard({
-  icon,
-  title,
-  description,
-  ticket,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  ticket: string;
-}) {
-  return (
-    <Card className="opacity-80">
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="bg-muted text-muted-foreground flex size-9 items-center justify-center rounded-md">
-            {icon}
-          </div>
-          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            {ticket}
-          </span>
-        </div>
-        <CardTitle className="mt-3 text-base">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-    </Card>
   );
 }

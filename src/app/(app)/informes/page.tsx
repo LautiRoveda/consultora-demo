@@ -31,7 +31,7 @@ export default async function InformesPage() {
             Informes
           </h1>
           <p className="text-muted-foreground text-sm">
-            Informes técnicos de tu consultora. La generación con IA llega en el próximo sprint.
+            Generá informes técnicos con IA en minutos.
           </p>
         </div>
         {informes.length > 0 && (

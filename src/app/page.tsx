@@ -97,9 +97,6 @@ export default function HomePage() {
             <span className="text-sm font-semibold">ConsultoraDemo</span>
           </Link>
           <nav className="flex items-center gap-2">
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/prototipo">Demo</Link>
-            </Button>
             <Button asChild variant="outline" size="sm">
               <Link href="/login">Iniciar sesión</Link>
             </Button>
@@ -126,9 +123,6 @@ export default function HomePage() {
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Button asChild size="lg" className="shadow-md transition-shadow hover:shadow-lg">
                   <Link href="/signup">Empezar prueba de 7 días</Link>
-                </Button>
-                <Button asChild size="lg" variant="outline">
-                  <Link href="/prototipo">Ver demo</Link>
                 </Button>
               </div>
               <p className="text-muted-foreground mt-6 text-sm">
@@ -296,9 +290,6 @@ export default function HomePage() {
               </Link>
               <Link href="/privacidad" className="hover:text-foreground transition-colors">
                 Privacidad
-              </Link>
-              <Link href="/prototipo" className="hover:text-foreground transition-colors">
-                Demo
               </Link>
               <Link href="/login" className="hover:text-foreground transition-colors">
                 Iniciar sesión

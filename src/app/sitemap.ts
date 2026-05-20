@@ -11,12 +11,14 @@ import { env } from '@/env';
  *
  * Incluido:
  * - `/` — landing pública.
- * - `/prototipo` — demo Fase 0 (rewrite a `public/prototipo/index.html`).
  *
  * Excluido (presente en el sitio pero no apto para indexación):
  * - `/login` (page tiene `robots.index = false`).
  * - `/terminos`, `/privacidad` (versión preliminar pre-revisión legal).
  * - `/styleguide`, `/api/test-error` (dev tools gated por NODE_ENV).
+ * - `/prototipo` (demo Fase 0 obsoleta — sigue accesible por URL directa via
+ *   rewrite en `next.config.ts`, pero no se indexa para evitar tráfico a la
+ *   versión vieja del producto).
  */
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = env.NEXT_PUBLIC_SITE_URL;
@@ -28,12 +30,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified,
       changeFrequency: 'monthly',
       priority: 1,
-    },
-    {
-      url: `${base}/prototipo`,
-      lastModified,
-      changeFrequency: 'monthly',
-      priority: 0.7,
     },
   ];
 }

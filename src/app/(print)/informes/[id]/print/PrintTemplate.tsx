@@ -232,6 +232,17 @@ export function PrintTemplate({ informe, metadata, branding, attachments }: Prin
         .pdf-anexo-caption { font-size: 9pt; color: #52525b; margin-top: 6pt; }
         .pdf-anexos-files { margin-top: 16pt; page-break-inside: avoid; }
         .pdf-anexos-files-note { font-size: 9pt; color: #71717a; margin: 4pt 0 8pt; }
+
+        /* T-095: signature block — pilar core del producto (matriculado firma
+           cada informe antes de presentarlo). page-break-inside: avoid para
+           que el bloque NO se parta entre páginas (si no entra al final de la
+           última página, salta a una nueva). */
+        .pdf-firma { margin-top: 24pt; padding-top: 14pt; border-top: 1px solid #e4e4e7; page-break-inside: avoid; }
+        .pdf-firma-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24pt; }
+        .pdf-firma-line { border-bottom: 1px solid #71717a; height: 28pt; margin-bottom: 4pt; }
+        .pdf-firma-label { font-size: 9pt; color: #52525b; }
+        .pdf-firma-field { margin-bottom: 10pt; }
+        .pdf-firma-field-line { border-bottom: 1px solid #71717a; height: 14pt; margin-top: 2pt; }
       `}</style>
 
       <div className="pdf-root">
@@ -308,6 +319,32 @@ export function PrintTemplate({ informe, metadata, branding, attachments }: Prin
             </table>
           </section>
         )}
+
+        {/* T-095: bloque de firma del matriculado. SIEMPRE presente — el
+            disclaimer profesional (CLAUDE.md) exige que un profesional firme
+            cada informe antes de presentarlo legalmente. */}
+        <section className="pdf-firma">
+          <div className="pdf-firma-grid">
+            <div>
+              <div className="pdf-firma-line" />
+              <p className="pdf-firma-label">Firma del matriculado</p>
+            </div>
+            <div>
+              <div className="pdf-firma-field">
+                <span className="pdf-firma-label">Aclaración:</span>
+                <div className="pdf-firma-field-line" />
+              </div>
+              <div className="pdf-firma-field">
+                <span className="pdf-firma-label">Matrícula N°:</span>
+                <div className="pdf-firma-field-line" />
+              </div>
+              <div className="pdf-firma-field">
+                <span className="pdf-firma-label">Fecha:</span>
+                <div className="pdf-firma-field-line" />
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </>
   );

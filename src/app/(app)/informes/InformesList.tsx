@@ -26,8 +26,7 @@ export function InformesList({ informes }: { informes: InformeListRow[] }) {
           <div className="space-y-1">
             <p className="text-foreground text-sm font-medium">Todavía no tenés informes</p>
             <p className="text-muted-foreground max-w-md text-sm">
-              Empezá creando tu primer informe. En el próximo sprint vas a poder generarlos con IA
-              en menos de 5 minutos.
+              Empezá creando tu primer informe. Vas a poder generarlo con IA en menos de 5 minutos.
             </p>
           </div>
           <Button asChild>
