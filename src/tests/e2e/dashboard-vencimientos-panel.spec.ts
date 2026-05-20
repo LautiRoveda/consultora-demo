@@ -1,11 +1,14 @@
 /**
  * T-030 · E2E del panel "Proximos vencimientos" del dashboard.
  *
+ * T-097 · Adaptado a mixed layout: stat cards (stat-hoy/siete/treinta) +
+ * lista top-3 (urgent-event-<id>) + empty state "Todo al día".
+ *
  * Cobertura (2 tests):
- *  1. Counts > 0 si hay eventos pendings: badge counts visibles + click
- *     "Ver todos →" navega a /calendario/agenda.
- *  2. Empty state: usuario sin eventos pending → fallback "No hay vencimientos
- *     próximos" + CTA "Crear vencimiento" → click → navega a /calendario.
+ *  1. Counts > 0 si hay eventos pendings: stat cards visibles con data-count +
+ *     click "Ver agenda completa →" navega a /calendario/agenda.
+ *  2. Empty state: usuario sin eventos pending → fallback "Todo al día"
+ *     + CTA "Crear vencimiento" → click → navega a /calendario.
  *
  * Correr local: `set -a && source .env.local && set +a &&
  *   CHROMIUM_PATH="/path/to/chrome" pnpm test:e2e --grep "Dashboard panel"`.
@@ -79,16 +82,16 @@ test.describe('Dashboard panel proximos vencimientos', () => {
     await expect(panel).toBeVisible();
 
     // Counts esperados: hoy=2 (overdue+today), siete=1 (5d), treinta=1 (20d).
-    await expect(panel.getByTestId('count-hoy')).toHaveAttribute('data-count', '2');
-    await expect(panel.getByTestId('count-siete')).toHaveAttribute('data-count', '1');
-    await expect(panel.getByTestId('count-treinta')).toHaveAttribute('data-count', '1');
+    await expect(panel.getByTestId('stat-hoy')).toHaveAttribute('data-count', '2');
+    await expect(panel.getByTestId('stat-siete')).toHaveAttribute('data-count', '1');
+    await expect(panel.getByTestId('stat-treinta')).toHaveAttribute('data-count', '1');
 
-    // "Mas urgente" = el overdue (fecha mas vieja).
-    const masUrgente = panel.getByTestId('panel-mas-urgente');
-    await expect(masUrgente).toBeVisible();
-    await expect(masUrgente).toContainText('Overdue');
+    // Top-3 ordenado por urgencia: el primer item es el overdue (fecha mas vieja).
+    const urgentItems = panel.getByTestId(/^urgent-event-/);
+    await expect(urgentItems.first()).toBeVisible();
+    await expect(urgentItems.first()).toContainText('Overdue');
 
-    // Click "Ver todos →" → navega a /calendario/agenda.
+    // Click "Ver agenda completa →" → navega a /calendario/agenda.
     await panel.getByTestId('panel-ver-todos').click();
     await expect(page).toHaveURL(/\/calendario\/agenda/);
   });
@@ -106,7 +109,7 @@ test.describe('Dashboard panel proximos vencimientos', () => {
 
     const empty = page.getByTestId('vencimientos-panel-empty');
     await expect(empty).toBeVisible();
-    await expect(empty.getByText(/No hay vencimientos próximos/i)).toBeVisible();
+    await expect(empty.getByText(/Todo al día/i)).toBeVisible();
 
     // CTA "Crear vencimiento" navega a /calendario.
     await empty.getByRole('link', { name: 'Crear vencimiento' }).click();
