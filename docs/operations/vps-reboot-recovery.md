@@ -9,12 +9,13 @@ Runbook copy-paste para recuperar el VPS productivo cuando Hostinger reinicia el
 **Historial de incidents**:
 - 19/05/2026 mañana (T-052 mid-merge).
 - 19/05/2026 tarde (con edge case chatwoot-sidekiq OOM).
+- 20/05/2026 post-T-055 (T-052-FU2 — trigger secundario confirmado: EasyPanel deploy via webhook resetea endpoint-mode a vip default).
 
 Pattern recurrente confirmado — abrir este runbook directo en la próxima ocurrencia, sin diagnosticar de cero.
 
 ---
 
-## Síntomas detectables
+## Síntomas — escenario 1: post-reboot Hostinger
 
 Aplicá este runbook si **todos** estos síntomas aplican:
 
@@ -28,9 +29,29 @@ Si **al menos uno** de estos síntomas falla → es OTRA causa, NO este runbook.
 
 ---
 
+## Síntomas — escenario 2: post-deploy EasyPanel
+
+- Trigger: cada merge a `main` (Auto Deploy webhook GitHub) o redeploy manual desde EasyPanel UI.
+- Síntoma: tras ~2-3 min de "build verde" en EasyPanel UI, el dominio del service deployado responde `502 Service is not reachable` (Traefik error page).
+- Diferencia con escenario 1: cae **solo el service deployado**, no todos los dominios del VPS.
+- Causa: EasyPanel aplica `docker service update` en cada deploy SIN preservar `--endpoint-mode dnsrr` manual aplicado en escenario 1. El service vuelve a `vip` default → mismo VIP fantasma que escenario 1.
+- Fix puntual (solo el service afectado, no masivo):
+
+```bash
+docker service update --endpoint-mode dnsrr agendalo_consultora-demo --detach=false
+curl -I https://consultora-demo.test-ia.cloud  # Esperás HTTP 200
+```
+
+- Tiempo de recovery: ~30 segundos post-SSH.
+- Detección automatizada: ver [`docs/operations/uptime-monitoring.md`](uptime-monitoring.md) (Better Stack free monitor con alerta Telegram).
+
+---
+
 ## Root cause
 
 El swarm de Docker mantiene un VIP (Virtual IP) por service para load balancing interno. Post-reboot Hostinger, el VIP allocation queda inconsistente: el DNS interno del swarm resuelve al VIP viejo (range `10.11.0.X`) pero los containers reales arrancan en IPs nuevas (range `10.11.2.X`). Traefik intenta conectar al VIP fantasma y falla con `Host is unreachable`. El fix `--endpoint-mode dnsrr` (DNS Round Robin) bypasea el VIP — Traefik resuelve directo al IP del task vía DNS, evitando el VIP corrupto.
+
+**Causa secundaria (T-052-FU2)**: EasyPanel deploy via webhook aplica `docker service update` sin preservar `--endpoint-mode dnsrr` manual. Cada deploy revierte el flag a `vip` default → reproduce el VIP fantasma del escenario 1, scoped al service deployado.
 
 ---
 
@@ -165,11 +186,15 @@ Decisión cerrada (T-052-FU1):
 
 Si la frecuencia aumenta a >1 vez por semana o el tiempo de recovery se vuelve crítico para clientes pagantes, reabrir la decisión con un ADR específico.
 
+**Nota T-052-FU2 (20/05/2026)**: el trigger secundario (EasyPanel deploy) NO califica para auto-fix tampoco por la misma lógica — baja frecuencia esperada (1-2 deploys/sprint en esta fase del producto) + costo bajo del fix manual (~30s). Se reactivará la discusión si la frecuencia supera 3 incidents/sprint o aparecen users productivos reales. Mitigación intermedia: monitor de uptime con alerta automática (ver [`uptime-monitoring.md`](uptime-monitoring.md)).
+
 ---
 
 ## Referencias
 
-- Lesson learned: [`docs/lessons-learned.md`](../lessons-learned.md) → sección "Operativo / VPS" → "VPS reboot recovery (Hostinger + Docker swarm)".
+- Lesson learned: [`docs/lessons-learned.md`](../lessons-learned.md) → sección "Operativo / VPS" → "VPS reboot recovery (Hostinger + Docker swarm)" + "EasyPanel resetea endpoint-mode en cada deploy productivo".
+- Monitor uptime: [`docs/operations/uptime-monitoring.md`](uptime-monitoring.md).
 - VPS context: [`docs/technical/06-deployment.md`](../technical/06-deployment.md).
 - Ticket origen del primer incident: T-052 (mid-merge).
-- Ticket origen de este runbook: T-052-FU1.
+- Ticket origen del escenario 1 (post-reboot): T-052-FU1.
+- Ticket origen del escenario 2 (post-deploy EasyPanel): T-052-FU2.
