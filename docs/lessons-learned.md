@@ -188,9 +188,11 @@ Cuando un componente client (Collapsible+useMediaQuery+useState) tiene que rende
 
 ### Dockerfile build args para env vars `required` en `src/env.ts`
 
-**Origen**: T-031 hotfix #72. **Aplicada en**: T-033, T-034.
+**Origen**: T-031 hotfix #72. **Aplicada en**: T-033, T-034. **Repetida en**: T-070 → fix T-070-FU1.
 
 Env vars `required` en `src/env.ts` DEBEN declararse como `ARG` + `ENV` entries en el stage `builder` del Dockerfile. Sino EasyPanel build falla mid-collecting page data `/_not-found` con `Invalid environment variables — ver logs arriba`. **CI no detecta el bug** porque corre `pnpm build` directo en Ubuntu runner sin Docker multi-stage; matriz de validación pre-merge requiere chequear `Dockerfile` cuando se suman env vars required en `src/env.ts`.
+
+**T-070-FU1 (21/05/2026)**: `ARS_PRICE_MONTHLY` introducido sin actualizar Dockerfile. EasyPanel build falló post-merge → container corriendo image viejo (con `plan_tier`) contra DB schema nuevo (con `plan`) → prod runtime-broken hasta que se aplicó este fix. **Regla forward (reforzada)**: cada var NUEVA `required` en `src/env.ts` exige co-commit en el mismo PR que toque **3 lugares**: (a) `src/env.ts` Zod schema, (b) `Dockerfile` builder ARG + ENV, (c) `.github/workflows/ci.yml` job env block. Las tres ubicaciones se chequean en review.
 
 ### Secret mismatch silente — generar fresh + pegar inmediato
 

@@ -83,6 +83,11 @@ ARG UPSTASH_REDIS_REST_TOKEN
 # Si no se pasa, el endpoint reporta `version: 'dev'`. Workflow CI/EasyPanel
 # auto-deploy puede inyectarlo con el SHA del commit.
 ARG GIT_SHA
+# T-070: precio del plan Pro en centavos ARS (string regex /^\d+$/). src/env.ts
+# lo valida al cargar el módulo en build time — el plugin Next "Collecting
+# page data" carga env.ts y safeParse falla si la var no está. Valor real
+# inyectado por EasyPanel Build Arguments post-merge.
+ARG ARS_PRICE_MONTHLY
 
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
@@ -107,6 +112,7 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     UPSTASH_REDIS_REST_URL=$UPSTASH_REDIS_REST_URL \
     UPSTASH_REDIS_REST_TOKEN=$UPSTASH_REDIS_REST_TOKEN \
     GIT_SHA=$GIT_SHA \
+    ARS_PRICE_MONTHLY=$ARS_PRICE_MONTHLY \
     NEXT_TELEMETRY_DISABLED=1
 
 RUN pnpm build
