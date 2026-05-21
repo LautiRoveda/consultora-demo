@@ -33,6 +33,9 @@ vi.hoisted(() => {
     'hoisted-vapid-public-key-88-chars-b64url-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   // T-070 — pricing required.
   process.env.ARS_PRICE_MONTHLY = '3000000';
+  // T-071 — Mercado Pago required.
+  process.env.MP_ACCESS_TOKEN = 'hoisted-mp-access-token-40-chars-minimum-aaaaa';
+  process.env.MP_WEBHOOK_SECRET = 'hoisted-mp-webhook-secret-32-chars-aaaaa';
 });
 
 describe('envSchema', () => {
@@ -54,6 +57,8 @@ describe('envSchema', () => {
     NEXT_PUBLIC_VAPID_PUBLIC_KEY:
       'valid-vapid-public-key-88-chars-b64url-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     ARS_PRICE_MONTHLY: '3000000',
+    MP_ACCESS_TOKEN: 'valid-mp-access-token-40-chars-minimum-aaaaa',
+    MP_WEBHOOK_SECRET: 'valid-mp-webhook-secret-32-chars-aaaaa',
   };
 
   it('acepta vars válidas', () => {

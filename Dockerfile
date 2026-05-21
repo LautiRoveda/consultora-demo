@@ -88,6 +88,13 @@ ARG GIT_SHA
 # page data" carga env.ts y safeParse falla si la var no está. Valor real
 # inyectado por EasyPanel Build Arguments post-merge.
 ARG ARS_PRICE_MONTHLY
+# T-071: credenciales Mercado Pago Subscriptions (preapproval + webhook HMAC).
+# src/env.ts marca ambas required (min 40 / min 32), mismo razonamiento que
+# T-070-FU1: Next.js carga env.ts en build → falla si faltan. EasyPanel
+# Build Arguments deben inyectar los valores reales TEST-... / APP_USR-...
+# post-merge. Ver docs/operations/mercadopago-setup.md (futuro).
+ARG MP_ACCESS_TOKEN
+ARG MP_WEBHOOK_SECRET
 
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
@@ -113,6 +120,8 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     UPSTASH_REDIS_REST_TOKEN=$UPSTASH_REDIS_REST_TOKEN \
     GIT_SHA=$GIT_SHA \
     ARS_PRICE_MONTHLY=$ARS_PRICE_MONTHLY \
+    MP_ACCESS_TOKEN=$MP_ACCESS_TOKEN \
+    MP_WEBHOOK_SECRET=$MP_WEBHOOK_SECRET \
     NEXT_TELEMETRY_DISABLED=1
 
 RUN pnpm build

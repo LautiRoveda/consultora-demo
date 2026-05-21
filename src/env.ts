@@ -111,6 +111,19 @@ export const envSchema = z.object({
   // crear preapproval en Mercado Pago Subscriptions API.
   ARS_PRICE_MONTHLY: z.string().regex(/^\d+$/, 'centavos ARS sin decimales (ej "3000000").'),
 
+  // Mercado Pago Subscriptions API (T-071). Server-only — leak = atacante
+  // crea/cancela preapprovals en nombre de la consultora.
+  //
+  // MP_ACCESS_TOKEN: bearer token del marketplace de MP. En dev prefijo
+  // 'TEST-' (sandbox). En prod prefijo 'APP_USR-'. Generar en
+  // https://www.mercadopago.com.ar/developers/panel/app.
+  MP_ACCESS_TOKEN: z.string().min(40),
+
+  // MP_WEBHOOK_SECRET: shared secret para HMAC SHA256 del header
+  // x-signature en POST /api/webhooks/mercadopago. Configurar en MP
+  // panel → Webhooks → "Clave secreta". Generar con `openssl rand -hex 32`.
+  MP_WEBHOOK_SECRET: z.string().min(32),
+
   // Upstash Redis para rate limiting (T-081). Optional: si NO presentes, el
   // helper getRateLimiter devuelve un noop stub que siempre allows — útil para
   // dev local sin cuenta Upstash. EN PRODUCCIÓN ambas DEBEN estar seteadas en
