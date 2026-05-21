@@ -103,6 +103,14 @@ export const envSchema = z.object({
     )
     .default('mailto:noreply@mail.consultora-demo.test-ia.cloud'),
 
+  // Precio del plan Pro en centavos ARS (T-070). String regex para evitar
+  // sorpresas de decimales/float. Ejemplo "3000000" = ARS 30.000 = USD 30 al
+  // FX al momento de cargar. Lautaro lo ajusta manualmente en EasyPanel cuando
+  // hay drift FX (USD oficial vs blue, no hay BCRA lookup automático en MVP —
+  // futuro T-070-FU1 si emerge necesidad). Server-only — usado por T-071 al
+  // crear preapproval en Mercado Pago Subscriptions API.
+  ARS_PRICE_MONTHLY: z.string().regex(/^\d+$/, 'centavos ARS sin decimales (ej "3000000").'),
+
   // Upstash Redis para rate limiting (T-081). Optional: si NO presentes, el
   // helper getRateLimiter devuelve un noop stub que siempre allows — útil para
   // dev local sin cuenta Upstash. EN PRODUCCIÓN ambas DEBEN estar seteadas en

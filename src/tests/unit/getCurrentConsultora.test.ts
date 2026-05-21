@@ -24,8 +24,8 @@ type ConsultoraRow = {
   id: string;
   name: string;
   slug: string;
-  plan_tier: string;
-  trial_ends_at: string | null;
+  plan: string;
+  trial_hasta: string | null;
 };
 
 type DbResult<T> = { data: T | null; error: { message: string } | null };
@@ -34,8 +34,8 @@ const CONSULTORA: ConsultoraRow = {
   id: 'c-1',
   name: 'Acme Consultores',
   slug: 'acme',
-  plan_tier: 'trial',
-  trial_ends_at: '2026-05-18T00:00:00Z',
+  plan: 'trial',
+  trial_hasta: '2026-05-18T00:00:00Z',
 };
 
 /**
@@ -108,8 +108,8 @@ describe('getCurrentConsultora', () => {
       id: 'c-1',
       name: 'Acme Consultores',
       slug: 'acme',
-      planTier: 'trial',
-      trialEndsAt: '2026-05-18T00:00:00Z',
+      plan: 'trial',
+      trialHasta: '2026-05-18T00:00:00Z',
       role: 'owner',
     });
     expect(loggerMock.warn).not.toHaveBeenCalled();

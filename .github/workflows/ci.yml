@@ -75,6 +75,14 @@ jobs:
       VAPID_PRIVATE_KEY: ci_placeholder_vapid_private_key_44_chars_b64url_aaa
       NEXT_PUBLIC_VAPID_PUBLIC_KEY: ci_placeholder_vapid_public_key_88_chars_b64url_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       VAPID_SUBJECT: mailto:ci-placeholder@example.com
+      # T-070: env.ts valida ARS_PRICE_MONTHLY (regex /^\d+$/) en build time —
+      # required, sin default. Placeholder alcanza en CI: el módulo Pagos
+      # (T-071+) no se ejercita end-to-end en CI (los integration tests del
+      # schema ya cubren RLS + UNIQUE + audit sin necesidad de la var, y no
+      # hay E2E contra Mercado Pago). Valor real vive en EasyPanel,
+      # configurado por Lautaro post-merge (docs/adr/0008-pagos-mercadopago-
+      # subscriptions.md sección "Pricing").
+      ARS_PRICE_MONTHLY: '3000000'
       # T-081: rate limiting via Upstash Redis. Optional en src/env.ts.
       # NO seteamos vars en CI — los integration tests mockean el helper
       # @/shared/security/rate-limit con vi.mock, no pegan a Upstash real.

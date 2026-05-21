@@ -188,7 +188,7 @@ describe('dashboard query (post-T-013 policy defensiva)', () => {
 
     const { data: membership, error } = await client
       .from('consultora_members')
-      .select('role, consultoras(id, slug, name, plan_tier, trial_ends_at)')
+      .select('role, consultoras(id, slug, name, plan, trial_hasta)')
       .single();
 
     expect(error).toBeNull();
@@ -196,7 +196,7 @@ describe('dashboard query (post-T-013 policy defensiva)', () => {
     expect(membership?.consultoras).not.toBeNull();
     expect(membership?.consultoras?.id).toBe(consultoraId);
     expect(membership?.consultoras?.slug).toBe(slug);
-    expect(membership?.consultoras?.plan_tier).toBe('trial');
+    expect(membership?.consultoras?.plan).toBe('trial');
   });
 
   it('user NO puede leer consultora ajena via select directo (RLS intacta)', async () => {

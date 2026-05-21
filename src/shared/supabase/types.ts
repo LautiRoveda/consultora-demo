@@ -328,9 +328,10 @@ export type Database = {
           id: string;
           logo_storage_path: string | null;
           name: string;
-          plan_tier: string;
+          plan: string;
+          retencion_datos_hasta: string | null;
           slug: string;
-          trial_ends_at: string | null;
+          trial_hasta: string | null;
           updated_at: string;
         };
         Insert: {
@@ -341,9 +342,10 @@ export type Database = {
           id?: string;
           logo_storage_path?: string | null;
           name: string;
-          plan_tier?: string;
+          plan?: string;
+          retencion_datos_hasta?: string | null;
           slug: string;
-          trial_ends_at?: string | null;
+          trial_hasta?: string | null;
           updated_at?: string;
         };
         Update: {
@@ -354,9 +356,10 @@ export type Database = {
           id?: string;
           logo_storage_path?: string | null;
           name?: string;
-          plan_tier?: string;
+          plan?: string;
+          retencion_datos_hasta?: string | null;
           slug?: string;
-          trial_ends_at?: string | null;
+          trial_hasta?: string | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -432,6 +435,63 @@ export type Database = {
             columns: ['consultora_id'];
             isOneToOne: false;
             referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      facturas: {
+        Row: {
+          consultora_id: string;
+          created_at: string;
+          estado: Database['public']['Enums']['estado_factura'];
+          id: string;
+          moneda: string;
+          monto_centavos: number;
+          mp_payment_id: string;
+          pagada_en: string | null;
+          razon_falla: string | null;
+          recibo_url: string | null;
+          suscripcion_id: string;
+        };
+        Insert: {
+          consultora_id: string;
+          created_at?: string;
+          estado?: Database['public']['Enums']['estado_factura'];
+          id?: string;
+          moneda?: string;
+          monto_centavos: number;
+          mp_payment_id: string;
+          pagada_en?: string | null;
+          razon_falla?: string | null;
+          recibo_url?: string | null;
+          suscripcion_id: string;
+        };
+        Update: {
+          consultora_id?: string;
+          created_at?: string;
+          estado?: Database['public']['Enums']['estado_factura'];
+          id?: string;
+          moneda?: string;
+          monto_centavos?: number;
+          mp_payment_id?: string;
+          pagada_en?: string | null;
+          razon_falla?: string | null;
+          recibo_url?: string | null;
+          suscripcion_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'facturas_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'facturas_suscripcion_id_fkey';
+            columns: ['suscripcion_id'];
+            isOneToOne: false;
+            referencedRelation: 'suscripciones';
             referencedColumns: ['id'];
           },
         ];
@@ -709,6 +769,56 @@ export type Database = {
         };
         Relationships: [];
       };
+      suscripciones: {
+        Row: {
+          cancelada_en: string | null;
+          cancelar_en: string | null;
+          consultora_id: string;
+          created_at: string;
+          estado: Database['public']['Enums']['estado_suscripcion'];
+          id: string;
+          mp_subscription_id: string | null;
+          periodo_fin: string;
+          periodo_inicio: string;
+          plan_codigo: Database['public']['Enums']['plan_codigo'];
+          updated_at: string;
+        };
+        Insert: {
+          cancelada_en?: string | null;
+          cancelar_en?: string | null;
+          consultora_id: string;
+          created_at?: string;
+          estado?: Database['public']['Enums']['estado_suscripcion'];
+          id?: string;
+          mp_subscription_id?: string | null;
+          periodo_fin: string;
+          periodo_inicio: string;
+          plan_codigo: Database['public']['Enums']['plan_codigo'];
+          updated_at?: string;
+        };
+        Update: {
+          cancelada_en?: string | null;
+          cancelar_en?: string | null;
+          consultora_id?: string;
+          created_at?: string;
+          estado?: Database['public']['Enums']['estado_suscripcion'];
+          id?: string;
+          mp_subscription_id?: string | null;
+          periodo_fin?: string;
+          periodo_inicio?: string;
+          plan_codigo?: Database['public']['Enums']['plan_codigo'];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'suscripciones_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       telegram_subscriptions: {
         Row: {
           blocked_count: number;
@@ -789,7 +899,9 @@ export type Database = {
       unaccent: { Args: { '': string }; Returns: string };
     };
     Enums: {
-      [_ in never]: never;
+      estado_factura: 'pendiente' | 'pagada' | 'fallida' | 'reembolsada';
+      estado_suscripcion: 'trial' | 'activa' | 'morosa' | 'cancelada' | 'expirada';
+      plan_codigo: 'pro_mensual';
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -917,6 +1029,10 @@ export const Constants = {
     Enums: {},
   },
   public: {
-    Enums: {},
+    Enums: {
+      estado_factura: ['pendiente', 'pagada', 'fallida', 'reembolsada'],
+      estado_suscripcion: ['trial', 'activa', 'morosa', 'cancelada', 'expirada'],
+      plan_codigo: ['pro_mensual'],
+    },
   },
 } as const;
