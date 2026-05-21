@@ -91,7 +91,7 @@ afterAll(async () => {
 });
 
 describe('RPC create_consultora_and_owner: happy path', () => {
-  it('crea consultora con plan_tier=trial + trial_ends_at ~7d', async () => {
+  it('crea consultora con plan=trial + trial_hasta ~7d', async () => {
     const userId = await createAuthUser(`t012-test-trial-${runId}@example.com`);
     const { consultoraId, slug } = await callRpc(userId, `Test Trial ${runId}`);
 
@@ -102,12 +102,12 @@ describe('RPC create_consultora_and_owner: happy path', () => {
       .single();
 
     expect(consultora).not.toBeNull();
-    expect(consultora?.plan_tier).toBe('trial');
+    expect(consultora?.plan).toBe('trial');
     expect(consultora?.name).toBe(`Test Trial ${runId}`);
     expect(consultora?.slug).toBe(slug);
 
-    // trial_ends_at ~ now + 7d (toleramos ±5 minutos por latencia red/clock skew).
-    const trialEnd = new Date(consultora!.trial_ends_at!).getTime();
+    // trial_hasta ~ now + 7d (toleramos ±5 minutos por latencia red/clock skew).
+    const trialEnd = new Date(consultora!.trial_hasta!).getTime();
     const expected = Date.now() + 7 * 24 * 60 * 60 * 1000;
     expect(Math.abs(trialEnd - expected)).toBeLessThan(5 * 60 * 1000);
   });
@@ -238,13 +238,13 @@ describe('signupAction (regression bug T-012/T-013)', () => {
     // Verificar consultora + membership (vía admin, RLS bypass para verificación).
     const { data: member } = await admin
       .from('consultora_members')
-      .select('role, consultoras(slug, name, plan_tier, trial_ends_at)')
+      .select('role, consultoras(slug, name, plan, trial_hasta)')
       .eq('user_id', user!.id)
       .single();
 
     expect(member?.role).toBe('owner');
     expect(member?.consultoras?.name).toBe(`Test Fix ${runId}`);
-    expect(member?.consultoras?.plan_tier).toBe('trial');
+    expect(member?.consultoras?.plan).toBe('trial');
     expect(member?.consultoras?.slug).toMatch(/^test-fix-[a-z0-9-]+-[a-f0-9]{4}$/);
   });
 });

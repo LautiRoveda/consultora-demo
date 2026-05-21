@@ -105,7 +105,7 @@ function ConsultoraHeader({
   consultora: CurrentConsultora;
   logoSignedUrl: string | null;
 }) {
-  const isTrial = consultora.planTier === 'trial';
+  const isTrial = consultora.plan === 'trial';
 
   return (
     <div className="flex items-center gap-3 px-4 py-4">

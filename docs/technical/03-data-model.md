@@ -37,15 +37,20 @@ create table public.consultoras (
   name          text not null,
   slug          text not null unique check (slug ~ '^[a-z0-9-]+$' and length(slug) between 3 and 60),
   cuit          text,                       -- nullable hasta primera facturación (T-029)
-  plan_tier     text not null default 'trial'
-                check (plan_tier in ('trial', 'pro', 'team', 'enterprise')),
-  trial_ends_at timestamptz,
+  plan          text not null default 'trial'
+                check (plan in ('trial', 'pro', 'team', 'enterprise')),
+  trial_hasta   timestamptz,                -- T-070: renombrado desde trial_ends_at
+  retencion_datos_hasta timestamptz,        -- T-070: set al cancelar/expirar; cron futuro deletea cuando alcanza esta fecha (Ley 25.326)
   archived_at   timestamptz,                -- soft delete
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
 
-create index idx_consultoras_plan_tier on public.consultoras(plan_tier);
+-- T-070: plan_tier → plan, trial_ends_at → trial_hasta. Naming español alineado con
+-- las tablas nuevas suscripciones/facturas. consultoras.plan queda como cache
+-- denormalizado del tier comercial; suscripciones.plan_codigo es el SKU MP. Ver
+-- ADR-0008 sección "Naming schema".
+create index idx_consultoras_plan on public.consultoras(plan);
 create index idx_consultoras_archived on public.consultoras(archived_at) where archived_at is null;
 
 -- Membresía user ↔ consultora (m2m, MVP single-tenant per user pero schema lo soporta).
@@ -550,31 +555,63 @@ create policy incidents_consultora on incidents for all
 
 ### M14 · Pagos
 
+Implementado en T-070 — schema en español, integración Mercado Pago Subscriptions API.
+Ver `supabase/migrations/20260520000001_t070_pagos_schema.sql` + [ADR-0008](../adr/0008-pagos-mercadopago-subscriptions.md).
+
 ```sql
-create table subscriptions (
-  id                    uuid primary key default gen_random_uuid(),
-  consultora_id         uuid not null references consultoras(id) on delete cascade,
-  plan_code             text not null,
-  status                text not null,  -- 'trial' | 'active' | 'past_due' | 'cancelled'
-  mp_subscription_id    text,
-  current_period_start  timestamptz,
-  current_period_end    timestamptz,
-  cancel_at             timestamptz,
-  created_at            timestamptz not null default now(),
-  updated_at            timestamptz not null default now()
+-- Enums T-070 — naming español, plan_codigo extensible para SKUs futuros (pro_anual, team_mensual, ...).
+create type public.plan_codigo as enum ('pro_mensual');
+create type public.estado_suscripcion as enum ('trial', 'activa', 'morosa', 'cancelada', 'expirada');
+create type public.estado_factura as enum ('pendiente', 'pagada', 'fallida', 'reembolsada');
+
+create table public.suscripciones (
+  id                  uuid primary key default gen_random_uuid(),
+  consultora_id       uuid not null references public.consultoras(id) on delete cascade,
+  plan_codigo         public.plan_codigo not null,
+  estado              public.estado_suscripcion not null default 'trial',
+  mp_subscription_id  text unique,                      -- preapproval_id de MP; NULL durante trial
+  periodo_inicio      timestamptz not null,
+  periodo_fin         timestamptz not null,
+  cancelar_en         timestamptz,                       -- user pidió cancel, activa hasta esta fecha
+  cancelada_en        timestamptz,                       -- MP confirmó cancelación
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now()
 );
 
-create table invoices (
+-- UNIQUE parcial: una sola suscripción "viva" por consultora; canceladas/expiradas conviven históricas.
+create unique index uniq_suscripciones_consultora_activa
+  on public.suscripciones (consultora_id)
+  where estado in ('trial', 'activa', 'morosa');
+
+create table public.facturas (
   id              uuid primary key default gen_random_uuid(),
-  consultora_id   uuid not null references consultoras(id) on delete cascade,
-  subscription_id uuid references subscriptions(id),
-  amount_ars      numeric(12, 2),
-  amount_usd      numeric(12, 2),
-  status          text not null,  -- 'pending' | 'paid' | 'failed' | 'refunded'
-  mp_payment_id   text,
-  receipt_url     text,
+  consultora_id   uuid not null references public.consultoras(id) on delete cascade,
+  suscripcion_id  uuid not null references public.suscripciones(id) on delete restrict,
+  monto_centavos  integer not null check (monto_centavos > 0),
+  moneda          text not null default 'ARS' check (moneda in ('ARS', 'USD')),
+  estado          public.estado_factura not null default 'pendiente',
+  mp_payment_id   text unique not null,                  -- UNIQUE = idempotencia webhooks
+  recibo_url      text,
+  pagada_en       timestamptz,
+  razon_falla     text,                                   -- status_detail de MP en eventos failed
   created_at      timestamptz not null default now()
 );
+
+-- RLS default-deny: SELECT para members via is_member_of_consultora(); mutaciones solo service_role.
+alter table public.suscripciones enable row level security;
+alter table public.facturas enable row level security;
+
+create policy "members_select_suscripciones" on public.suscripciones
+  for select to authenticated
+  using (public.is_member_of_consultora(consultora_id));
+
+create policy "members_select_facturas" on public.facturas
+  for select to authenticated
+  using (public.is_member_of_consultora(consultora_id));
+
+-- Audit triggers AFTER INSERT/UPDATE/DELETE con diff guard — patrón T-047 audit_clientes.
+-- audit_suscripciones() guarda sobre 7 fields mutables; audit_facturas() sobre 4.
+```
 
 create table ai_usage_log (
   id              bigserial primary key,

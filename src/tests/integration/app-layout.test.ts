@@ -115,8 +115,8 @@ describe('(app)/layout · integration', () => {
     expect(result?.id).toBe(consultoraId);
     expect(result?.slug).toBe(slug);
     expect(result?.role).toBe('owner');
-    expect(result?.planTier).toBe('trial');
-    expect(result?.trialEndsAt).toBeTruthy();
+    expect(result?.plan).toBe('trial');
+    expect(result?.trialHasta).toBeTruthy();
   });
 
   it('fast-path por claim: el JWT trae app_metadata.consultora_id + role (T-016)', async () => {

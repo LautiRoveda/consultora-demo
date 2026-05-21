@@ -31,6 +31,8 @@ vi.hoisted(() => {
   process.env.VAPID_PRIVATE_KEY = 'hoisted-vapid-private-key-44-chars-b64url-aaa';
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY =
     'hoisted-vapid-public-key-88-chars-b64url-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  // T-070 — pricing required.
+  process.env.ARS_PRICE_MONTHLY = '3000000';
 });
 
 describe('envSchema', () => {
@@ -51,6 +53,7 @@ describe('envSchema', () => {
     VAPID_PRIVATE_KEY: 'valid-vapid-private-key-44-chars-b64url-aaa',
     NEXT_PUBLIC_VAPID_PUBLIC_KEY:
       'valid-vapid-public-key-88-chars-b64url-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    ARS_PRICE_MONTHLY: '3000000',
   };
 
   it('acepta vars válidas', () => {
@@ -293,5 +296,29 @@ describe('envSchema', () => {
       VAPID_SUBJECT: 'lautaro@example.com',
     });
     expect(result.success).toBe(false);
+  });
+
+  it('rechaza ARS_PRICE_MONTHLY con decimales (T-070)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      ARS_PRICE_MONTHLY: '30000.50',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza ARS_PRICE_MONTHLY vacío (T-070)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      ARS_PRICE_MONTHLY: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('acepta ARS_PRICE_MONTHLY entero como string (T-070)', () => {
+    const result = envSchema.safeParse({
+      ...validInput,
+      ARS_PRICE_MONTHLY: '5000000',
+    });
+    expect(result.success).toBe(true);
   });
 });

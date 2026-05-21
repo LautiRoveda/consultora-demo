@@ -79,9 +79,7 @@ export async function getCurrentConsultora(
   if (claimConsultoraId && claimRole) {
     const { data, error } = await supabase
       .from('consultoras')
-      .select(
-        'id, name, slug, plan_tier, trial_ends_at, logo_storage_path, auto_create_event_on_sign',
-      )
+      .select('id, name, slug, plan, trial_hasta, logo_storage_path, auto_create_event_on_sign')
       .eq('id', claimConsultoraId)
       .maybeSingle();
 
@@ -98,8 +96,8 @@ export async function getCurrentConsultora(
         id: data.id,
         name: data.name,
         slug: data.slug,
-        planTier: data.plan_tier,
-        trialEndsAt: data.trial_ends_at,
+        plan: data.plan,
+        trialHasta: data.trial_hasta,
         role: claimRole,
         logoStoragePath: data.logo_storage_path,
         autoCreateEventOnSign: data.auto_create_event_on_sign,
@@ -118,7 +116,7 @@ export async function getCurrentConsultora(
   const { data, error } = await supabase
     .from('consultora_members')
     .select(
-      'role, consultoras(id, name, slug, plan_tier, trial_ends_at, logo_storage_path, auto_create_event_on_sign)',
+      'role, consultoras(id, name, slug, plan, trial_hasta, logo_storage_path, auto_create_event_on_sign)',
     )
     .eq('user_id', userId)
     .maybeSingle();
@@ -139,8 +137,8 @@ export async function getCurrentConsultora(
     id: data.consultoras.id,
     name: data.consultoras.name,
     slug: data.consultoras.slug,
-    planTier: data.consultoras.plan_tier,
-    trialEndsAt: data.consultoras.trial_ends_at,
+    plan: data.consultoras.plan,
+    trialHasta: data.consultoras.trial_hasta,
     role,
     logoStoragePath: data.consultoras.logo_storage_path,
     autoCreateEventOnSign: data.consultoras.auto_create_event_on_sign,
