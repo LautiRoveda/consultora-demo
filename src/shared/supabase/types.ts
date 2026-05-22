@@ -83,6 +83,44 @@ export type Database = {
           },
         ];
       };
+      billing_notifications_log: {
+        Row: {
+          consultora_id: string;
+          created_at: string;
+          id: string;
+          ref_id: string | null;
+          resend_email_id: string | null;
+          sent_at: string;
+          tipo: string;
+        };
+        Insert: {
+          consultora_id: string;
+          created_at?: string;
+          id?: string;
+          ref_id?: string | null;
+          resend_email_id?: string | null;
+          sent_at?: string;
+          tipo: string;
+        };
+        Update: {
+          consultora_id?: string;
+          created_at?: string;
+          id?: string;
+          ref_id?: string | null;
+          resend_email_id?: string | null;
+          sent_at?: string;
+          tipo?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'billing_notifications_log_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       calendar_event_reminders: {
         Row: {
           consultora_id: string;
@@ -884,6 +922,7 @@ export type Database = {
         Returns: boolean;
       };
       my_consultora_ids: { Args: never; Returns: string[] };
+      process_pending_billing_dunning: { Args: never; Returns: undefined };
       process_pending_reminders: {
         Args: never;
         Returns: {
