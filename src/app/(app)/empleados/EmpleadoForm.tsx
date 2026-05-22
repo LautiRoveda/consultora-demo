@@ -264,6 +264,12 @@ export function EmpleadoForm(props: Props) {
       case 'NO_CONSULTORA':
         toast.error('Cuenta sin consultora', { description: result.message });
         return;
+      case 'BILLING_GATED':
+        toast.error('Plan expirado', {
+          description: result.message,
+          action: { label: 'Suscribirme', onClick: () => router.push('/settings/billing') },
+        });
+        return;
       default:
         toast.error('Error inesperado', { description: result.message });
     }

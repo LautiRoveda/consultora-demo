@@ -1,13 +1,17 @@
 import type { CurrentConsultora } from '@/shared/auth/types';
+import type { BillingStatus } from '@/shared/billing/access';
 import type { ReactNode } from 'react';
 
 import { AppSidebar } from './AppSidebar';
+import { BillingGateBanner } from './BillingGateBanner';
 
 type AppShellProps = {
   user: { id: string; email: string };
   consultora: CurrentConsultora;
   /** T-024-FU0.5: signed URL del logo (TTL 1h, generada por layout). */
   logoSignedUrl: string | null;
+  /** T-073: estado del trial gate (calculado en layout, server-side). */
+  billingStatus: BillingStatus;
   children: ReactNode;
 };
 
@@ -21,11 +25,18 @@ type AppShellProps = {
  *   - Mobile (<md): sidebar oculta, header sticky con hamburger encima del
  *     main. El `pl-0` en mobile cubre el reset implícito.
  */
-export function AppShell({ user, consultora, logoSignedUrl, children }: AppShellProps) {
+export function AppShell({
+  user,
+  consultora,
+  logoSignedUrl,
+  billingStatus,
+  children,
+}: AppShellProps) {
   return (
     <div className="bg-background min-h-svh">
       <AppSidebar user={user} consultora={consultora} logoSignedUrl={logoSignedUrl} />
       <div className="md:pl-64">
+        <BillingGateBanner billingStatus={billingStatus} />
         <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>

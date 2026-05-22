@@ -1,9 +1,12 @@
 'use server';
 
+import type { BillingGateReason } from '@/shared/billing/access';
 import type { Database } from '@/shared/supabase/types';
 import { revalidatePath } from 'next/cache';
 
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
+import { requireBillingAccess } from '@/shared/billing/access';
+import { getGateMessage } from '@/shared/billing/messages';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
 import { normalizeCuit } from '@/shared/templates/common/cuit';
@@ -43,6 +46,12 @@ export type CreateEmpleadoResult =
       ok: false;
       code: 'DUPLICATE_DNI';
       fieldErrors: { dni: string[] };
+      message: string;
+    }
+  | {
+      ok: false;
+      code: 'BILLING_GATED';
+      reason: BillingGateReason;
       message: string;
     };
 
@@ -157,6 +166,21 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
       ok: false,
       code: 'NO_CONSULTORA',
       message: 'No tenés una consultora asociada.',
+    };
+  }
+
+  // T-073 · Trial gate.
+  const billing = await requireBillingAccess(supabase, consultora);
+  if (!billing.ok) {
+    logger.info(
+      { userId: user.id, consultoraId: consultora.id, reason: billing.reason },
+      'createEmpleadoAction: billing gated',
+    );
+    return {
+      ok: false,
+      code: 'BILLING_GATED',
+      reason: billing.reason,
+      message: getGateMessage(billing.reason),
     };
   }
 

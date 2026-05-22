@@ -1,9 +1,12 @@
 'use server';
 
+import type { BillingGateReason } from '@/shared/billing/access';
 import type { Database, Json } from '@/shared/supabase/types';
 import { revalidatePath } from 'next/cache';
 
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
+import { requireBillingAccess } from '@/shared/billing/access';
+import { getGateMessage } from '@/shared/billing/messages';
 import {
   addRecurrenceMonths,
   computeReminderRows,
@@ -71,6 +74,12 @@ export type CreateEventResult =
       ok: false;
       code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'FORBIDDEN' | 'INTERNAL_ERROR';
       message: string;
+    }
+  | {
+      ok: false;
+      code: 'BILLING_GATED';
+      reason: BillingGateReason;
+      message: string;
     };
 
 export async function createCalendarEventAction(input: unknown): Promise<CreateEventResult> {
@@ -98,6 +107,23 @@ export async function createCalendarEventAction(input: unknown): Promise<CreateE
       ok: false,
       code: 'NO_CONSULTORA',
       message: 'Tu cuenta no tiene una consultora vinculada.',
+    };
+  }
+
+  // T-073 · Trial gate. Si el silent path de publishInformeAction (T-036) llama
+  // a este action con trial vencido, queda gated — el publish primario igual
+  // pasa (UPDATE no se bloquea) y el silent path se logea como fallido.
+  const billing = await requireBillingAccess(supabase, consultora);
+  if (!billing.ok) {
+    logger.info(
+      { userId: user.id, consultoraId: consultora.id, reason: billing.reason },
+      'createCalendarEventAction: billing gated',
+    );
+    return {
+      ok: false,
+      code: 'BILLING_GATED',
+      reason: billing.reason,
+      message: getGateMessage(billing.reason),
     };
   }
 

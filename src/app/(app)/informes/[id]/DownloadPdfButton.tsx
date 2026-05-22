@@ -144,6 +144,17 @@ function handleError(code: string | undefined, status: number): void {
     case 'NO_CONSULTORA':
       toast.error('Tu cuenta no tiene una consultora vinculada.');
       return;
+    case 'BILLING_GATED':
+      toast.error('Plan expirado.', {
+        description: 'Suscribite para descargar PDFs.',
+        action: {
+          label: 'Suscribirme',
+          onClick: () => {
+            window.location.href = '/settings/billing';
+          },
+        },
+      });
+      return;
     default:
       toast.error(`Error generando el PDF${status ? ` (${status})` : ''}.`);
   }

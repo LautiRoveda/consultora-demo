@@ -207,6 +207,12 @@ export function EventForm(props: Props) {
       case 'ALREADY_FINAL':
         toast.error('Estado final', { description: message });
         return;
+      case 'BILLING_GATED':
+        toast.error('Plan expirado', {
+          description: message,
+          action: { label: 'Suscribirme', onClick: () => router.push('/settings/billing') },
+        });
+        return;
       default:
         toast.error('Error inesperado', { description: message });
     }
