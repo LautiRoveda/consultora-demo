@@ -127,7 +127,11 @@ export async function createSubscriptionAction(): Promise<CreateSubscriptionResu
   // /preapproval `transaction_amount` espera PESOS con decimales — conversión
   // explícita acá: centavos → pesos (÷ 100).
   const amountPesos = Number(env.ARS_PRICE_MONTHLY) / 100;
-  const startDate = new Date().toISOString();
+  // Buffer 5min anti past-date MP (T-071-FU1): MP rechaza preapproval con
+  // start_date exactamente = now() por latencia red al server MP. Mismo
+  // valor que el default de createPreapproval para mantener consistencia
+  // entre auto_recurring.start_date y suscripciones.periodo_inicio.
+  const startDate = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
   let preapproval;
   try {
