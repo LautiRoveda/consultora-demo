@@ -100,7 +100,7 @@ jobs:
       # no se ejercita end-to-end.
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       # IMPORTANTE: pnpm va ANTES que setup-node. setup-node@v5 detecta el
       # packageManager field de package.json e intenta hacer caching automático
