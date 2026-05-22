@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, Building2 } from 'lucide-react';
+import { Bell, Building2, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -20,6 +20,7 @@ import { cn } from '@/shared/lib/utils';
 const TABS = [
   { href: '/settings/consultora', label: 'Consultora', icon: Building2 },
   { href: '/settings/notificaciones', label: 'Notificaciones', icon: Bell },
+  { href: '/settings/billing', label: 'Facturación', icon: CreditCard },
 ] as const;
 
 export function SettingsTabsNav() {

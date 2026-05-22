@@ -4,6 +4,7 @@ import type { CurrentConsultora } from '@/shared/auth/types';
 import { Menu } from 'lucide-react';
 import { useState } from 'react';
 
+import { trialDaysLeft } from '@/shared/lib/trial-days';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
 import { Separator } from '@/shared/ui/separator';
@@ -106,6 +107,11 @@ function ConsultoraHeader({
   logoSignedUrl: string | null;
 }) {
   const isTrial = consultora.plan === 'trial';
+  // T-072: contador de días restantes del trial. Cálculo client-side via
+  // `Date.now()` para que cambie con el día real del browser sin esperar
+  // un re-render del SSR. `null` si no hay trial_hasta seteado.
+  const daysLeft = isTrial ? trialDaysLeft(consultora.trialHasta) : null;
+  const trialExpired = daysLeft !== null && daysLeft <= 0;
 
   return (
     <div className="flex items-center gap-3 px-4 py-4">
@@ -135,11 +141,14 @@ function ConsultoraHeader({
       {isTrial ? (
         <span
           className={cn(
-            'rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide',
-            'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+            'rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide whitespace-nowrap',
+            trialExpired
+              ? 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300'
+              : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
           )}
+          data-testid="sidebar-trial-badge"
         >
-          Trial
+          {trialExpired ? 'Trial vencido' : daysLeft !== null ? `Trial · ${daysLeft}d` : 'Trial'}
         </span>
       ) : null}
     </div>
