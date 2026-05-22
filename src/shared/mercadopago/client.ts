@@ -96,14 +96,15 @@ export interface CreatePreapprovalInput {
   reason: string;
   /** URL absoluta a la que MP redirige al user post-checkout. */
   backUrl: string;
-  /** Override de start_date (ISO). Por defecto now(). */
+  /** Override de start_date (ISO). Por defecto now() + 5min (MP rechaza past dates con latencia red, ver T-071-FU1). */
   startDate?: string;
 }
 
 /**
- * Crea un preapproval mensual ARS con start_date inmediato. El user es
- * redirigido a `init_point` y MP nos notifica via webhook con el resultado
- * de la autorización (subscription_preapproval status=authorized|cancelled).
+ * Crea un preapproval mensual ARS con start_date now()+5min (buffer
+ * anti past-date MP, ver T-071-FU1). El user es redirigido a
+ * `init_point` y MP nos notifica via webhook con el resultado de la
+ * autorización (subscription_preapproval status=authorized|cancelled).
  *
  * Frequency mensual está hardcoded porque `plan_codigo` T-070 solo tiene
  * `pro_mensual`. Cuando agreguemos `pro_anual` parametrizamos.
@@ -111,7 +112,7 @@ export interface CreatePreapprovalInput {
 export async function createPreapproval(
   input: CreatePreapprovalInput,
 ): Promise<PreapprovalResponse> {
-  const startDate = input.startDate ?? new Date().toISOString();
+  const startDate = input.startDate ?? new Date(Date.now() + 5 * 60 * 1000).toISOString();
   return mpFetch(
     '/preapproval',
     {

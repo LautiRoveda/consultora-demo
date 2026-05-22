@@ -204,6 +204,12 @@ Si cron procesa pero `notification_log` queda vacío + `net._http_response` mues
 
 **Origen**: T-031 smoke productivo. Dominio muestra badge "Verified" en dashboard cuando DNS records resuelven (SPF+DKIM+DMARC green), PERO la verificación completa en el backend del provider toma **~4 min más** post-badge verde. Síntoma: primer envío real falla con `RESEND_VALIDATION_ERROR`. NO es bug del código — race entre DNS check inicial y backend verification. Mitigación: esperar 5+ min post-badge verde antes del smoke productivo.
 
+### External API "future timestamp" validations — aplicar buffer > 1min
+
+**Origen**: T-071-FU1 (22/05/2026). **Aplicable forward**: cualquier integración que pase timestamps a una API external que valide "future date".
+
+MP API rechaza `POST /preapproval` con `auto_recurring.start_date = new Date().toISOString()` literal por `"cannot be a past date"` — cuando el request llega al server MP (~50-200ms de latencia red sa-east-1 + posible clock skew entre VPS y MP), ese ISO ya es pasado. Fix: buffer de 5min en el default de `createPreapproval` + en el caller (`src/app/(app)/settings/billing/actions.ts`) que pasa `startDate` explícito a MP Y lo persiste en `suscripciones.periodo_inicio` (ambos sites deben usar el mismo valor para coherencia DB/MP). **Regla forward**: cuando una API external valida `start_date >= now()` u otros timestamps "future", aplicar buffer ≥ 5min (no 1min — clock skew en cloud workers puede pegar 1-3min en peor caso). NO confiar en sincronía perfecta entre tu reloj y el del provider.
+
 ### VPS reboot recovery (Hostinger + Docker swarm) — pattern recurrente confirmado
 
 **Origen**: T-052 mid-merge (19/05/2026 AM). **Incidents confirmados**: 2 (19/05/2026 AM + PM). **Runbook copy-paste**: [docs/operations/vps-reboot-recovery.md](operations/vps-reboot-recovery.md).
