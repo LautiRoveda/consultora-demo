@@ -83,6 +83,14 @@ jobs:
       # configurado por Lautaro post-merge (docs/adr/0008-pagos-mercadopago-
       # subscriptions.md sección "Pricing").
       ARS_PRICE_MONTHLY: '3000000'
+      # T-071: env.ts valida MP_ACCESS_TOKEN (min 40) + MP_WEBHOOK_SECRET (min 32)
+      # en build time — required, sin default. Placeholders alcanzan en CI: los
+      # integration tests del webhook + actions mockean el módulo
+      # @/shared/mercadopago/client con vi.mock, no pegan a la API real de MP.
+      # Valores reales viven en EasyPanel, configurados por Lautaro post-merge
+      # (docs/operations/mercadopago-setup.md futuro).
+      MP_ACCESS_TOKEN: ci_placeholder_mercadopago_token_40_chars_minimum_aaaa
+      MP_WEBHOOK_SECRET: ci_placeholder_mercadopago_webhook_secret_32_chars
       # T-081: rate limiting via Upstash Redis. Optional en src/env.ts.
       # NO seteamos vars en CI — los integration tests mockean el helper
       # @/shared/security/rate-limit con vi.mock, no pegan a Upstash real.

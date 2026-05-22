@@ -900,7 +900,13 @@ export type Database = {
     };
     Enums: {
       estado_factura: 'pendiente' | 'pagada' | 'fallida' | 'reembolsada';
-      estado_suscripcion: 'trial' | 'activa' | 'morosa' | 'cancelada' | 'expirada';
+      estado_suscripcion:
+        | 'trial'
+        | 'pendiente_autorizacion'
+        | 'activa'
+        | 'morosa'
+        | 'cancelada'
+        | 'expirada';
       plan_codigo: 'pro_mensual';
     };
     CompositeTypes: {
@@ -1031,7 +1037,14 @@ export const Constants = {
   public: {
     Enums: {
       estado_factura: ['pendiente', 'pagada', 'fallida', 'reembolsada'],
-      estado_suscripcion: ['trial', 'activa', 'morosa', 'cancelada', 'expirada'],
+      estado_suscripcion: [
+        'trial',
+        'pendiente_autorizacion',
+        'activa',
+        'morosa',
+        'cancelada',
+        'expirada',
+      ],
       plan_codigo: ['pro_mensual'],
     },
   },
