@@ -133,10 +133,22 @@ export async function createSubscriptionAction(): Promise<CreateSubscriptionResu
   // entre auto_recurring.start_date y suscripciones.periodo_inicio.
   const startDate = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
+  // T-071-FU2: en sandbox MP el seller (Lautaro) no puede ser tambien el
+  // buyer del mismo app — auto-purchase blocked. La env var opcional
+  // MP_TEST_PAYER_EMAIL inyecta el email del TEST USER buyer creado en MP
+  // panel. NUNCA seteada en prod (env.ts emite warn explicito).
+  const payerEmail = env.MP_TEST_PAYER_EMAIL ?? user.email;
+  if (env.MP_TEST_PAYER_EMAIL) {
+    logger.info(
+      { userId: user.id, consultoraId: consultora.id, testMode: true, payerEmail },
+      'createSubscriptionAction: usando MP_TEST_PAYER_EMAIL como payer (test mode)',
+    );
+  }
+
   let preapproval;
   try {
     preapproval = await createPreapproval({
-      payerEmail: user.email,
+      payerEmail,
       transactionAmountPesos: amountPesos,
       reason: 'ConsultoraDemo Pro · mensual',
       backUrl: `${env.NEXT_PUBLIC_SITE_URL}/settings/billing`,

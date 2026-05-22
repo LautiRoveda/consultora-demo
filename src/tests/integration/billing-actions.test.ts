@@ -255,7 +255,9 @@ describe('createSubscriptionAction', () => {
 
     expect(createPreapprovalMock).toHaveBeenCalledOnce();
     const callArg = createPreapprovalMock.mock.calls[0]![0];
-    expect(callArg.payerEmail).toBe(emailOwnerA);
+    // T-071-FU2: si MP_TEST_PAYER_EMAIL está set (dev/local), el action lo
+    // usa como payer. Sino (CI sin la var), usa el email del owner.
+    expect(callArg.payerEmail).toBe(process.env.MP_TEST_PAYER_EMAIL ?? emailOwnerA);
     // ARS_PRICE_MONTHLY="3000000" centavos → 30000 pesos.
     expect(callArg.transactionAmountPesos).toBe(30000);
     expect(callArg.reason).toContain('Pro');
@@ -390,5 +392,80 @@ describe('cancelSubscriptionAction', () => {
     if (result.ok) return;
     expect(result.code).toBe('NOT_CANCELABLE');
     expect(cancelPreapprovalMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * T-071-FU2 · MP_TEST_PAYER_EMAIL override.
+ *
+ * Bypassea el self-purchase block del sandbox MP inyectando un email distinto
+ * al owner como payer del preapproval. Estos tests usan vi.stubEnv +
+ * vi.resetModules para re-evaluar @/env por-test con el valor controlado.
+ */
+describe('createSubscriptionAction · T-071-FU2 MP_TEST_PAYER_EMAIL override', () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('11. MP_TEST_PAYER_EMAIL set → createPreapproval usa esa value, NO el owner email', async () => {
+    const TEST_PAYER = 'TESTUSER999999999@testuser.com';
+    vi.stubEnv('MP_TEST_PAYER_EMAIL', TEST_PAYER);
+    vi.resetModules();
+
+    const mpId = `mp-pre-${runId}-fu2-1`;
+    createPreapprovalMock.mockResolvedValueOnce({
+      id: mpId,
+      init_point: `https://www.mercadopago.com.ar/preapproval?preapproval_id=${mpId}`,
+      status: 'pending',
+    });
+
+    await signInAs(emailOwnerA);
+    const { createSubscriptionAction } = await import('@/app/(app)/settings/billing/actions');
+    const result = await createSubscriptionAction();
+    expect(result.ok).toBe(true);
+
+    expect(createPreapprovalMock).toHaveBeenCalledOnce();
+    const callArg = createPreapprovalMock.mock.calls[0]![0];
+    expect(callArg.payerEmail).toBe(TEST_PAYER);
+    expect(callArg.payerEmail).not.toBe(emailOwnerA);
+
+    // logger.info loguea testMode:true cuando el override aplica.
+    const infoCall = loggerInfoMock.mock.calls.find(
+      (c) =>
+        typeof c[0] === 'object' &&
+        c[0] !== null &&
+        (c[0] as Record<string, unknown>).testMode === true,
+    );
+    expect(infoCall).toBeDefined();
+  });
+
+  it('12. MP_TEST_PAYER_EMAIL unset → createPreapproval usa el email del owner', async () => {
+    vi.stubEnv('MP_TEST_PAYER_EMAIL', '');
+    vi.resetModules();
+
+    const mpId = `mp-pre-${runId}-fu2-2`;
+    createPreapprovalMock.mockResolvedValueOnce({
+      id: mpId,
+      init_point: `https://www.mercadopago.com.ar/preapproval?preapproval_id=${mpId}`,
+      status: 'pending',
+    });
+
+    await signInAs(emailOwnerA);
+    const { createSubscriptionAction } = await import('@/app/(app)/settings/billing/actions');
+    const result = await createSubscriptionAction();
+    expect(result.ok).toBe(true);
+
+    expect(createPreapprovalMock).toHaveBeenCalledOnce();
+    const callArg = createPreapprovalMock.mock.calls[0]![0];
+    expect(callArg.payerEmail).toBe(emailOwnerA);
+
+    // No logger.info con testMode:true cuando NO hay override.
+    const infoCall = loggerInfoMock.mock.calls.find(
+      (c) =>
+        typeof c[0] === 'object' &&
+        c[0] !== null &&
+        (c[0] as Record<string, unknown>).testMode === true,
+    );
+    expect(infoCall).toBeUndefined();
   });
 });
