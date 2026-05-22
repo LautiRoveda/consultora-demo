@@ -131,6 +131,13 @@ export const envSchema = z.object({
   // los rate limits NO aplican y los endpoints quedan expuestos a abuse.
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
+
+  // Bypass del trial gate (T-073). Server-only. z.enum: un typo ('ture', '1',
+  // 'TRUE') rompe al boot en lugar de quedar como 'false' silenciosamente.
+  // SIEMPRE 'false' en producción — un 'true' en prod = app sin gate.
+  // 'true' en .env.local permite a Lautaro testear features con trial vencido
+  // sin tener que crear una suscripción MP real.
+  BILLING_GATE_DISABLED: z.enum(['true', 'false']).default('false'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -139,6 +146,16 @@ if (!parsed.success) {
   console.error('❌ Variables de entorno inválidas:');
   console.error(parsed.error.issues);
   throw new Error('Invalid environment variables — ver logs arriba.');
+}
+
+// T-073 · Warn explícito si el bypass del gate queda activo en producción.
+// console.warn (no logger pino) porque al boot del módulo env, el logger aún
+// no está disponible. Sale en stdout del container → visible en EasyPanel
+// logs y en Sentry breadcrumbs.
+if (parsed.data.BILLING_GATE_DISABLED === 'true' && process.env.NODE_ENV === 'production') {
+  console.warn(
+    '⚠️  BILLING_GATE_DISABLED=true en NODE_ENV=production — el trial gate está DESHABILITADO. Setear a "false" en EasyPanel.',
+  );
 }
 
 /**

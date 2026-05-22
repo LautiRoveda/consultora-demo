@@ -230,6 +230,12 @@ export function InformeNuevoForm() {
       case 'NO_CONSULTORA':
         toast.error('Cuenta sin consultora', { description: result.message });
         return;
+      case 'BILLING_GATED':
+        toast.error('Plan expirado', {
+          description: result.message,
+          action: { label: 'Suscribirme', onClick: () => router.push('/settings/billing') },
+        });
+        return;
       case 'INTERNAL_ERROR':
         toast.error('Error inesperado', { description: result.message });
         return;

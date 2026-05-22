@@ -8,6 +8,8 @@ import { CLAUDE_MODEL } from '@/shared/ai/anthropic';
 import { getSystemPromptForTipo } from '@/shared/ai/prompts';
 import { streamAnthropicMessage } from '@/shared/ai/stream';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
+import { requireBillingAccess } from '@/shared/billing/access';
+import { getGateMessage } from '@/shared/billing/messages';
 import { logger } from '@/shared/observability/logger';
 import { getRateLimiter } from '@/shared/security/rate-limit';
 import { createClient } from '@/shared/supabase/server';
@@ -103,6 +105,21 @@ export async function POST(
   const consultora = await getCurrentConsultora(supabase, user.id);
   if (!consultora) {
     return errorResponse(403, 'NO_CONSULTORA', 'Tu cuenta no tiene una consultora vinculada.');
+  }
+
+  // 4.5. T-073 · Trial gate. Bloqueamos pre-rate-limit y pre-fetch del informe
+  // para no consumir cuota / DB cycles si la consultora no puede generar.
+  // Status 402 Payment Required.
+  const billing = await requireBillingAccess(supabase, consultora);
+  if (!billing.ok) {
+    logger.info(
+      { userId: user.id, consultoraId: consultora.id, informeId: id, reason: billing.reason },
+      'generate_stream: billing gated',
+    );
+    return Response.json(
+      { code: 'BILLING_GATED', reason: billing.reason, message: getGateMessage(billing.reason) },
+      { status: 402 },
+    );
   }
 
   // 5. Cargar informe (RLS scope).

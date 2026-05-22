@@ -91,6 +91,11 @@ jobs:
       # (docs/operations/mercadopago-setup.md futuro).
       MP_ACCESS_TOKEN: ci_placeholder_mercadopago_token_40_chars_minimum_aaaa
       MP_WEBHOOK_SECRET: ci_placeholder_mercadopago_webhook_secret_32_chars
+      # T-073: trial gate enforcement. 'false' = gate ENFORCED. CI valida que el
+      # gate funciona end-to-end (tests de billing-gate dependen de esto). En
+      # EasyPanel prod debe quedar igualmente 'false'; 'true' sólo en .env.local
+      # para dev.
+      BILLING_GATE_DISABLED: 'false'
       # T-081: rate limiting via Upstash Redis. Optional en src/env.ts.
       # NO seteamos vars en CI — los integration tests mockean el helper
       # @/shared/security/rate-limit con vi.mock, no pegan a Upstash real.

@@ -1,5 +1,6 @@
 'use server';
 
+import type { BillingGateReason } from '@/shared/billing/access';
 import type { Json } from '@/shared/supabase/types';
 import type { InformeTipo } from './schema';
 import { revalidatePath } from 'next/cache';
@@ -9,6 +10,8 @@ import { createCalendarEventAction } from '@/app/(app)/calendario/actions';
 import { DEFAULT_REMINDER_OFFSETS_BY_TYPE } from '@/app/(app)/calendario/defaults';
 import { getEventsByInformeId } from '@/app/(app)/calendario/queries';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
+import { requireBillingAccess } from '@/shared/billing/access';
+import { getGateMessage } from '@/shared/billing/messages';
 import { addRecurrenceMonths } from '@/shared/calendar/scheduling';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
@@ -43,6 +46,12 @@ export type CreateInformeResult =
   | {
       ok: false;
       code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'INTERNAL_ERROR';
+      message: string;
+    }
+  | {
+      ok: false;
+      code: 'BILLING_GATED';
+      reason: BillingGateReason;
       message: string;
     };
 
@@ -96,6 +105,21 @@ export async function createInformeAction(input: unknown): Promise<CreateInforme
       ok: false,
       code: 'NO_CONSULTORA',
       message: 'Tu cuenta no tiene una consultora vinculada.',
+    };
+  }
+
+  // T-073 · Trial gate.
+  const billing = await requireBillingAccess(supabase, consultora);
+  if (!billing.ok) {
+    logger.info(
+      { userId: user.id, consultoraId: consultora.id, reason: billing.reason },
+      'createInformeAction: billing gated',
+    );
+    return {
+      ok: false,
+      code: 'BILLING_GATED',
+      reason: billing.reason,
+      message: getGateMessage(billing.reason),
     };
   }
 

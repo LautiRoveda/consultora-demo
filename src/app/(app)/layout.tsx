@@ -3,7 +3,9 @@ import 'server-only';
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 
+import { getActiveSubscription } from '@/app/(app)/settings/billing/queries';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
+import { getBillingStatus } from '@/shared/billing/access';
 import { logger } from '@/shared/observability/logger';
 import { createSignedLogoUrl } from '@/shared/storage/logo';
 import { SIGNED_URL_TTL_UI_SEC } from '@/shared/storage/types';
@@ -59,11 +61,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     logoSignedUrl = signedUrl;
   }
 
+  // T-073 · Cálculo del trial gate. Fetch de suscripción (RLS scope) + cálculo
+  // puro. Si gated, el `<BillingGateBanner>` renderea sticky al top.
+  const suscripcion = await getActiveSubscription(supabase);
+  const billingStatus = getBillingStatus(consultora, suscripcion);
+
   return (
     <AppShell
       user={{ id: user.id, email: user.email ?? '' }}
       consultora={consultora}
       logoSignedUrl={logoSignedUrl}
+      billingStatus={billingStatus}
     >
       {children}
     </AppShell>

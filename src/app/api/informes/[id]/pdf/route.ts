@@ -5,6 +5,8 @@ import { type NextRequest } from 'next/server';
 import { getInformeById } from '@/app/(app)/informes/queries';
 import { INFORME_TIPOS } from '@/app/(app)/informes/schema';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
+import { requireBillingAccess } from '@/shared/billing/access';
+import { getGateMessage } from '@/shared/billing/messages';
 import { resolveInternalBaseUrl } from '@/shared/lib/resolve-internal-base-url';
 import { logger } from '@/shared/observability/logger';
 import { getInternalPdfRenderToken } from '@/shared/pdf/browser-pool';
@@ -70,6 +72,20 @@ export async function GET(
   const consultora = await getCurrentConsultora(supabase, user.id);
   if (!consultora) {
     return errorResponse(403, 'NO_CONSULTORA', 'Tu cuenta no tiene una consultora vinculada.');
+  }
+
+  // 3.5. T-073 · Trial gate. Pre-fetch del informe y pre-Puppeteer (operación
+  // costosa). Status 402 Payment Required.
+  const billing = await requireBillingAccess(supabase, consultora);
+  if (!billing.ok) {
+    logger.info(
+      { userId: user.id, consultoraId: consultora.id, informeId: id, reason: billing.reason },
+      'pdf_route: billing gated',
+    );
+    return Response.json(
+      { code: 'BILLING_GATED', reason: billing.reason, message: getGateMessage(billing.reason) },
+      { status: 402 },
+    );
   }
 
   // 4. Cargar informe (RLS limita al tenant).

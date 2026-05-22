@@ -367,6 +367,12 @@ export function EditorView({
       case 'TIMEOUT':
         toast.error('Tiempo agotado', { description: message });
         return;
+      case 'BILLING_GATED':
+        toast.error('Plan expirado', {
+          description: message,
+          action: { label: 'Suscribirme', onClick: () => router.push('/settings/billing') },
+        });
+        return;
       case 'INTERNAL_ERROR':
       default:
         toast.error('Error inesperado', { description: message });
