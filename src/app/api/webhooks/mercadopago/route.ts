@@ -3,6 +3,11 @@ import 'server-only';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
+import {
+  resolveConsultoraOwnerEmail,
+  sendPaymentFailed,
+  sendSubscriptionCancelled,
+} from '@/shared/billing/dunning';
 import { getAuthorizedPayment, getPreapproval } from '@/shared/mercadopago/client';
 import {
   mapAuthorizedPaymentStatus,
@@ -135,6 +140,44 @@ async function handlePreapprovalEvent(
     return;
   }
   logger.info({ preapprovalId, nextEstado, count }, 'mp webhook: suscripcion estado actualizado');
+
+  // T-074 · Dunning sync para cancelaciones. Fire-and-catch: si falla el send
+  // (Resend caido, owner sin email, etc) loguemos pero NO rompemos webhook.
+  if (nextEstado === 'cancelada') {
+    try {
+      const { data: sub } = await admin
+        .from('suscripciones')
+        .select('consultora_id, cancelar_en, mp_subscription_id')
+        .eq('mp_subscription_id', preapprovalId)
+        .maybeSingle();
+      if (!sub) {
+        logger.warn(
+          { preapprovalId },
+          'mp webhook: dunning skip — suscripcion no encontrada post-update',
+        );
+        return;
+      }
+      const { data: consultora } = await admin
+        .from('consultoras')
+        .select('id, name')
+        .eq('id', sub.consultora_id)
+        .maybeSingle();
+      if (!consultora) return;
+      const ownerInfo = await resolveConsultoraOwnerEmail(admin, sub.consultora_id);
+      if (!ownerInfo) return;
+      await sendSubscriptionCancelled(
+        admin,
+        { id: consultora.id, name: consultora.name },
+        ownerInfo.ownerEmail,
+        { mp_subscription_id: sub.mp_subscription_id, cancelar_en: sub.cancelar_en },
+      );
+    } catch (err) {
+      logger.error(
+        { err, preapprovalId },
+        'mp webhook: sendSubscriptionCancelled failed (non-fatal)',
+      );
+    }
+  }
 }
 
 async function handleAuthorizedPaymentEvent(
@@ -214,4 +257,33 @@ async function handleAuthorizedPaymentEvent(
     },
     'mp webhook: factura creada',
   );
+
+  // T-074 · Dunning sync para pagos fallidos. Fire-and-catch: nunca rompe el webhook.
+  if (estado === 'fallida') {
+    try {
+      const { data: consultora } = await admin
+        .from('consultoras')
+        .select('id, name')
+        .eq('id', sub.consultora_id)
+        .maybeSingle();
+      if (!consultora) return;
+      const ownerInfo = await resolveConsultoraOwnerEmail(admin, sub.consultora_id);
+      if (!ownerInfo) return;
+      await sendPaymentFailed(
+        admin,
+        { id: consultora.id, name: consultora.name },
+        ownerInfo.ownerEmail,
+        {
+          mp_payment_id: payment.id,
+          monto_centavos: montoCentavos,
+          razon_falla: razonFalla,
+        },
+      );
+    } catch (err) {
+      logger.error(
+        { err, mpPaymentId: payment.id, consultoraId: sub.consultora_id },
+        'mp webhook: sendPaymentFailed failed (non-fatal)',
+      );
+    }
+  }
 }
