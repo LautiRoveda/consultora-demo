@@ -33,9 +33,14 @@ export const MAX_CAPTION_LENGTH = 500;
 export const MAX_FILENAME_LENGTH = 255;
 export const MIN_FILENAME_LENGTH = 1;
 
-// Buckets. Sincronizado con migration storage_buckets.sql.
+// Buckets. Sincronizado con migrations storage_buckets.sql + t102_epp_firmas_bucket.sql.
 export const BUCKET_INFORME_ATTACHMENTS = 'informe-attachments' as const;
 export const BUCKET_CONSULTORA_LOGOS = 'consultora-logos' as const;
+export const BUCKET_EPP_FIRMAS = 'epp-firmas' as const;
+
+// T-102 · Cap PNG firma capturada en canvas. Estimado real ~30-200 KB; 1 MB
+// es margen amplio. Replicado en migration 20260524000001 file_size_limit.
+export const MAX_EPP_FIRMA_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB
 
 // Signed URL TTLs (segundos).
 // PDF_RENDER: holgura para Puppeteer setContent + page.pdf + network buffer.
