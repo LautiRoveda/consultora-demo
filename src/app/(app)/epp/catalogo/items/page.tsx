@@ -28,13 +28,10 @@ export default async function ItemsTabPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Catálogo EPP</h1>
-          <p className="text-muted-foreground text-sm">
-            Items que después vas a poder entregar a empleados con firma Res 299/11.
-          </p>
-        </div>
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-muted-foreground text-sm">
+          Items que después vas a poder entregar a empleados con firma Res 299/11.
+        </p>
         <Button asChild>
           <Link href="/epp/catalogo/items/nuevo">Nuevo item</Link>
         </Button>

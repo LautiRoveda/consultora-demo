@@ -33,12 +33,9 @@ export default async function CatalogoIndexPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Catálogo EPP</h1>
-        <p className="text-muted-foreground text-sm">
-          Configurá categorías, items y puestos antes de hacer entregas a empleados.
-        </p>
-      </div>
+      <p className="text-muted-foreground text-sm">
+        Configurá categorías, items y puestos antes de hacer entregas a empleados.
+      </p>
       {consultora.role === 'owner' ? (
         <EmptyCatalogoCTA />
       ) : (
