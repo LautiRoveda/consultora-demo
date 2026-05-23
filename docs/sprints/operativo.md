@@ -15,3 +15,11 @@ Cierra referencia circular pre-existente en `supabase/README.md` L161-167 (decí
 ## T-052-FU2 ✅ Cierre lite — runbook escenario 2 + monitor Better Stack
 
 Documentado el trigger secundario del incident T-052 (EasyPanel deploy via webhook resetea `endpoint-mode` → 502 hasta SSH manual). Decisión Lautaro 20/05/2026: NO investigar empíricamente ni automatizar stopgap por baja frecuencia esperada (1-2 deploys/sprint en esta fase, sin users productivos reales). Mitigación intermedia: monitor uptime free (Better Stack + alerta Telegram) detecta 502 > 5 min sostenidos, fix manual ~30s siguiendo runbook escenario 2. Setup operativo: `docs/operations/uptime-monitoring.md`. Decisión NO-auto-fix global (T-052-FU1) sigue vigente; el monitor sólo notifica, no toca el swarm. Reactivar T-052-FU2 full (investigación empírica + stopgap automatizado) si: >3 incidents/sprint, O 1 incident con 502 > 30 min, O llegan users productivos reales con SLA implícito.
+
+## Seguros forward / Tech debt cross-modules
+
+- **T-NOR (Normalización denormalized `consultora_id`)**: evaluar trigger BEFORE INSERT auto-populate `consultora_id` desde parent FK aplicado a TODAS las tablas con denormalización (`epp_entrega_items`, `empleados_puestos`, `informe_attachments`, `calendar_event_reminders`). **NO crear ahora** — emerge si:
+  - Bug por olvido pasar `consultora_id` en algún server action nuevo.
+  - O si la verbose del Insert pattern bloquea velocidad de desarrollo.
+
+  **Decisión**: mantener convención explícita (TypeScript la enforce). Cleanup cross-modules en bloque, no parche puntual. Convención inicial documentada en T-100 (`docs/sprints/sprint-5.md` → Convenciones cerradas).
