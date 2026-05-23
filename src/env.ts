@@ -124,6 +124,20 @@ export const envSchema = z.object({
   // panel → Webhooks → "Clave secreta". Generar con `openssl rand -hex 32`.
   MP_WEBHOOK_SECRET: z.string().min(32),
 
+  // T-071-FU2 · Solo dev/test. Si está set, createSubscriptionAction lo usa
+  // como payer_email del preapproval en vez del email real del owner. MP
+  // sandbox bloquea auto-purchase (seller email == buyer email) — esta var
+  // permite inyectar el email del TEST USER buyer creado en MP panel.
+  // NUNCA setear en prod (warn explicito post-parse).
+  //
+  // preprocess: trata "" como undefined (EasyPanel / shell a veces dejan
+  // env vars como string vacío en vez de unset; sin esto, Zod email()
+  // rechazaria "" y el boot rompe).
+  MP_TEST_PAYER_EMAIL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().email().optional(),
+  ),
+
   // Upstash Redis para rate limiting (T-081). Optional: si NO presentes, el
   // helper getRateLimiter devuelve un noop stub que siempre allows — útil para
   // dev local sin cuenta Upstash. EN PRODUCCIÓN ambas DEBEN estar seteadas en
@@ -155,6 +169,15 @@ if (!parsed.success) {
 if (parsed.data.BILLING_GATE_DISABLED === 'true' && process.env.NODE_ENV === 'production') {
   console.warn(
     '⚠️  BILLING_GATE_DISABLED=true en NODE_ENV=production — el trial gate está DESHABILITADO. Setear a "false" en EasyPanel.',
+  );
+}
+
+// T-071-FU2 · Warn si MP_TEST_PAYER_EMAIL queda set en producción. El payer
+// del preapproval NO va a ser el owner real — los cobros llegan a un test
+// buyer y no al user productivo.
+if (parsed.data.MP_TEST_PAYER_EMAIL && process.env.NODE_ENV === 'production') {
+  console.warn(
+    '⚠️  MP_TEST_PAYER_EMAIL está set en NODE_ENV=production — el payer del preapproval NO es el owner real. Unset en EasyPanel.',
   );
 }
 

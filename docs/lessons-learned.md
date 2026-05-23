@@ -210,6 +210,12 @@ Si cron procesa pero `notification_log` queda vacío + `net._http_response` mues
 
 MP API rechaza `POST /preapproval` con `auto_recurring.start_date = new Date().toISOString()` literal por `"cannot be a past date"` — cuando el request llega al server MP (~50-200ms de latencia red sa-east-1 + posible clock skew entre VPS y MP), ese ISO ya es pasado. Fix: buffer de 5min en el default de `createPreapproval` + en el caller (`src/app/(app)/settings/billing/actions.ts`) que pasa `startDate` explícito a MP Y lo persiste en `suscripciones.periodo_inicio` (ambos sites deben usar el mismo valor para coherencia DB/MP). **Regla forward**: cuando una API external valida `start_date >= now()` u otros timestamps "future", aplicar buffer ≥ 5min (no 1min — clock skew en cloud workers puede pegar 1-3min en peor caso). NO confiar en sincronía perfecta entre tu reloj y el del provider.
 
+### MP sandbox bloquea auto-purchase (seller email == buyer email)
+
+**Origen**: T-071-FU2 (22/05/2026). **Aplicable forward**: testing de integraciones con APIs de pago / marketplaces que validen relación seller↔buyer.
+
+Smoke MP real bloqueado en sandbox: click "Suscribirme" → checkout carga → botón Confirmar disabled. MP sandbox rechaza preapproval cuando el `payer_email` matchea con el seller del app (Lautaro logueado como TEST buyer + email del owner consultora = mismo dueño de la app MP). No hay error visible en logs server-side — el block es UI-level en el checkout. Fix: env var opcional `MP_TEST_PAYER_EMAIL` que `createSubscriptionAction` usa como `payer_email` cuando está set, dejando el owner real intocado para prod. Warn explicito en `env.ts` si la var queda set en `NODE_ENV=production`. **Regla forward**: para testing de integraciones MP / payment APIs / marketplaces, prever inyección de email/user buyer distinto al seller desde el inicio del schema env (no agregar como hot-fix post-bloqueo). Crear TEST USER explícito en el panel del provider y documentar su email en `.env.example` comentado.
+
 ### VPS reboot recovery (Hostinger + Docker swarm) — pattern recurrente confirmado
 
 **Origen**: T-052 mid-merge (19/05/2026 AM). **Incidents confirmados**: 2 (19/05/2026 AM + PM). **Runbook copy-paste**: [docs/operations/vps-reboot-recovery.md](operations/vps-reboot-recovery.md).
