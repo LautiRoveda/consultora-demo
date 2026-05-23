@@ -35,6 +35,34 @@ export type EntregaDetail = EntregaRow & {
   items: EntregaItemWithCatalog[];
 };
 
+export type EntregaItemForPlanilla = EntregaItemRow & {
+  item_nombre: string;
+  item_normativa: string | null;
+  categoria_nombre: string;
+};
+
+export type EntregaForPlanilla = EntregaRow & {
+  empleado: {
+    id: string;
+    nombre: string;
+    apellido: string;
+    dni: string | null;
+    cuil: string | null;
+    puesto: string | null;
+    fecha_ingreso: string | null;
+  } | null;
+  cliente: {
+    id: string;
+    razon_social: string;
+    cuit: string;
+    nombre_fantasia: string | null;
+    domicilio: string | null;
+    localidad: string | null;
+    provincia: string | null;
+  } | null;
+  items: EntregaItemForPlanilla[];
+};
+
 export type PlanificacionWithEvent = PlanificacionRow & {
   item_nombre: string | null;
   calendar_event_titulo: string | null;
@@ -156,6 +184,71 @@ export async function getEntregaById(
   const e = entrega as unknown as EntregaRow & {
     empleado: { id: string; nombre: string; apellido: string; dni: string | null } | null;
     cliente: { id: string; razon_social: string } | null;
+  };
+
+  const { empleado, cliente, ...rest } = e;
+  return {
+    ...rest,
+    empleado,
+    cliente,
+    items,
+  };
+}
+
+/**
+ * T-104 · Fetch detalle ampliado para la Planilla Res SRT 299/11.
+ *
+ * Mismo flow que `getEntregaById` pero con campos adicionales requeridos por
+ * la planilla legal: CUIT/domicilio/localidad/provincia del cliente,
+ * CUIL/puesto/fecha_ingreso del empleado, y normativa/categoría de cada item
+ * del catálogo.
+ *
+ * RLS-aware. Cross-tenant entrega → null.
+ */
+export async function getEntregaForPlanilla(
+  supabase: SupabaseClient<Database>,
+  id: string,
+): Promise<EntregaForPlanilla | null> {
+  const { data: entrega } = await supabase
+    .from('epp_entregas')
+    .select(
+      '*, ' +
+        'empleado:empleados!inner(id, nombre, apellido, dni, cuil, puesto, fecha_ingreso), ' +
+        'cliente:clientes!inner(id, razon_social, cuit, nombre_fantasia, domicilio, localidad, provincia)',
+    )
+    .eq('id', id)
+    .maybeSingle();
+
+  if (!entrega) return null;
+
+  const { data: itemsRaw } = await supabase
+    .from('epp_entrega_items')
+    .select(
+      '*, ' + 'item:epp_items!inner(nombre, normativa, categoria:epp_categorias!inner(nombre))',
+    )
+    .eq('entrega_id', id)
+    .order('created_at', { ascending: true });
+
+  const items: EntregaItemForPlanilla[] = (itemsRaw ?? []).map((row) => {
+    const r = row as unknown as EntregaItemRow & {
+      item: {
+        nombre: string;
+        normativa: string | null;
+        categoria: { nombre: string } | null;
+      } | null;
+    };
+    const { item, ...rest } = r;
+    return {
+      ...rest,
+      item_nombre: item?.nombre ?? '—',
+      item_normativa: item?.normativa ?? null,
+      categoria_nombre: item?.categoria?.nombre ?? '—',
+    };
+  });
+
+  const e = entrega as unknown as EntregaRow & {
+    empleado: EntregaForPlanilla['empleado'];
+    cliente: EntregaForPlanilla['cliente'];
   };
 
   const { empleado, cliente, ...rest } = e;

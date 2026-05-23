@@ -91,3 +91,34 @@ export function buildPdfFilename(args: BuildPdfFilenameArgs): string {
 export function labelForTipo(tipo: InformeTipo): string {
   return INFORME_TIPO_LABELS[tipo] ?? tipo;
 }
+
+export type BuildEppPlanillaFilenameArgs = {
+  apellido: string;
+  fechaEntrega: string | Date;
+};
+
+/**
+ * T-104 · Filename canonico para la planilla EPP Res SRT 299/11.
+ *
+ * Formato: `planilla-299-11-<slug-apellido>-<YYYY-MM-DD>.pdf`.
+ * Ejemplo: `planilla-299-11-gonzalez-2026-05-23.pdf`.
+ *
+ * Notas:
+ *  - Reusa `slugifyTitulo` para normalizar el apellido (acentos, ñ, símbolos).
+ *  - Si el apellido es vacío/símbolos, `slugifyTitulo` devuelve `'informe'`
+ *    como fallback. Para la planilla preferimos `'empleado'` para no confundir
+ *    con el output de informes.
+ *  - Fecha UTC para evitar off-by-one por timezone del dispositivo.
+ */
+export function buildEppPlanillaFilename(args: BuildEppPlanillaFilenameArgs): string {
+  const date =
+    typeof args.fechaEntrega === 'string' ? new Date(args.fechaEntrega) : args.fechaEntrega;
+  const yyyy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(date.getUTCDate()).padStart(2, '0');
+  const fecha = `${yyyy}-${mm}-${dd}`;
+
+  let slug = slugifyTitulo(args.apellido);
+  if (slug === 'informe') slug = 'empleado';
+  return `planilla-299-11-${slug}-${fecha}.pdf`;
+}
