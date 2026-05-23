@@ -28,13 +28,10 @@ export default async function CategoriasTabPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Catálogo EPP</h1>
-          <p className="text-muted-foreground text-sm">
-            Agrupaciones para organizar tu padrón de items (protección cabeza, manos, pies…).
-          </p>
-        </div>
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-muted-foreground text-sm">
+          Agrupaciones para organizar tu padrón de items (protección cabeza, manos, pies…).
+        </p>
         <Button asChild>
           <Link href="/epp/catalogo/categorias/nuevo">Nueva categoría</Link>
         </Button>

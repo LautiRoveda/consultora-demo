@@ -37,13 +37,10 @@ export default async function EntregasPage({
 
   return (
     <div className="max-w-5xl space-y-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Entregas EPP</h1>
-          <p className="text-sm text-muted-foreground">
-            Registro firmado de entregas (Res SRT 299/11). Cada entrega es inmutable post-firma.
-          </p>
-        </div>
+      <header className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
+          Registro firmado de entregas (Res SRT 299/11). Cada entrega es inmutable post-firma.
+        </p>
         {consultora.role === 'owner' && (
           <Button asChild>
             <Link href="/epp/entregas/nueva">Nueva entrega</Link>
