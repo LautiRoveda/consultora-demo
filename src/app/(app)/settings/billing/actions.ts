@@ -70,7 +70,10 @@ export type CancelSubscriptionResult =
     };
 
 export type CancelPendingSubscriptionResult =
-  | { ok: true; suscripcionId: string }
+  // T-071-FU4: mpCancelConfirmed=false cuando MP no respondió OK al cancel
+  // (5xx, 401, network). La fila local se borra IGUAL; la UI muestra warning
+  // explicativo para que el user verifique en MP por las dudas.
+  | { ok: true; suscripcionId: string; mpCancelConfirmed: boolean }
   | {
       ok: false;
       code: 'INVALID_INPUT';
@@ -85,7 +88,6 @@ export type CancelPendingSubscriptionResult =
         | 'FORBIDDEN_NOT_OWNER'
         | 'NOT_FOUND'
         | 'NOT_PENDING'
-        | 'MP_API_ERROR'
         | 'INTERNAL_ERROR';
       message: string;
     };
@@ -103,32 +105,45 @@ function addOneMonthIso(fromIso: string): string {
 const PENDING_ORPHAN_THRESHOLD_MS = 60 * 60 * 1000; // 1h
 
 /**
- * Best-effort cancelPreapproval que ignora 404/410 (sub ya expirada o
- * inexistente en MP — cualquiera de los 2 es OK para nuestro cleanup).
+ * Best-effort cancelPreapproval. NUNCA throws — devuelve flag `confirmed`
+ * para que el caller decida cómo proceder. T-071-FU4: anti-atascamiento del
+ * user — `cancelPendingSubscriptionAction` SIEMPRE borra la fila local,
+ * incluso si MP no responde OK, porque la sub estaba en
+ * `pendiente_autorizacion` (nunca autorizó cobros).
+ *
+ * - 200/204 OK → confirmed:true.
+ * - 404/410 → confirmed:true (ya expirado/inexistente en MP, semánticamente OK).
+ * - Otro MercadoPagoError (5xx, 401, etc) → confirmed:false con reason `MP_<status>`.
+ * - Network/timeout/unknown → confirmed:false con reason `NETWORK_ERROR`.
  */
 async function cancelPreapprovalBestEffort(
   mpSubscriptionId: string,
   logContext: Record<string, unknown>,
-): Promise<{ ok: true } | { ok: false; status?: number; message: string }> {
+): Promise<{ confirmed: true } | { confirmed: false; reason: string }> {
   try {
     await cancelPreapproval(mpSubscriptionId);
-    return { ok: true };
+    return { confirmed: true };
   } catch (err) {
     if (err instanceof MercadoPagoError) {
       if (err.status === 404 || err.status === 410) {
         logger.info(
           { ...logContext, mpStatus: err.status },
-          'cancelPreapprovalBestEffort: MP devolvio 404/410 (ya expirado), continuamos',
+          'cancelPreapprovalBestEffort: MP 404/410 (ya expirado), tratamos como confirmed',
         );
-        return { ok: true };
+        return { confirmed: true };
       }
       logger.warn(
         { ...logContext, err, status: err.status, body: err.body },
-        'cancelPreapprovalBestEffort: MP error no recoverable',
+        'cancelPreapprovalBestEffort: MP error no recoverable, marcamos unconfirmed',
       );
-      return { ok: false, status: err.status, message: err.message };
+      return { confirmed: false, reason: `MP_${err.status}` };
     }
-    throw err;
+    // Network/timeout/unknown — log + unconfirmed (NO throw, anti-atascamiento).
+    logger.warn(
+      { ...logContext, err },
+      'cancelPreapprovalBestEffort: error no-MP (network/timeout), marcamos unconfirmed',
+    );
+    return { confirmed: false, reason: 'NETWORK_ERROR' };
   }
 }
 
@@ -527,8 +542,11 @@ export async function cancelPendingSubscriptionAction(
     };
   }
 
-  // Best-effort cancel MP (404/410 OK = ya expirado). Si MP rechaza con otro
-  // status, fallamos para no dejar la sub orphan a medio cancelar.
+  // T-071-FU4: cancel MP best-effort SIN bloquear el DELETE local. La sub
+  // está pendiente_autorizacion (nunca cobró) — preservar fila local cuando
+  // MP no responde solo atasca al user sin upside. mpCancelConfirmed=false
+  // dispara warning toast en la UI para que verifique en MP por las dudas.
+  let mpCancelConfirmed = true;
   if (sub.mp_subscription_id) {
     const cancelResult = await cancelPreapprovalBestEffort(sub.mp_subscription_id, {
       userId: user.id,
@@ -536,13 +554,7 @@ export async function cancelPendingSubscriptionAction(
       suscripcionId: sub.id,
       reason: 'user_cancel_pending',
     });
-    if (!cancelResult.ok) {
-      return {
-        ok: false,
-        code: 'MP_API_ERROR',
-        message: 'No pudimos cancelar en Mercado Pago. Reintentá en unos minutos.',
-      };
-    }
+    mpCancelConfirmed = cancelResult.confirmed;
   }
 
   // DELETE con guard race vs webhook (si el authorized llegó entre el SELECT
@@ -577,9 +589,9 @@ export async function cancelPendingSubscriptionAction(
 
   revalidatePath('/settings/billing');
   logger.info(
-    { userId: user.id, consultoraId: consultora.id, suscripcionId: sub.id },
+    { userId: user.id, consultoraId: consultora.id, suscripcionId: sub.id, mpCancelConfirmed },
     'cancelPendingSubscriptionAction: pendiente cancelado + borrado',
   );
 
-  return { ok: true, suscripcionId: sub.id };
+  return { ok: true, suscripcionId: sub.id, mpCancelConfirmed };
 }
