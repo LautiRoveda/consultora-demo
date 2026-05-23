@@ -46,6 +46,7 @@ function makeSub(overrides: Partial<SuscripcionRow> = {}): SuscripcionRow {
     plan_codigo: 'pro_mensual',
     estado: 'activa',
     mp_subscription_id: 'mp-test',
+    init_point: null,
     periodo_inicio: YESTERDAY,
     periodo_fin: TOMORROW,
     cancelar_en: null,

@@ -28,6 +28,7 @@ vi.mock('@/app/(app)/settings/billing/actions', () => ({
     mpSubscriptionId: 'mp-1',
   }),
   cancelSubscriptionAction: vi.fn().mockResolvedValue({ ok: true, suscripcionId: 'sub-1' }),
+  cancelPendingSubscriptionAction: vi.fn().mockResolvedValue({ ok: true, suscripcionId: 'sub-1' }),
 }));
 
 vi.mock('sonner', () => ({
@@ -63,6 +64,7 @@ function makeSub(overrides: Partial<SuscripcionRow> = {}): SuscripcionRow {
     plan_codigo: 'pro_mensual',
     estado: 'activa',
     mp_subscription_id: 'mp-pre-1',
+    init_point: null,
     periodo_inicio: '2026-05-01T00:00:00.000Z',
     periodo_fin: '2026-06-01T00:00:00.000Z',
     cancelar_en: null,
@@ -194,5 +196,36 @@ describe('BillingView', () => {
     const next = screen.getByRole('link', { name: /Siguientes/i });
     expect(prev).toHaveAttribute('href', '/settings/billing?page=1');
     expect(next).toHaveAttribute('href', '/settings/billing?page=3');
+  });
+
+  // ============ T-071-FU3 · recovery flow pendiente_autorizacion ============
+
+  it('pendiente_autorizacion con init_point → muestra link "Continuar autorización" + CancelPendingButton', () => {
+    const initPoint = 'https://www.mercadopago.com.ar/preapproval?preapproval_id=mp-pre-fu3';
+    const sub = makeSub({ estado: 'pendiente_autorizacion', init_point: initPoint });
+    render(<BillingView {...baseProps} suscripcion={sub} />);
+
+    expect(screen.getByText('Procesando suscripción')).toBeInTheDocument();
+    expect(screen.getByText('Pendiente')).toBeInTheDocument();
+
+    // Button asChild propaga props al child anchor — data-testid + href quedan en el <a>.
+    const continueLink = screen.getByTestId('continue-authorization-link');
+    expect(continueLink).toBeInTheDocument();
+    expect(continueLink).toHaveAttribute('href', initPoint);
+    expect(continueLink).toHaveAttribute('target', '_blank');
+
+    expect(screen.getByTestId('cancel-pending-button')).toBeInTheDocument();
+    // NO debe mostrar el SubscribeButton (fallback solo si init_point null).
+    expect(screen.queryByTestId('subscribe-button')).not.toBeInTheDocument();
+  });
+
+  it('pendiente_autorizacion sin init_point → fallback SubscribeButton + CancelPendingButton', () => {
+    const sub = makeSub({ estado: 'pendiente_autorizacion', init_point: null });
+    render(<BillingView {...baseProps} suscripcion={sub} />);
+
+    expect(screen.getByText('Procesando suscripción')).toBeInTheDocument();
+    expect(screen.queryByTestId('continue-authorization-link')).not.toBeInTheDocument();
+    expect(screen.getByTestId('subscribe-button')).toBeInTheDocument();
+    expect(screen.getByTestId('cancel-pending-button')).toBeInTheDocument();
   });
 });

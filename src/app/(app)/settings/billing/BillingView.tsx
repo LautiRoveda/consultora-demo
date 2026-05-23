@@ -14,6 +14,7 @@ import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 
+import { CancelPendingButton } from './CancelPendingButton';
 import { CancelSubscriptionButton } from './CancelSubscriptionButton';
 import { SubscribeButton } from './SubscribeButton';
 
@@ -177,13 +178,25 @@ function PlanCurrentCard({
         >
           <p className="text-muted-foreground text-sm">
             Te redirigimos a Mercado Pago para autorizar el cobro recurrente. Si cerraste la pestaña
-            por error, podés reiniciar el flow.
+            por error, continuá donde quedaste o cancelá y empezá de nuevo.
           </p>
-          {isOwner && (
-            <div>
-              <SubscribeButton label="Reintentar autorización" />
-            </div>
-          )}
+          {isOwner &&
+            (suscripcion.init_point ? (
+              <div className="flex flex-wrap gap-2">
+                <Button asChild data-testid="continue-authorization-link">
+                  <a href={suscripcion.init_point} target="_blank" rel="noreferrer noopener">
+                    Continuar autorización en Mercado Pago
+                  </a>
+                </Button>
+                <CancelPendingButton suscripcionId={suscripcion.id} />
+              </div>
+            ) : (
+              // Fallback defensivo: sub pre-FU3 sin init_point persistido.
+              <div className="flex flex-wrap gap-2">
+                <SubscribeButton label="Reintentar autorización" />
+                <CancelPendingButton suscripcionId={suscripcion.id} />
+              </div>
+            ))}
         </SettingsCard>
       );
 

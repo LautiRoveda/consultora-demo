@@ -32,6 +32,13 @@ export function SubscribeButton({ label = 'Suscribirme' }: { label?: string }) {
         return;
       }
       switch (result.code) {
+        case 'DUPLICATE_SUBSCRIPTION_PENDING':
+          // T-071-FU3: ya hay un preapproval pendiente vivo (<1h) — redirigimos
+          // al checkout existente en vez de re-crear. Hard navigation porque
+          // initPoint es URL externa MP.
+          toast.info('Continuá tu autorización pendiente en Mercado Pago...');
+          window.location.href = result.initPoint;
+          return;
         case 'DUPLICATE_SUBSCRIPTION':
           toast.warning('Suscripción ya existente', { description: result.message });
           router.refresh();

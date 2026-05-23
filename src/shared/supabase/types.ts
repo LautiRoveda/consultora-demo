@@ -815,6 +815,7 @@ export type Database = {
           created_at: string;
           estado: Database['public']['Enums']['estado_suscripcion'];
           id: string;
+          init_point: string | null;
           mp_subscription_id: string | null;
           periodo_fin: string;
           periodo_inicio: string;
@@ -828,6 +829,7 @@ export type Database = {
           created_at?: string;
           estado?: Database['public']['Enums']['estado_suscripcion'];
           id?: string;
+          init_point?: string | null;
           mp_subscription_id?: string | null;
           periodo_fin: string;
           periodo_inicio: string;
@@ -841,6 +843,7 @@ export type Database = {
           created_at?: string;
           estado?: Database['public']['Enums']['estado_suscripcion'];
           id?: string;
+          init_point?: string | null;
           mp_subscription_id?: string | null;
           periodo_fin?: string;
           periodo_inicio?: string;
