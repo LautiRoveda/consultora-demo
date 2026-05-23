@@ -80,3 +80,42 @@ Primer ticket del sprint — schema-only, sienta el patrón para T-101 (CRUD + U
 - **T-104** Planilla Res SRT 299/11 PDF: template + Puppeteer + firma digital embebida + bucket `epp-firmas` storage. ~4-5d.
 - **T-105** Calendario auto-EPP: validar que `tipo='epp_entrega'` se renderiza correctamente en `/calendario` con `metadata.empleado_id` + `metadata.epp_item_id` linkeados. ~2-3d.
 - **T-106** Padrón + IA sugerencia: query "qué EPP recomiendo a empleado X con puesto Y" → Claude Sonnet 4.6 con context de `puestos.riesgos_asociados` + catálogo + entregas previas + normativa AR. ~3-4d.
+
+## Convenciones cerradas
+
+### Denormalización de `consultora_id` en tablas hijas
+
+- `epp_entrega_items.consultora_id` NOT NULL.
+- `empleados_puestos.consultora_id` NOT NULL.
+- **Razón**: RLS fast-path sin JOIN al parent. Trade-off precedente en `informe_attachments` (T-024) y `calendar_event_reminders` (T-027).
+
+**Regla forward (no negociable)**: el server action que invoca el INSERT DEBE pasar `consultora_id` explícito copiándolo del parent FK previo al INSERT. TypeScript lo enforce como required en el Insert type post-`pnpm db:types`.
+
+**Patrón canónico** (ejemplo para T-102 `createEntregaAction`):
+
+```ts
+const consultora = await getCurrentConsultora(supabase, user.id);
+// auth check + ownership
+
+const { data: entrega } = await supabase.from('epp_entregas').insert({
+  consultora_id: consultora.id,
+  empleado_id,
+  cliente_id,
+  fecha_entrega: new Date().toISOString(),
+}).select('id').single();
+
+// CADA item incluye consultora_id explícito
+for (const item of items) {
+  await supabase.from('epp_entrega_items').insert({
+    entrega_id: entrega.id,
+    consultora_id: consultora.id, // ← OBLIGATORIO, copiado del parent
+    item_id: item.id,
+    cantidad: item.cantidad,
+    // ...
+  });
+}
+```
+
+**Test integration defensivo** que los tickets T-101+ DEBEN incluir:
+
+- INSERT con `consultora_id` distinto al parent → RLS rechaza (cross-tenant defense, lesson T-050 FK constraints NO respetan RLS).
