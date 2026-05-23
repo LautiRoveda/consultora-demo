@@ -28,7 +28,9 @@ vi.mock('@/app/(app)/settings/billing/actions', () => ({
     mpSubscriptionId: 'mp-1',
   }),
   cancelSubscriptionAction: vi.fn().mockResolvedValue({ ok: true, suscripcionId: 'sub-1' }),
-  cancelPendingSubscriptionAction: vi.fn().mockResolvedValue({ ok: true, suscripcionId: 'sub-1' }),
+  cancelPendingSubscriptionAction: vi
+    .fn()
+    .mockResolvedValue({ ok: true, suscripcionId: 'sub-1', mpCancelConfirmed: true }),
 }));
 
 vi.mock('sonner', () => ({

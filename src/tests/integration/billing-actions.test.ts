@@ -661,3 +661,149 @@ describe('T-071-FU3 · recovery flow pendiente_autorizacion', () => {
     expect(subsAfter).toHaveLength(0);
   });
 });
+
+/**
+ * T-071-FU4 · cancelPending resilience: la fila local SIEMPRE se borra para
+ * no atascar al user. Flag `mpCancelConfirmed` diferencia los casos donde MP
+ * respondió OK vs casos donde no pudimos confirmar (5xx, 401, network).
+ */
+describe('T-071-FU4 · cancelPending resilience (always deletes)', () => {
+  async function insertPendingSub(suffix: string): Promise<{ id: string; mpId: string }> {
+    const mpId = `mp-pre-${runId}-fu4-${suffix}`;
+    const { data: sub, error } = await admin
+      .from('suscripciones')
+      .insert({
+        consultora_id: cAId,
+        plan_codigo: 'pro_mensual',
+        estado: 'pendiente_autorizacion',
+        mp_subscription_id: mpId,
+        init_point: `https://example.com/${mpId}`,
+        periodo_inicio: new Date().toISOString(),
+        periodo_fin: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      })
+      .select('id')
+      .single();
+    if (error) throw error;
+    return { id: sub.id, mpId };
+  }
+
+  it('18. MP 200 OK → ok=true, mpCancelConfirmed=true, fila borrada', async () => {
+    const { id, mpId } = await insertPendingSub('18');
+    cancelPreapprovalMock.mockResolvedValueOnce(undefined);
+
+    await signInAs(emailOwnerA);
+    const { cancelPendingSubscriptionAction } =
+      await import('@/app/(app)/settings/billing/actions');
+    const result = await cancelPendingSubscriptionAction(id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.mpCancelConfirmed).toBe(true);
+    expect(cancelPreapprovalMock).toHaveBeenCalledWith(mpId);
+
+    const { data: subsAfter } = await admin.from('suscripciones').select('id').eq('id', id);
+    expect(subsAfter).toHaveLength(0);
+  });
+
+  it('19. MP 404 → ok=true, mpCancelConfirmed=true, fila borrada', async () => {
+    const { MercadoPagoError } = await import('@/shared/mercadopago/client');
+    const { id } = await insertPendingSub('19');
+    cancelPreapprovalMock.mockRejectedValueOnce(
+      new MercadoPagoError('Not found', 404, { error: 'not_found' }),
+    );
+
+    await signInAs(emailOwnerA);
+    const { cancelPendingSubscriptionAction } =
+      await import('@/app/(app)/settings/billing/actions');
+    const result = await cancelPendingSubscriptionAction(id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.mpCancelConfirmed).toBe(true);
+
+    const { data: subsAfter } = await admin.from('suscripciones').select('id').eq('id', id);
+    expect(subsAfter).toHaveLength(0);
+  });
+
+  it('20. MP 401 (token expirado) → ok=true, mpCancelConfirmed=false, fila borrada', async () => {
+    const { MercadoPagoError } = await import('@/shared/mercadopago/client');
+    const { id } = await insertPendingSub('20');
+    cancelPreapprovalMock.mockRejectedValueOnce(
+      new MercadoPagoError('Unauthorized', 401, { error: 'invalid_token' }),
+    );
+
+    await signInAs(emailOwnerA);
+    const { cancelPendingSubscriptionAction } =
+      await import('@/app/(app)/settings/billing/actions');
+    const result = await cancelPendingSubscriptionAction(id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.mpCancelConfirmed).toBe(false);
+
+    // Fila borrada IGUAL — anti-atascamiento.
+    const { data: subsAfter } = await admin.from('suscripciones').select('id').eq('id', id);
+    expect(subsAfter).toHaveLength(0);
+  });
+
+  it('21. MP 500 → ok=true, mpCancelConfirmed=false, fila borrada', async () => {
+    const { MercadoPagoError } = await import('@/shared/mercadopago/client');
+    const { id } = await insertPendingSub('21');
+    cancelPreapprovalMock.mockRejectedValueOnce(
+      new MercadoPagoError('Server error', 500, { error: 'internal_error' }),
+    );
+
+    await signInAs(emailOwnerA);
+    const { cancelPendingSubscriptionAction } =
+      await import('@/app/(app)/settings/billing/actions');
+    const result = await cancelPendingSubscriptionAction(id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.mpCancelConfirmed).toBe(false);
+
+    const { data: subsAfter } = await admin.from('suscripciones').select('id').eq('id', id);
+    expect(subsAfter).toHaveLength(0);
+  });
+
+  it('22. MP timeout (non-MP error) → ok=true, mpCancelConfirmed=false, fila borrada', async () => {
+    const { id } = await insertPendingSub('22');
+    cancelPreapprovalMock.mockRejectedValueOnce(new Error('ETIMEDOUT'));
+
+    await signInAs(emailOwnerA);
+    const { cancelPendingSubscriptionAction } =
+      await import('@/app/(app)/settings/billing/actions');
+    const result = await cancelPendingSubscriptionAction(id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.mpCancelConfirmed).toBe(false);
+
+    const { data: subsAfter } = await admin.from('suscripciones').select('id').eq('id', id);
+    expect(subsAfter).toHaveLength(0);
+  });
+
+  it('23. sub con mp_subscription_id=null → no llama MP, mpCancelConfirmed=true, fila borrada', async () => {
+    const { data: sub, error } = await admin
+      .from('suscripciones')
+      .insert({
+        consultora_id: cAId,
+        plan_codigo: 'pro_mensual',
+        estado: 'pendiente_autorizacion',
+        mp_subscription_id: null,
+        init_point: null,
+        periodo_inicio: new Date().toISOString(),
+        periodo_fin: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      })
+      .select('id')
+      .single();
+    if (error) throw error;
+
+    await signInAs(emailOwnerA);
+    const { cancelPendingSubscriptionAction } =
+      await import('@/app/(app)/settings/billing/actions');
+    const result = await cancelPendingSubscriptionAction(sub.id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.mpCancelConfirmed).toBe(true);
+    expect(cancelPreapprovalMock).not.toHaveBeenCalled();
+
+    const { data: subsAfter } = await admin.from('suscripciones').select('id').eq('id', sub.id);
+    expect(subsAfter).toHaveLength(0);
+  });
+});

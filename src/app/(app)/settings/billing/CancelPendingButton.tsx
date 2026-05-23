@@ -37,9 +37,21 @@ export function CancelPendingButton({ suscripcionId }: { suscripcionId: string }
     startTransition(async () => {
       const result = await cancelPendingSubscriptionAction(suscripcionId);
       if (result.ok) {
-        toast.success('Autorización cancelada', {
-          description: 'Podés iniciar una nueva suscripción cuando quieras.',
-        });
+        // T-071-FU4: bifurcamos por mpCancelConfirmed. confirmed=false significa
+        // que MP no respondió OK al cancel (5xx, 401, network) pero la fila
+        // local fue borrada igual para no atascar al user. Warning explicativo
+        // con duración extendida.
+        if (result.mpCancelConfirmed) {
+          toast.success('Autorización cancelada', {
+            description: 'Podés iniciar una nueva suscripción cuando quieras.',
+          });
+        } else {
+          toast.warning('Cancelada localmente', {
+            description:
+              'No pudimos confirmar la cancelación con Mercado Pago. Por las dudas, verificá en tu cuenta MP. Podés iniciar una nueva suscripción ahora.',
+            duration: 8000,
+          });
+        }
         setOpen(false);
         router.refresh();
         return;
@@ -58,7 +70,6 @@ export function CancelPendingButton({ suscripcionId }: { suscripcionId: string }
         case 'NOT_FOUND':
         case 'INVALID_INPUT':
         case 'NO_CONSULTORA':
-        case 'MP_API_ERROR':
         case 'INTERNAL_ERROR':
           toast.error('No pudimos cancelar', { description: result.message });
           return;
