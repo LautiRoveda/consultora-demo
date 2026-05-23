@@ -477,6 +477,365 @@ export type Database = {
           },
         ];
       };
+      empleados_puestos: {
+        Row: {
+          asignado_at: string;
+          asignado_por: string | null;
+          consultora_id: string;
+          empleado_id: string;
+          puesto_id: string;
+        };
+        Insert: {
+          asignado_at?: string;
+          asignado_por?: string | null;
+          consultora_id: string;
+          empleado_id: string;
+          puesto_id: string;
+        };
+        Update: {
+          asignado_at?: string;
+          asignado_por?: string | null;
+          consultora_id?: string;
+          empleado_id?: string;
+          puesto_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'empleados_puestos_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'empleados_puestos_empleado_id_fkey';
+            columns: ['empleado_id'];
+            isOneToOne: false;
+            referencedRelation: 'empleados';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'empleados_puestos_puesto_id_fkey';
+            columns: ['puesto_id'];
+            isOneToOne: false;
+            referencedRelation: 'puestos';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      epp_categorias: {
+        Row: {
+          archived_at: string | null;
+          consultora_id: string;
+          created_at: string;
+          created_by: string | null;
+          descripcion: string | null;
+          id: string;
+          nombre: string;
+          updated_at: string;
+        };
+        Insert: {
+          archived_at?: string | null;
+          consultora_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          descripcion?: string | null;
+          id?: string;
+          nombre: string;
+          updated_at?: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          consultora_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          descripcion?: string | null;
+          id?: string;
+          nombre?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'epp_categorias_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      epp_entrega_items: {
+        Row: {
+          cantidad: number;
+          consultora_id: string;
+          created_at: string;
+          entrega_id: string;
+          id: string;
+          item_id: string;
+          marca_entregada: string | null;
+          modelo_entregado: string | null;
+          motivo_entrega: Database['public']['Enums']['motivo_entrega_epp'];
+          numero_serie: string | null;
+          vida_util_meses_override: number | null;
+        };
+        Insert: {
+          cantidad?: number;
+          consultora_id: string;
+          created_at?: string;
+          entrega_id: string;
+          id?: string;
+          item_id: string;
+          marca_entregada?: string | null;
+          modelo_entregado?: string | null;
+          motivo_entrega?: Database['public']['Enums']['motivo_entrega_epp'];
+          numero_serie?: string | null;
+          vida_util_meses_override?: number | null;
+        };
+        Update: {
+          cantidad?: number;
+          consultora_id?: string;
+          created_at?: string;
+          entrega_id?: string;
+          id?: string;
+          item_id?: string;
+          marca_entregada?: string | null;
+          modelo_entregado?: string | null;
+          motivo_entrega?: Database['public']['Enums']['motivo_entrega_epp'];
+          numero_serie?: string | null;
+          vida_util_meses_override?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'epp_entrega_items_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'epp_entrega_items_entrega_id_fkey';
+            columns: ['entrega_id'];
+            isOneToOne: false;
+            referencedRelation: 'epp_entregas';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'epp_entrega_items_item_id_fkey';
+            columns: ['item_id'];
+            isOneToOne: false;
+            referencedRelation: 'epp_items';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      epp_entregas: {
+        Row: {
+          cliente_id: string;
+          consultora_id: string;
+          created_at: string;
+          created_by: string | null;
+          empleado_id: string;
+          fecha_entrega: string;
+          firma_storage_path: string | null;
+          firmado_at: string | null;
+          id: string;
+          observaciones: string | null;
+        };
+        Insert: {
+          cliente_id: string;
+          consultora_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          empleado_id: string;
+          fecha_entrega?: string;
+          firma_storage_path?: string | null;
+          firmado_at?: string | null;
+          id?: string;
+          observaciones?: string | null;
+        };
+        Update: {
+          cliente_id?: string;
+          consultora_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          empleado_id?: string;
+          fecha_entrega?: string;
+          firma_storage_path?: string | null;
+          firmado_at?: string | null;
+          id?: string;
+          observaciones?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'epp_entregas_cliente_id_fkey';
+            columns: ['cliente_id'];
+            isOneToOne: false;
+            referencedRelation: 'clientes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'epp_entregas_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'epp_entregas_empleado_id_fkey';
+            columns: ['empleado_id'];
+            isOneToOne: false;
+            referencedRelation: 'empleados';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      epp_items: {
+        Row: {
+          archived_at: string | null;
+          categoria_id: string;
+          consultora_id: string;
+          created_at: string;
+          created_by: string | null;
+          es_descartable: boolean;
+          id: string;
+          marca_default: string | null;
+          modelo_default: string | null;
+          nombre: string;
+          normativa: string | null;
+          notas: string | null;
+          requiere_numero_serie: boolean;
+          updated_at: string;
+          vida_util_meses: number;
+        };
+        Insert: {
+          archived_at?: string | null;
+          categoria_id: string;
+          consultora_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          es_descartable?: boolean;
+          id?: string;
+          marca_default?: string | null;
+          modelo_default?: string | null;
+          nombre: string;
+          normativa?: string | null;
+          notas?: string | null;
+          requiere_numero_serie?: boolean;
+          updated_at?: string;
+          vida_util_meses?: number;
+        };
+        Update: {
+          archived_at?: string | null;
+          categoria_id?: string;
+          consultora_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          es_descartable?: boolean;
+          id?: string;
+          marca_default?: string | null;
+          modelo_default?: string | null;
+          nombre?: string;
+          normativa?: string | null;
+          notas?: string | null;
+          requiere_numero_serie?: boolean;
+          updated_at?: string;
+          vida_util_meses?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'epp_items_categoria_id_fkey';
+            columns: ['categoria_id'];
+            isOneToOne: false;
+            referencedRelation: 'epp_categorias';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'epp_items_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      epp_planificaciones: {
+        Row: {
+          calendar_event_id: string | null;
+          consultora_id: string;
+          created_at: string;
+          empleado_id: string;
+          estado: Database['public']['Enums']['estado_planificacion_epp'];
+          fecha_proxima_entrega: string;
+          frecuencia_meses: number;
+          generado_de_entrega_id: string;
+          id: string;
+          item_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          calendar_event_id?: string | null;
+          consultora_id: string;
+          created_at?: string;
+          empleado_id: string;
+          estado?: Database['public']['Enums']['estado_planificacion_epp'];
+          fecha_proxima_entrega: string;
+          frecuencia_meses: number;
+          generado_de_entrega_id: string;
+          id?: string;
+          item_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          calendar_event_id?: string | null;
+          consultora_id?: string;
+          created_at?: string;
+          empleado_id?: string;
+          estado?: Database['public']['Enums']['estado_planificacion_epp'];
+          fecha_proxima_entrega?: string;
+          frecuencia_meses?: number;
+          generado_de_entrega_id?: string;
+          id?: string;
+          item_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'epp_planificaciones_calendar_event_id_fkey';
+            columns: ['calendar_event_id'];
+            isOneToOne: false;
+            referencedRelation: 'calendar_events';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'epp_planificaciones_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'epp_planificaciones_empleado_id_fkey';
+            columns: ['empleado_id'];
+            isOneToOne: false;
+            referencedRelation: 'empleados';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'epp_planificaciones_generado_de_entrega_id_fkey';
+            columns: ['generado_de_entrega_id'];
+            isOneToOne: false;
+            referencedRelation: 'epp_entregas';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'epp_planificaciones_item_id_fkey';
+            columns: ['item_id'];
+            isOneToOne: false;
+            referencedRelation: 'epp_items';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       facturas: {
         Row: {
           consultora_id: string;
@@ -774,6 +1133,50 @@ export type Database = {
           },
         ];
       };
+      puestos: {
+        Row: {
+          archived_at: string | null;
+          consultora_id: string;
+          created_at: string;
+          created_by: string | null;
+          descripcion: string | null;
+          id: string;
+          nombre: string;
+          riesgos_asociados: string[] | null;
+          updated_at: string;
+        };
+        Insert: {
+          archived_at?: string | null;
+          consultora_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          descripcion?: string | null;
+          id?: string;
+          nombre: string;
+          riesgos_asociados?: string[] | null;
+          updated_at?: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          consultora_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          descripcion?: string | null;
+          id?: string;
+          nombre?: string;
+          riesgos_asociados?: string[] | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'puestos_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       push_subscriptions: {
         Row: {
           auth_key: string;
@@ -916,6 +1319,10 @@ export type Database = {
       };
       current_consultora_id: { Args: never; Returns: string };
       custom_access_token_hook: { Args: { event: Json }; Returns: Json };
+      gen_epp_planificaciones_y_calendar_for: {
+        Args: { p_entrega_id: string };
+        Returns: undefined;
+      };
       is_member_of_consultora: {
         Args: { p_consultora_id: string };
         Returns: boolean;
@@ -942,6 +1349,7 @@ export type Database = {
     };
     Enums: {
       estado_factura: 'pendiente' | 'pagada' | 'fallida' | 'reembolsada';
+      estado_planificacion_epp: 'activa' | 'cumplida' | 'cancelada';
       estado_suscripcion:
         | 'trial'
         | 'pendiente_autorizacion'
@@ -949,6 +1357,12 @@ export type Database = {
         | 'morosa'
         | 'cancelada'
         | 'expirada';
+      motivo_entrega_epp:
+        | 'inicial'
+        | 'renovacion'
+        | 'reposicion_rotura'
+        | 'reposicion_perdida'
+        | 'rotacion';
       plan_codigo: 'pro_mensual';
     };
     CompositeTypes: {
@@ -1079,6 +1493,7 @@ export const Constants = {
   public: {
     Enums: {
       estado_factura: ['pendiente', 'pagada', 'fallida', 'reembolsada'],
+      estado_planificacion_epp: ['activa', 'cumplida', 'cancelada'],
       estado_suscripcion: [
         'trial',
         'pendiente_autorizacion',
@@ -1086,6 +1501,13 @@ export const Constants = {
         'morosa',
         'cancelada',
         'expirada',
+      ],
+      motivo_entrega_epp: [
+        'inicial',
+        'renovacion',
+        'reposicion_rotura',
+        'reposicion_perdida',
+        'rotacion',
       ],
       plan_codigo: ['pro_mensual'],
     },
