@@ -38,28 +38,24 @@ describe('AppSidebarNav', () => {
     expect(link).not.toHaveAttribute('aria-current', 'page');
   });
 
-  it('los items "soon" están deshabilitados y muestran sus labels', () => {
+  it('no quedan items "soon": todos los nav items son links live', () => {
     renderNav();
-    // Iteramos directamente sobre los <li> del nav y testeamos uno por uno.
-    // Evitamos `getBy*` con name regex porque Radix Tooltip puede duplicar
-    // el accessible-name en jsdom (visible + sr-only).
+    // T-029: Calendario soon → live. T-035: Notificaciones salio del sidebar
+    // (vive como sub-tab de Configuracion). T-049: Clientes soon → live.
+    // T-054: Empleados soon → live. T-101: EPP soon → live (redirige a
+    // /epp/catalogo hasta que T-106 traiga padron). Total 7 items, todos live.
     const nav = screen.getByRole('navigation');
     const items = nav.querySelectorAll('li');
-    // T-029: Calendario paso de soon → live. T-035: Notificaciones salio del sidebar
-    // (vive como sub-tab de Configuracion). T-049: Clientes paso de soon → live.
-    // T-054: Empleados paso de soon → live. Total 7 (5 live + 1 soon + 1 settings).
     expect(items.length).toBe(7);
 
-    const expectedSoonLabels = ['EPP'];
     const soonButtons = nav.querySelectorAll<HTMLButtonElement>(
       'button[aria-disabled="true"][disabled]',
     );
-    expect(soonButtons.length).toBe(expectedSoonLabels.length);
+    expect(soonButtons.length).toBe(0);
 
-    for (const expected of expectedSoonLabels) {
-      const match = Array.from(soonButtons).find((btn) => btn.textContent?.includes(expected));
-      expect(match, `no se encontró button "soon" para ${expected}`).toBeDefined();
-    }
+    // EPP ahora es link live → href /epp.
+    const eppLink = screen.getByRole('link', { name: /EPP/i });
+    expect(eppLink).toHaveAttribute('href', '/epp');
   });
 
   it('Calendario es link live (T-029) — sin aria-current en /dashboard', () => {
