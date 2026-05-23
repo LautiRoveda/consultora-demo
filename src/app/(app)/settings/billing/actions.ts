@@ -31,6 +31,12 @@ export type CreateSubscriptionResult =
   | { ok: true; initPoint: string; mpSubscriptionId: string }
   | {
       ok: false;
+      code: 'DUPLICATE_SUBSCRIPTION_PENDING';
+      initPoint: string;
+      message: string;
+    }
+  | {
+      ok: false;
       code:
         | 'UNAUTHENTICATED'
         | 'NO_CONSULTORA'
@@ -63,12 +69,67 @@ export type CancelSubscriptionResult =
       message: string;
     };
 
+export type CancelPendingSubscriptionResult =
+  | { ok: true; suscripcionId: string }
+  | {
+      ok: false;
+      code: 'INVALID_INPUT';
+      fieldErrors: Record<string, string[]>;
+      message: string;
+    }
+  | {
+      ok: false;
+      code:
+        | 'UNAUTHENTICATED'
+        | 'NO_CONSULTORA'
+        | 'FORBIDDEN_NOT_OWNER'
+        | 'NOT_FOUND'
+        | 'NOT_PENDING'
+        | 'MP_API_ERROR'
+        | 'INTERNAL_ERROR';
+      message: string;
+    };
+
 // ============ Helpers ============
 
 function addOneMonthIso(fromIso: string): string {
   const d = new Date(fromIso);
   d.setUTCMonth(d.getUTCMonth() + 1);
   return d.toISOString();
+}
+
+// T-071-FU3: threshold para considerar una sub pendiente como "orphan" abandono
+// (auto-cleanup) vs "todavía válida" (devolver initPoint para continuar).
+const PENDING_ORPHAN_THRESHOLD_MS = 60 * 60 * 1000; // 1h
+
+/**
+ * Best-effort cancelPreapproval que ignora 404/410 (sub ya expirada o
+ * inexistente en MP — cualquiera de los 2 es OK para nuestro cleanup).
+ */
+async function cancelPreapprovalBestEffort(
+  mpSubscriptionId: string,
+  logContext: Record<string, unknown>,
+): Promise<{ ok: true } | { ok: false; status?: number; message: string }> {
+  try {
+    await cancelPreapproval(mpSubscriptionId);
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof MercadoPagoError) {
+      if (err.status === 404 || err.status === 410) {
+        logger.info(
+          { ...logContext, mpStatus: err.status },
+          'cancelPreapprovalBestEffort: MP devolvio 404/410 (ya expirado), continuamos',
+        );
+        return { ok: true };
+      }
+      logger.warn(
+        { ...logContext, err, status: err.status, body: err.body },
+        'cancelPreapprovalBestEffort: MP error no recoverable',
+      );
+      return { ok: false, status: err.status, message: err.message };
+    }
+    throw err;
+  }
 }
 
 // ============ Actions ============
@@ -111,16 +172,80 @@ export async function createSubscriptionAction(): Promise<CreateSubscriptionResu
   // Pre-check: ya hay suscripcion activa (estado distinto a cancelada/expirada).
   // Re-subscripcion desde estos estados terminales se permite (crea fila nueva).
   const existing = await getActiveSubscription(supabase);
-  const blockingStates: Array<
-    typeof existing extends infer S ? (S extends { estado: infer E } ? E : never) : never
-  > = ['trial', 'pendiente_autorizacion', 'activa', 'morosa'];
-  if (existing && (blockingStates as readonly string[]).includes(existing.estado)) {
-    return {
-      ok: false,
-      code: 'DUPLICATE_SUBSCRIPTION',
-      message:
-        'Ya tenés una suscripcion activa o en proceso. Cancelá la anterior antes de crear una nueva.',
-    };
+
+  // T-071-FU3 · Recovery flow para pendiente_autorizacion.
+  //
+  // Si la sub existente está pendiente:
+  //  - <1h desde created_at → user todavía está en flow normal (o init_point
+  //    sigue vivo). Devolvemos DUPLICATE_SUBSCRIPTION_PENDING + initPoint para
+  //    que la UI redireccione al checkout existente sin re-crear preapproval.
+  //  - >=1h → user abandonó. Best-effort cancel en MP (404/410 ignorables) +
+  //    DELETE row + seguimos al createPreapproval nuevo. Audit trigger
+  //    captura el delete.
+  if (existing && existing.estado === 'pendiente_autorizacion') {
+    const ageMs = Date.now() - new Date(existing.created_at).getTime();
+    if (ageMs < PENDING_ORPHAN_THRESHOLD_MS) {
+      if (!existing.init_point) {
+        // Defensive: sub pendiente sin init_point (legacy pre-FU3 o INSERT
+        // raro). No tenemos manera de continuar — caer al duplicate genérico.
+        return {
+          ok: false,
+          code: 'DUPLICATE_SUBSCRIPTION',
+          message:
+            'Tenés una autorizacion pendiente sin URL de checkout. Cancelala desde el panel y empezá de nuevo.',
+        };
+      }
+      return {
+        ok: false,
+        code: 'DUPLICATE_SUBSCRIPTION_PENDING',
+        initPoint: existing.init_point,
+        message: 'Ya tenés una autorización pendiente en Mercado Pago.',
+      };
+    }
+    // Orphan abandono: cleanup + seguir al createPreapproval nuevo.
+    const adminCleanup = createServiceRoleClient();
+    if (existing.mp_subscription_id) {
+      await cancelPreapprovalBestEffort(existing.mp_subscription_id, {
+        userId: user.id,
+        consultoraId: consultora.id,
+        suscripcionId: existing.id,
+        reason: 'orphan_cleanup',
+      });
+    }
+    const { error: delErr } = await adminCleanup
+      .from('suscripciones')
+      .delete()
+      .eq('id', existing.id)
+      .eq('estado', 'pendiente_autorizacion'); // guard race vs webhook update
+    if (delErr) {
+      logger.error(
+        { err: delErr, userId: user.id, suscripcionId: existing.id },
+        'createSubscriptionAction: DELETE orphan suscripcion falló',
+      );
+      return {
+        ok: false,
+        code: 'INTERNAL_ERROR',
+        message: 'No pudimos limpiar tu autorizacion pendiente anterior. Reintentá en un momento.',
+      };
+    }
+    logger.info(
+      { userId: user.id, consultoraId: consultora.id, suscripcionId: existing.id, ageMs },
+      'createSubscriptionAction: orphan pendiente_autorizacion cleanup',
+    );
+    // Fall through al createPreapproval nuevo abajo.
+  } else {
+    // Resto de blocking states (trial / activa / morosa) → bloqueamos.
+    const blockingStates: Array<
+      typeof existing extends infer S ? (S extends { estado: infer E } ? E : never) : never
+    > = ['trial', 'activa', 'morosa'];
+    if (existing && (blockingStates as readonly string[]).includes(existing.estado)) {
+      return {
+        ok: false,
+        code: 'DUPLICATE_SUBSCRIPTION',
+        message:
+          'Ya tenés una suscripcion activa o en proceso. Cancelá la anterior antes de crear una nueva.',
+      };
+    }
   }
 
   // ARS_PRICE_MONTHLY guarda CENTAVOS (ej "3000000" = ARS 30.000). MP API
@@ -183,6 +308,7 @@ export async function createSubscriptionAction(): Promise<CreateSubscriptionResu
     plan_codigo: 'pro_mensual',
     estado: 'pendiente_autorizacion',
     mp_subscription_id: preapproval.id,
+    init_point: preapproval.init_point, // T-071-FU3: para recovery flow
     periodo_inicio: startDate,
     periodo_fin: addOneMonthIso(startDate),
   });
@@ -335,6 +461,124 @@ export async function cancelSubscriptionAction(
   logger.info(
     { userId: user.id, consultoraId: consultora.id, suscripcionId: sub.id },
     'cancelSubscriptionAction: preapproval cancelado',
+  );
+
+  return { ok: true, suscripcionId: sub.id };
+}
+
+/**
+ * T-071-FU3 · Cancela una sub en estado='pendiente_autorizacion' (orphan
+ * abandono explícito desde la UI). Best-effort en MP (404/410 ignorables),
+ * DELETE row de DB.
+ *
+ * Distinto a cancelSubscriptionAction (T-072), que cancela activa/morosa
+ * sin borrar fila (marca cancelar_en). Acá borramos porque la sub nunca
+ * llegó a status='activa' — no hay history que preservar.
+ */
+export async function cancelPendingSubscriptionAction(
+  suscripcionId: unknown,
+): Promise<CancelPendingSubscriptionResult> {
+  const idParsed = suscripcionIdSchema.safeParse(suscripcionId);
+  if (!idParsed.success) {
+    const fieldErrors: Record<string, string[]> = {};
+    for (const issue of idParsed.error.issues) {
+      const key = issue.path.map((p) => String(p)).join('.') || '_';
+      (fieldErrors[key] ??= []).push(issue.message);
+    }
+    return { ok: false, code: 'INVALID_INPUT', fieldErrors, message: 'ID inválido.' };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false, code: 'UNAUTHENTICATED', message: 'Necesitás iniciar sesión.' };
+  }
+
+  const consultora = await getCurrentConsultora(supabase, user.id);
+  if (!consultora) {
+    return { ok: false, code: 'NO_CONSULTORA', message: 'No tenés una consultora asociada.' };
+  }
+  if (consultora.role !== 'owner') {
+    return {
+      ok: false,
+      code: 'FORBIDDEN_NOT_OWNER',
+      message: 'Solo el owner puede cancelar la autorización pendiente.',
+    };
+  }
+
+  // SELECT defensivo — RLS filtra cross-tenant.
+  const { data: sub } = await supabase
+    .from('suscripciones')
+    .select('id, mp_subscription_id, estado')
+    .eq('id', idParsed.data)
+    .maybeSingle();
+
+  if (!sub) {
+    return { ok: false, code: 'NOT_FOUND', message: 'Suscripcion no encontrada.' };
+  }
+  if (sub.estado !== 'pendiente_autorizacion') {
+    return {
+      ok: false,
+      code: 'NOT_PENDING',
+      message:
+        'Esta suscripcion ya no está en autorización pendiente. Usá la opción de cancelar suscripción.',
+    };
+  }
+
+  // Best-effort cancel MP (404/410 OK = ya expirado). Si MP rechaza con otro
+  // status, fallamos para no dejar la sub orphan a medio cancelar.
+  if (sub.mp_subscription_id) {
+    const cancelResult = await cancelPreapprovalBestEffort(sub.mp_subscription_id, {
+      userId: user.id,
+      consultoraId: consultora.id,
+      suscripcionId: sub.id,
+      reason: 'user_cancel_pending',
+    });
+    if (!cancelResult.ok) {
+      return {
+        ok: false,
+        code: 'MP_API_ERROR',
+        message: 'No pudimos cancelar en Mercado Pago. Reintentá en unos minutos.',
+      };
+    }
+  }
+
+  // DELETE con guard race vs webhook (si el authorized llegó entre el SELECT
+  // y este DELETE, la fila ya no está en pendiente_autorizacion → 0 rows
+  // afectadas + retornamos NOT_PENDING).
+  const admin = createServiceRoleClient();
+  const { error: delErr, count } = await admin
+    .from('suscripciones')
+    .delete({ count: 'exact' })
+    .eq('id', sub.id)
+    .eq('estado', 'pendiente_autorizacion');
+
+  if (delErr) {
+    logger.error(
+      { err: delErr, userId: user.id, suscripcionId: sub.id },
+      'cancelPendingSubscriptionAction: DELETE falló',
+    );
+    return {
+      ok: false,
+      code: 'INTERNAL_ERROR',
+      message: 'No pudimos actualizar el estado. Reintentá en unos minutos.',
+    };
+  }
+  if (count === 0) {
+    // Race: webhook actualizo estado antes de nuestro DELETE.
+    return {
+      ok: false,
+      code: 'NOT_PENDING',
+      message: 'La autorización se completó mientras cancelabas. Refrescá la página.',
+    };
+  }
+
+  revalidatePath('/settings/billing');
+  logger.info(
+    { userId: user.id, consultoraId: consultora.id, suscripcionId: sub.id },
+    'cancelPendingSubscriptionAction: pendiente cancelado + borrado',
   );
 
   return { ok: true, suscripcionId: sub.id };

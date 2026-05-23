@@ -469,3 +469,195 @@ describe('createSubscriptionAction · T-071-FU2 MP_TEST_PAYER_EMAIL override', (
     expect(infoCall).toBeUndefined();
   });
 });
+
+/**
+ * T-071-FU3 · Recovery flow para sub estado='pendiente_autorizacion'.
+ *
+ * Cubre:
+ *  - createSubscriptionAction con orphan <1h → DUPLICATE_SUBSCRIPTION_PENDING + initPoint.
+ *  - createSubscriptionAction con orphan ≥1h → auto-cleanup + crea nueva.
+ *  - cancelPendingSubscriptionAction happy path → DELETE row + MP cancel.
+ *  - cancelPendingSubscriptionAction con estado='activa' → NOT_PENDING.
+ *  - cancelPendingSubscriptionAction con MP 404 → success (ignora error).
+ */
+describe('T-071-FU3 · recovery flow pendiente_autorizacion', () => {
+  it('13. createSubscription con orphan <1h → DUPLICATE_SUBSCRIPTION_PENDING + initPoint', async () => {
+    const mpId = `mp-pre-${runId}-fu3-13`;
+    const initPoint = `https://www.mercadopago.com.ar/preapproval?preapproval_id=${mpId}`;
+    // Insertar sub pendiente_autorizacion reciente (now).
+    await admin.from('suscripciones').insert({
+      consultora_id: cAId,
+      plan_codigo: 'pro_mensual',
+      estado: 'pendiente_autorizacion',
+      mp_subscription_id: mpId,
+      init_point: initPoint,
+      periodo_inicio: new Date().toISOString(),
+      periodo_fin: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+    });
+
+    await signInAs(emailOwnerA);
+    const { createSubscriptionAction } = await import('@/app/(app)/settings/billing/actions');
+    const result = await createSubscriptionAction();
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe('DUPLICATE_SUBSCRIPTION_PENDING');
+    if (result.code !== 'DUPLICATE_SUBSCRIPTION_PENDING') return;
+    expect(result.initPoint).toBe(initPoint);
+
+    // NO se llamó createPreapproval — el recovery flow re-usa el existente.
+    expect(createPreapprovalMock).not.toHaveBeenCalled();
+    // NO se llamó cancelPreapproval — la sub orphan NO fue cleanup-eada.
+    expect(cancelPreapprovalMock).not.toHaveBeenCalled();
+
+    // La sub original sigue intacta.
+    const { data: subs } = await admin
+      .from('suscripciones')
+      .select('id, mp_subscription_id')
+      .eq('consultora_id', cAId);
+    expect(subs).toHaveLength(1);
+    expect(subs![0]!.mp_subscription_id).toBe(mpId);
+  });
+
+  it('14. createSubscription con orphan ≥1h → auto-cleanup + crea nueva', async () => {
+    const oldMpId = `mp-pre-${runId}-fu3-14-old`;
+    const newMpId = `mp-pre-${runId}-fu3-14-new`;
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    // Insertar sub orphan vieja (created_at 2h atrás).
+    await admin.from('suscripciones').insert({
+      consultora_id: cAId,
+      plan_codigo: 'pro_mensual',
+      estado: 'pendiente_autorizacion',
+      mp_subscription_id: oldMpId,
+      init_point: `https://example.com/old`,
+      periodo_inicio: twoHoursAgo,
+      periodo_fin: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      created_at: twoHoursAgo,
+    });
+
+    cancelPreapprovalMock.mockResolvedValueOnce(undefined);
+    createPreapprovalMock.mockResolvedValueOnce({
+      id: newMpId,
+      init_point: `https://www.mercadopago.com.ar/preapproval?preapproval_id=${newMpId}`,
+      status: 'pending',
+    });
+
+    await signInAs(emailOwnerA);
+    const { createSubscriptionAction } = await import('@/app/(app)/settings/billing/actions');
+    const result = await createSubscriptionAction();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.mpSubscriptionId).toBe(newMpId);
+
+    // MP cancel se llamó para la orphan vieja.
+    expect(cancelPreapprovalMock).toHaveBeenCalledWith(oldMpId);
+    // MP create se llamó para la nueva.
+    expect(createPreapprovalMock).toHaveBeenCalledOnce();
+
+    // En DB queda solo la nueva sub (la vieja fue DELETE-eada por cleanup).
+    const { data: subs } = await admin
+      .from('suscripciones')
+      .select('mp_subscription_id')
+      .eq('consultora_id', cAId);
+    expect(subs).toHaveLength(1);
+    expect(subs![0]!.mp_subscription_id).toBe(newMpId);
+  });
+
+  it('15. cancelPendingSubscriptionAction happy path → DELETE row + MP cancel', async () => {
+    const mpId = `mp-pre-${runId}-fu3-15`;
+    const { data: sub } = await admin
+      .from('suscripciones')
+      .insert({
+        consultora_id: cAId,
+        plan_codigo: 'pro_mensual',
+        estado: 'pendiente_autorizacion',
+        mp_subscription_id: mpId,
+        init_point: `https://example.com/${mpId}`,
+        periodo_inicio: new Date().toISOString(),
+        periodo_fin: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      })
+      .select('id')
+      .single();
+
+    cancelPreapprovalMock.mockResolvedValueOnce(undefined);
+
+    await signInAs(emailOwnerA);
+    const { cancelPendingSubscriptionAction } =
+      await import('@/app/(app)/settings/billing/actions');
+    const result = await cancelPendingSubscriptionAction(sub!.id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.suscripcionId).toBe(sub!.id);
+
+    expect(cancelPreapprovalMock).toHaveBeenCalledWith(mpId);
+
+    // Row borrada.
+    const { data: subsAfter } = await admin.from('suscripciones').select('id').eq('id', sub!.id);
+    expect(subsAfter).toHaveLength(0);
+  });
+
+  it('16. cancelPendingSubscriptionAction con estado=activa → NOT_PENDING (debe usar cancelSubscriptionAction)', async () => {
+    const { data: sub } = await admin
+      .from('suscripciones')
+      .insert({
+        consultora_id: cAId,
+        plan_codigo: 'pro_mensual',
+        estado: 'activa',
+        mp_subscription_id: `mp-pre-${runId}-fu3-16`,
+        init_point: null,
+        periodo_inicio: new Date().toISOString(),
+        periodo_fin: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      })
+      .select('id')
+      .single();
+
+    await signInAs(emailOwnerA);
+    const { cancelPendingSubscriptionAction } =
+      await import('@/app/(app)/settings/billing/actions');
+    const result = await cancelPendingSubscriptionAction(sub!.id);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe('NOT_PENDING');
+
+    expect(cancelPreapprovalMock).not.toHaveBeenCalled();
+
+    // La sub activa sigue intacta.
+    const { data: subsAfter } = await admin
+      .from('suscripciones')
+      .select('estado')
+      .eq('id', sub!.id)
+      .single();
+    expect(subsAfter?.estado).toBe('activa');
+  });
+
+  it('17. cancelPendingSubscriptionAction con MP 404 → success (ignora error)', async () => {
+    const { MercadoPagoError } = await import('@/shared/mercadopago/client');
+    const mpId = `mp-pre-${runId}-fu3-17`;
+    const { data: sub } = await admin
+      .from('suscripciones')
+      .insert({
+        consultora_id: cAId,
+        plan_codigo: 'pro_mensual',
+        estado: 'pendiente_autorizacion',
+        mp_subscription_id: mpId,
+        init_point: `https://example.com/${mpId}`,
+        periodo_inicio: new Date().toISOString(),
+        periodo_fin: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      })
+      .select('id')
+      .single();
+
+    cancelPreapprovalMock.mockRejectedValueOnce(
+      new MercadoPagoError('Not found', 404, { error: 'not_found' }),
+    );
+
+    await signInAs(emailOwnerA);
+    const { cancelPendingSubscriptionAction } =
+      await import('@/app/(app)/settings/billing/actions');
+    const result = await cancelPendingSubscriptionAction(sub!.id);
+    expect(result.ok).toBe(true);
+
+    // Row borrada igual (MP 404 = ya expirado, no bloqueante).
+    const { data: subsAfter } = await admin.from('suscripciones').select('id').eq('id', sub!.id);
+    expect(subsAfter).toHaveLength(0);
+  });
+});
