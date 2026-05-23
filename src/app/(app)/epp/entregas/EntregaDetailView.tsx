@@ -1,4 +1,5 @@
 import type { EntregaDetail, PlanificacionWithEvent } from './queries';
+import { Download } from 'lucide-react';
 import Link from 'next/link';
 
 import { Badge } from '@/shared/ui/badge';
@@ -38,13 +39,23 @@ export function EntregaDetailView({ entrega, firmaUrl, planificaciones }: Entreg
 
   return (
     <div className="grid gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <Button asChild variant="ghost" size="sm">
           <Link href="/epp/entregas">← Volver a entregas</Link>
         </Button>
-        <Badge variant={firmada ? 'default' : 'secondary'}>
-          {firmada ? 'Firmada' : 'Pendiente'}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {firmada && (
+            <Button asChild variant="outline" size="sm">
+              <a href={`/api/epp/entregas/${entrega.id}/pdf`} download>
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                Descargar planilla 299/11
+              </a>
+            </Button>
+          )}
+          <Badge variant={firmada ? 'default' : 'secondary'}>
+            {firmada ? 'Firmada' : 'Pendiente'}
+          </Badge>
+        </div>
       </div>
 
       <Card>
@@ -145,7 +156,8 @@ export function EntregaDetailView({ entrega, firmaUrl, planificaciones }: Entreg
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Sin firma adjunta. Esta entrega aún no fue cerrada.
+              Sin firma adjunta. Esta entrega aún no fue cerrada — la planilla 299/11 se podrá
+              descargar una vez firmada.
             </p>
           )}
         </CardContent>
