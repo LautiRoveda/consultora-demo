@@ -1,13 +1,13 @@
 'use client';
 
-import { ClipboardCheck, ListChecks } from 'lucide-react';
+import { ClipboardCheck, ListChecks, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 import { cn } from '@/shared/lib/utils';
 
 /**
- * T-102-FU1 · Tabs sub-nav del módulo EPP (Catálogo / Entregas).
+ * T-102-FU1 / T-106 · Tabs sub-nav del módulo EPP (Padrón / Entregas / Catálogo).
  *
  * Pattern copia estructural de `SettingsTabsNav` (T-035): `<Link>` plano +
  * clases manuales (no shadcn `Tabs`). El match acepta sub-rutas vía
@@ -15,12 +15,15 @@ import { cn } from '@/shared/lib/utils';
  * `/epp/entregas/[id]` siguen resaltando "Entregas". Idem `/epp/catalogo/items`
  * resalta "Catálogo".
  *
- * T-106 sumará 3ra tab "Padrón" cuando llegue.
+ * T-106: Padrón primero (es la landing default del módulo — el redirect raíz
+ * `/epp` apunta a `/epp/padron`). Catálogo queda al final porque es la vista
+ * de menor frecuencia de uso post-setup inicial.
  */
 
 const TABS = [
-  { href: '/epp/catalogo', label: 'Catálogo', icon: ListChecks },
+  { href: '/epp/padron', label: 'Padrón', icon: Users },
   { href: '/epp/entregas', label: 'Entregas', icon: ClipboardCheck },
+  { href: '/epp/catalogo', label: 'Catálogo', icon: ListChecks },
 ] as const;
 
 export function EppTabsNav() {

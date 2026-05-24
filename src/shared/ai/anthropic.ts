@@ -40,3 +40,15 @@ export function getAnthropicClient(): Anthropic {
  * de input), evaluar Haiku 4.5 (`claude-haiku-4-5`).
  */
 export const CLAUDE_MODEL = 'claude-sonnet-4-6' as const;
+
+/**
+ * T-106 · Modelo "lite" para tareas de clasificación/matching donde la calidad
+ * de reasoning de Sonnet es overkill (sugerencia EPP por puesto, validación de
+ * inputs, ranking). Haiku 4.5 cuesta ~4x menos (input $1/1M, output $5/1M vs
+ * Sonnet $3/1M + $15/1M) y responde ~2-3x más rápido.
+ *
+ * Default usado por `src/shared/ai/epp-suggest.ts`. Overrideable por consultora
+ * o feature flag via env var `ANTHROPIC_EPP_SUGGEST_MODEL` (forward switch sin
+ * code change si emerge necesidad de Sonnet).
+ */
+export const CLAUDE_HAIKU_MODEL = 'claude-haiku-4-5-20251001' as const;
