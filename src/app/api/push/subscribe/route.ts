@@ -68,6 +68,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   //    bloquea → error 500. Como el user.id viene del session (verificado
   //    arriba) y el row se construye server-side (no del body), es seguro
   //    usar admin client.
+  // Cross-tenant defense audited AUD-003: tabla per-user (no per-tenant);
+  // user_id sourced from verified session, no body. N/A cross-tenant.
   const admin = createServiceRoleClient();
   const row = buildSubscriptionDbRow(parsed.data, user.id, userAgent);
   const { data: upserted, error: upsertErr } = await admin

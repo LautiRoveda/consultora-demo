@@ -122,6 +122,10 @@ export async function POST(request: NextRequest): Promise<Response> {
     .maybeSingle();
   const previousPath = prev?.logo_storage_path ?? null;
 
+  // Cross-tenant defense audited AUD-003: getCurrentConsultora + role==='owner'
+  // gate verifica identity desde JWT claim; SELECT/UPDATE de consultoras se
+  // ejecutan con supabase authed (RLS UPDATE owner-only del propio tenant).
+  // Admin client se usa SOLO para storage upload + cleanup del path anterior.
   const newPath = buildLogoPath({ consultoraId: consultora.id, mime: finalMime });
   const admin = createServiceRoleClient();
 

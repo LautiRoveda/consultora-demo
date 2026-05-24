@@ -83,6 +83,8 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
   // 4. Auto-disable pref si era la última sub del user.
   //    Usamos service-role para count (UPDATE de pref también via service-role
   //    por consistency con T-033 unlinkTelegramAction).
+  // Cross-tenant defense audited AUD-003: DELETE via authed client (RLS filtra
+  // cross-user); admin solo para count + UPSERT pref con user.id de la session.
   if (rowsDeleted > 0) {
     const admin = createServiceRoleClient();
     const { count } = await admin

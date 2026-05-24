@@ -201,6 +201,10 @@ export async function POST(
   }
 
   // Build storage path + upload.
+  // Cross-tenant defense audited AUD-003: getInformeById usa authed client
+  // (RLS-aware) → 404 si el informe es de otro tenant. Gate creator OR owner
+  // verificado arriba. Admin client se usa SOLO para storage upload + rollback;
+  // la INSERT en DB sigue usando supabase authed (RLS + audit trigger).
   const storagePath = buildAttachmentPath({
     consultoraId: consultora.id,
     informeId: id,
