@@ -12,6 +12,7 @@ import { getEmpleadoById } from '../queries';
 import { EmpleadoActionsButtons } from './EmpleadoActionsButtons';
 import { listPuestosAsignados, listPuestosDisponiblesParaAsignar } from './puestos/queries';
 import { PuestosCard } from './PuestosCard';
+import { SugerenciaEppCard } from './SugerenciaEppCard';
 
 /**
  * T-054 · Detalle de empleado (read-only).
@@ -138,6 +139,11 @@ export default async function EmpleadoDetallePage({ params }: { params: Promise<
         empleadoFullName={`${empleado.apellido}, ${empleado.nombre}`}
         asignados={puestosAsignados}
         disponibles={puestosDisponibles}
+      />
+
+      <SugerenciaEppCard
+        empleadoId={empleado.id}
+        tienePuestos={puestosAsignados.some((p) => p.archived_at === null)}
       />
     </div>
   );

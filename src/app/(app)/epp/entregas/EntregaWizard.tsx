@@ -17,7 +17,7 @@ import { Textarea } from '@/shared/ui/textarea';
 
 import { createEntregaAction } from './actions';
 import { EntregaItemsBuilder } from './EntregaItemsBuilder';
-import { createEntregaSchema } from './schema';
+import { createEntregaSchema, DEFAULT_MOTIVO_ENTREGA } from './schema';
 import { SignaturePad } from './SignaturePad';
 
 type WizardStep = 'empleado' | 'items' | 'firma';
@@ -34,6 +34,14 @@ export type EmpleadoOption = {
 export type EntregaWizardProps = {
   empleados: EmpleadoOption[];
   items: ItemCatalogOption[];
+  /**
+   * T-106 · Preselect desde sugerencia IA (`?empleado=<id>&items=<csv>`).
+   * El server page resuelve los query params, valida UUID + scope al
+   * catálogo/empleados disponibles, y pasa los ya-filtrados. Si el set queda
+   * vacío, los props llegan undefined y el wizard arranca como siempre.
+   */
+  initialEmpleadoId?: string;
+  initialItemIds?: string[];
 };
 
 const STEP_TITLES: Record<WizardStep, string> = {
@@ -42,9 +50,19 @@ const STEP_TITLES: Record<WizardStep, string> = {
   firma: '3. Firma del operario',
 };
 
-export function EntregaWizard({ empleados, items }: EntregaWizardProps) {
+export function EntregaWizard({
+  empleados,
+  items,
+  initialEmpleadoId,
+  initialItemIds,
+}: EntregaWizardProps) {
   const router = useRouter();
-  const [step, setStep] = useState<WizardStep>('empleado');
+  // Preselect IA: si hay empleado válido + items, arrancar en step 'items'
+  // (el consultor ya validó la selección en el padrón). Si solo viene
+  // empleado, igual saltamos a items porque el step 1 quedaría vacío y
+  // confuso (el select aparece resuelto).
+  const initialStep: WizardStep = initialEmpleadoId ? 'items' : 'empleado';
+  const [step, setStep] = useState<WizardStep>(initialStep);
   const [isPending, setIsPending] = useState(false);
   const [firmaIsEmpty, setFirmaIsEmpty] = useState(true);
   const padRef = useRef<SignaturePadHandle>(null);
@@ -52,8 +70,13 @@ export function EntregaWizard({ empleados, items }: EntregaWizardProps) {
   const form = useForm<CreateEntregaInput>({
     resolver: zodResolver(createEntregaSchema),
     defaultValues: {
-      empleado_id: '',
-      items: [],
+      empleado_id: initialEmpleadoId ?? '',
+      items:
+        initialItemIds?.map((id) => ({
+          item_id: id,
+          cantidad: 1,
+          motivo_entrega: DEFAULT_MOTIVO_ENTREGA,
+        })) ?? [],
       firma_base64: '',
       observaciones: '',
     },

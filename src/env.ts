@@ -34,6 +34,13 @@ export const envSchema = z.object({
   // client-side gracias al `server-only` del tope.
   ANTHROPIC_API_KEY: z.string().min(1),
 
+  // T-106 · Modelo Claude usado por el endpoint /api/epp/sugerir-epp. Default
+  // Haiku 4.5 (cheap+fast, ideal para clasificación EPP↔riesgos). Override en
+  // EasyPanel a 'claude-sonnet-4-6' si el muestreo de feedback dice que la
+  // calidad de Haiku no alcanza. Ningún otro módulo del producto consume esta
+  // var — el resto sigue usando CLAUDE_MODEL (Sonnet 4.6) hardcoded.
+  ANTHROPIC_EPP_SUGGEST_MODEL: z.string().min(1).default('claude-haiku-4-5-20251001'),
+
   // Resend API (T-031). Server-only — leak = spam ajeno + cuenta suspendida.
   RESEND_API_KEY: z.string().min(1),
 
