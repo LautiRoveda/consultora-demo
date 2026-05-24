@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { getClienteById } from '@/app/(app)/clientes/queries';
+import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { createClient } from '@/shared/supabase/server';
 import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
@@ -9,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { formatDateEs, formatDni, isArchived } from '../labels';
 import { getEmpleadoById } from '../queries';
 import { EmpleadoActionsButtons } from './EmpleadoActionsButtons';
+import { listPuestosAsignados, listPuestosDisponiblesParaAsignar } from './puestos/queries';
+import { PuestosCard } from './PuestosCard';
 
 /**
  * T-054 · Detalle de empleado (read-only).
@@ -35,6 +38,14 @@ export default async function EmpleadoDetallePage({ params }: { params: Promise<
   // RLS garantiza que si traemos empleado, su cliente también es del tenant.
   // Si por algún drift ese acceso falla → notFound defensivo.
   if (!cliente) notFound();
+
+  const consultora = await getCurrentConsultora(supabase, user.id);
+  const [puestosAsignados, puestosDisponibles] = consultora
+    ? await Promise.all([
+        listPuestosAsignados(supabase, empleado.id),
+        listPuestosDisponiblesParaAsignar(supabase, empleado.id, consultora.id),
+      ])
+    : [[], []];
 
   const hasContacto = !!(empleado.email || empleado.telefono);
   const hasLaboral = !!(empleado.puesto || empleado.fecha_ingreso || empleado.fecha_nacimiento);
@@ -121,6 +132,13 @@ export default async function EmpleadoDetallePage({ params }: { params: Promise<
           </CardContent>
         </Card>
       )}
+
+      <PuestosCard
+        empleadoId={empleado.id}
+        empleadoFullName={`${empleado.apellido}, ${empleado.nombre}`}
+        asignados={puestosAsignados}
+        disponibles={puestosDisponibles}
+      />
     </div>
   );
 }
