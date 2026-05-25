@@ -153,15 +153,23 @@ RUN apk add --no-cache \
       ca-certificates \
       ttf-freefont \
       ttf-dejavu \
-      font-noto
+      font-noto \
+      tzdata
 
+# T-085: TZ del container = AR. Defense-in-depth — el helper format-date ya
+# hardcodea timeZone: AR_TIMEZONE en cada Intl.DateTimeFormat, por lo que el
+# display de fechas es inmune al runtime TZ. Pero seteamos TZ acá igual para
+# que logs, cron triggers y código legacy (que no haya migrado al helper)
+# vean fechas AR. NO se aplica al stage builder — el build debe correr en UTC
+# para no leakear TZ a páginas estáticas pre-renderizadas.
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
     HOSTNAME=0.0.0.0 \
     PUPPETEER_SKIP_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
-    CHROMIUM_PATH=/usr/bin/chromium-browser
+    CHROMIUM_PATH=/usr/bin/chromium-browser \
+    TZ=America/Argentina/Buenos_Aires
 
 # User no-root: defensa estándar contra container escape + cumple PoLP.
 RUN addgroup --system --gid 1001 nodejs \
