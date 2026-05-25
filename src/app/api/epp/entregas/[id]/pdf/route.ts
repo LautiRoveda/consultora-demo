@@ -206,18 +206,25 @@ export async function GET(
   // garantiza — en serverless/container el proceso puede matar la operacion
   // si el response cierra antes que el INSERT resuelva. writeAuditLog tiene
   // try/catch interno (linea ~255), no propaga errores al response.
+  //
+  // Captura del apellido antes del closure: el narrowing de `entrega.empleado`
+  // del guard linea 121 no se preserva dentro del async () =>, asi que lo
+  // resolvemos en una const fuera del closure.
+  const empleadoApellido = entrega.empleado.apellido;
+  const itemsCount = entrega.items.length;
+  const ip = getValidatedClientIp(request);
+  const userAgent = request.headers.get('user-agent');
   after(async () => {
     await writeAuditLog({
       consultoraId: consultora.id,
       userId: user.id,
       entregaId: id,
-      empleadoApellido: entrega.empleado.apellido,
-      itemsCount: entrega.items.length,
+      empleadoApellido,
+      itemsCount,
       pdfSizeBytes: pdfBuffer.length,
       generationMs,
-      // C8 audit · IP validada antes de INSERT (audit_log.ip es `inet`).
-      ip: getValidatedClientIp(request),
-      userAgent: request.headers.get('user-agent'),
+      ip,
+      userAgent,
     });
   });
 

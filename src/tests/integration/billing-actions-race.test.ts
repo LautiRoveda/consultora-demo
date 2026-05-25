@@ -205,9 +205,11 @@ describe('CHORE-D · I1 · createSubscriptionAction race condition', () => {
       .eq('consultora_id', cAId);
     expect(subsErr).toBeNull();
     expect(subs).toHaveLength(1);
-    expect(subs![0].estado).toBe('pendiente_autorizacion');
-    expect(subs![0].mp_subscription_id).toBe(okRes.mpSubscriptionId);
-    expect(subs![0].init_point).toBe(okRes.initPoint);
+    const onlySub = subs?.[0];
+    expect(onlySub).toBeDefined();
+    expect(onlySub?.estado).toBe('pendiente_autorizacion');
+    expect(onlySub?.mp_subscription_id).toBe(okRes.mpSubscriptionId);
+    expect(onlySub?.init_point).toBe(okRes.initPoint);
 
     // Log explícito del race detected.
     expect(
