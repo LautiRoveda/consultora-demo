@@ -35,7 +35,11 @@ export type ProcessedImage = {
 type Variant = 'attachment' | 'logo';
 
 async function processImage(input: Buffer, variant: Variant): Promise<ProcessedImage> {
-  const pipeline = sharp(input, { failOn: 'truncated' })
+  // C5 audit · pixel cap anti-decompression-bomb. 50M ≈ 7071×7071, holgura
+  // sobre cap visible 2400×2400 (T-024). Imagenes que decodifican mas grande
+  // (PNG malicioso ~100KB → 50000×50000 px) tiran error sin agotar la RAM
+  // del runtime Node 22 alpine del VPS.
+  const pipeline = sharp(input, { failOn: 'truncated', limitInputPixels: 50_000_000 })
     .rotate()
     .withMetadata({ exif: undefined, icc: undefined });
 

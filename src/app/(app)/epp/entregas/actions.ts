@@ -11,6 +11,7 @@ import {
   uploadEppFirma,
 } from '@/shared/storage/epp-firmas';
 import { MAX_EPP_FIRMA_SIZE_BYTES } from '@/shared/storage/types';
+import { magicBytesMatch } from '@/shared/storage/validators';
 import { createClient } from '@/shared/supabase/server';
 import { createServiceRoleClient } from '@/shared/supabase/service-role';
 
@@ -211,24 +212,82 @@ export async function createEntregaAction(input: unknown): Promise<CreateEntrega
     };
   }
 
+  // C3 audit · magic bytes validation. decodeFirmaDataUrl ya validó el prefix
+  // string 'data:image/png;base64,' pero el contenido decodificado puede ser
+  // HTML/SVG/binario arbitrario (bypass MIME-spoof, lesson T-024). El bucket
+  // sirve la firma con Content-Type image/png hardcoded — sin esta validacion
+  // un atacante autenticado podria embeber payload no-PNG.
+  if (!magicBytesMatch(firmaBytes, 'image/png')) {
+    logger.warn(
+      { userId: user.id, consultoraId: consultora.id },
+      'createEntregaAction: firma magic bytes mismatch (claimed PNG, real type distinto)',
+    );
+    return {
+      ok: false,
+      code: 'INVALID_INPUT',
+      fieldErrors: { firma_base64: ['La firma no es una imagen PNG válida.'] },
+      message: 'La firma debe ser una imagen PNG.',
+    };
+  }
+
   const admin = createServiceRoleClient();
   const ctx = { userId: user.id, consultoraId: consultora.id };
 
-  // Step 1: INSERT header.
-  const { data: entregaRow, error: headerErr } = await admin
-    .from('epp_entregas')
-    .insert({
-      consultora_id: consultora.id,
-      empleado_id,
-      cliente_id: empleadoRow.cliente_id,
-      observaciones: observaciones ?? null,
-      created_by: user.id,
-    })
-    .select('id')
-    .single();
+  // C4 audit · upload-first ordering. Anterior flow (header → items → upload
+  // → update) dejaba ventana zombie si crasheaba post-upload pre-update
+  // (firmado_at NULL irrecuperable). Nuevo orden:
+  //   1. upload firma (sin DB tocada).
+  //   2. INSERT header con firma+firmado_at YA seteados (id explicito).
+  //   3. INSERT items batch (rollback CASCADE + storage si falla).
+  //   4. RPC planificaciones (no rollback, warning si falla).
+  // Beneficio extra: audit_log baja de 2 entries (INSERT + UPDATE) a 1 (INSERT)
+  // por entrega — mejora del log inmutable de cumplimiento Res SRT 299/11.
+  const entregaId = crypto.randomUUID();
+  const storagePath = buildEppFirmaPath(consultora.id, entregaId);
+  const ahoraIso = new Date().toISOString();
 
-  if (headerErr || !entregaRow) {
-    logger.error({ ...ctx, err: headerErr?.message }, 'createEntregaAction: header insert failed');
+  // Step 1: Upload firma PRIMERO. Si falla, no se inserta nada en DB.
+  const { error: uploadErr } = await uploadEppFirma(admin, {
+    path: storagePath,
+    bytes: firmaBytes,
+  });
+  if (uploadErr) {
+    logger.error(
+      { ...ctx, entregaId, err: uploadErr.message },
+      'createEntregaAction: firma upload failed (pre-INSERT)',
+    );
+    return {
+      ok: false,
+      code: 'STORAGE_ERROR',
+      message: 'No se pudo guardar la firma. Reintentá.',
+    };
+  }
+
+  // Step 2: INSERT header con id explicito + firma+firmado_at YA seteados.
+  const { error: headerErr } = await admin.from('epp_entregas').insert({
+    id: entregaId,
+    consultora_id: consultora.id,
+    empleado_id,
+    cliente_id: empleadoRow.cliente_id,
+    observaciones: observaciones ?? null,
+    firma_storage_path: storagePath,
+    firmado_at: ahoraIso,
+    created_by: user.id,
+  });
+
+  if (headerErr) {
+    // Cleanup storage object huerfano (best-effort, deleteEppFirma loggea).
+    const { error: cleanupErr } = await deleteEppFirma(admin, storagePath);
+    if (cleanupErr) {
+      logger.warn(
+        { ...ctx, entregaId, err: cleanupErr.message },
+        'createEntregaAction: storage cleanup post header-fail failed (orphan firma)',
+      );
+    }
+    logger.error(
+      { ...ctx, entregaId, err: headerErr.message },
+      'createEntregaAction: header insert failed (post-upload, storage limpiado)',
+    );
     return {
       ok: false,
       code: 'INTERNAL_ERROR',
@@ -236,9 +295,7 @@ export async function createEntregaAction(input: unknown): Promise<CreateEntrega
     };
   }
 
-  const entregaId = entregaRow.id;
-
-  // Step 2: INSERT items (batch). Si falla, rollback header.
+  // Step 3: INSERT items batch. Si falla → rollback header CASCADE + storage.
   const itemsPayload = items.map((item) => ({
     entrega_id: entregaId,
     consultora_id: consultora.id,
@@ -254,7 +311,10 @@ export async function createEntregaAction(input: unknown): Promise<CreateEntrega
   const { error: itemsErr } = await admin.from('epp_entrega_items').insert(itemsPayload);
 
   if (itemsErr) {
-    await rollbackEntrega(admin, entregaId, null, { ...ctx, reason: 'items_insert_failed' });
+    await rollbackEntrega(admin, entregaId, storagePath, {
+      ...ctx,
+      reason: 'items_insert_failed',
+    });
 
     // El trigger BEFORE INSERT validate_serie usa errcode 23514. Devolvemos
     // fieldError genérico (no sabemos qué item lo disparó sin re-fetch).
@@ -284,48 +344,7 @@ export async function createEntregaAction(input: unknown): Promise<CreateEntrega
     };
   }
 
-  // Step 3: Upload firma a storage.
-  const storagePath = buildEppFirmaPath(consultora.id, entregaId);
-  const { error: uploadErr } = await uploadEppFirma(admin, {
-    path: storagePath,
-    bytes: firmaBytes,
-  });
-  if (uploadErr) {
-    await rollbackEntrega(admin, entregaId, null, { ...ctx, reason: 'upload_failed' });
-    logger.error(
-      { ...ctx, entregaId, err: uploadErr.message },
-      'createEntregaAction: firma upload failed',
-    );
-    return {
-      ok: false,
-      code: 'STORAGE_ERROR',
-      message: 'No se pudo guardar la firma. Reintentá.',
-    };
-  }
-
-  // Step 4: UPDATE header con firma_storage_path + firmado_at.
-  const { error: updateErr } = await admin
-    .from('epp_entregas')
-    .update({
-      firma_storage_path: storagePath,
-      firmado_at: new Date().toISOString(),
-    })
-    .eq('id', entregaId);
-
-  if (updateErr) {
-    await rollbackEntrega(admin, entregaId, storagePath, { ...ctx, reason: 'sign_update_failed' });
-    logger.error(
-      { ...ctx, entregaId, err: updateErr.message },
-      'createEntregaAction: sign update failed',
-    );
-    return {
-      ok: false,
-      code: 'INTERNAL_ERROR',
-      message: 'No se pudo cerrar la entrega. Reintentá.',
-    };
-  }
-
-  // Step 5: invocar gen_epp_planificaciones_y_calendar_for. Si falla, NO
+  // Step 4: invocar gen_epp_planificaciones_y_calendar_for. Si falla, NO
   // rollback — la entrega firmada queda válida y se regenera planificación
   // manualmente (T-102-FU1 expuesto via warning embebido en el return).
   let planificacionWarning: string | undefined;
