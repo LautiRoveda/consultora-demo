@@ -22,7 +22,12 @@ Flags relevantes del launch (ver comments en `browser-pool.ts` para detalle):
 
 - `--no-sandbox` (requerido por user no-root en Alpine).
 - `--disable-dev-shm-usage` (Docker `/dev/shm` default 64 MB).
-- `--single-process` (reduce RAM ~50%, trade-off de crash isolation).
+- `--font-render-hinting=none` (rendering consistente de acentos cross-platform).
+
+CHORE-D · I3: retirados `--single-process` y `--no-zygote`. Ahorraban ~50% RAM
+en MVP a costa de crash isolation (crash de page tiraba el browser entero).
+VPS Hostinger 8GB no está RAM-constrained; ganamos resiliencia. Si memory
+regression sostenida >1GB bajo carga normal post-deploy, revertir + ticket.
 
 ## Dependencias
 
@@ -43,7 +48,7 @@ Para sumar watermarks ("BORRADOR", "FIRMADO"):
 
 ## Riesgos conocidos
 
-- **Chromium OOM** en VPS compartido. Mitigación parcial: `--single-process` y idle timeout. Si vemos presión RAM, sumar `mem_limit: 1g` al Service en EasyPanel UI (T-023-FU1).
+- **Chromium OOM** en VPS compartido. Mitigación: idle timeout 5 min libera el browser si nadie genera PDFs. Si vemos presión RAM sostenida (>1 GB), sumar `mem_limit: 1g` al Service en EasyPanel UI (T-023-FU1).
 - **Page leak**: el `try/finally { page.close() }` en `render.ts` es no-negociable. Cualquier path que no lo respete leakea memoria de Chromium permanentemente hasta SIGTERM.
 - **Concurrent generation**: safe en Node single-threaded JS — `getBrowser()` retorna la misma promesa a callers concurrentes; `newPage()` es thread-safe en Puppeteer.
 
