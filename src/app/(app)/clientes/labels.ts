@@ -2,6 +2,8 @@ import type { ClienteRow } from './queries';
 
 import { PROVINCIAS_AR } from '@/shared/templates/common/site';
 
+export { formatDateShortAR as formatDateEs } from '@/shared/lib/format-date';
+
 const PROVINCIA_LOOKUP: Record<string, string> = Object.fromEntries(
   PROVINCIAS_AR.map((p) => [p.code, p.name]),
 );
@@ -12,14 +14,6 @@ const PROVINCIA_LOOKUP: Record<string, string> = Object.fromEntries(
 export function provinciaLabel(code: string | null): string | null {
   if (!code) return null;
   return PROVINCIA_LOOKUP[code] ?? code;
-}
-
-export function formatDateEs(iso: string): string {
-  return new Date(iso).toLocaleDateString('es-AR', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
 }
 
 export function isArchived(cliente: Pick<ClienteRow, 'archived_at'>): boolean {

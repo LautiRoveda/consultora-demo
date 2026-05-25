@@ -1,5 +1,7 @@
 import type { ReminderEventShape, ReminderWithEvent } from '@/shared/notifications/types';
 
+import { formatCivilDateAR, todayCivilIsoAR } from '@/shared/lib/format-date';
+
 import { escapeMarkdownV2 } from '../escape-markdownv2';
 
 /**
@@ -10,9 +12,13 @@ import { escapeMarkdownV2 } from '../escape-markdownv2';
  *   *<titulo escapado>*
  *
  *   <Tipo>: <Vence en N días | HOY vence | Vencido>
- *   Fecha: <DD\\-MM\\-YYYY escapado>
+ *   Fecha: <DD/MM/YYYY>
  *
  *   [Ver en ConsultoraDemo](<deepLink>)
+ *
+ * T-085: fecha usa `/` (no `-`) para matchear el resto de la app (consistencia
+ * con email + UI). `/` NO es reservado en MarkdownV2, por lo que no requiere
+ * escapeMarkdownV2.
  *
  * NOTA: el titulo SE escapa porque va dentro de un `*bold*`. Si Claude/user
  * mete `_` o `*` literal en el titulo y no lo escapamos, Telegram intenta
@@ -37,16 +43,6 @@ const TIPO_LABELS: Record<string, string> = {
 
 function tipoLabel(tipo: string): string {
   return TIPO_LABELS[tipo] ?? 'Vencimiento';
-}
-
-/**
- * Formatea YYYY-MM-DD como DD-MM-YYYY (formato es-AR común).
- * El `-` queda en el output — el caller debe escapar con escapeMarkdownV2.
- */
-function formatFechaDmy(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  if (!y || !m || !d) return iso;
-  return `${d}-${m}-${y}`;
 }
 
 function buildOffsetLabel(offsetDays: number, fechaIso: string, nowIso: string): string {
@@ -78,13 +74,14 @@ export function renderTelegramReminder(
 ): RenderedTelegramMessage {
   const { reminder, todayIso } = input;
   const event: ReminderEventShape = reminder.event;
-  const now = todayIso ?? new Date().toISOString().slice(0, 10);
+  const now = todayIso ?? todayCivilIsoAR();
 
   const deepLink = `${LINK_BASE}/calendario/agenda?event=${event.id}`;
 
   const safeTitulo = escapeMarkdownV2(event.titulo);
   const safeTipoLabel = escapeMarkdownV2(tipoLabel(event.tipo));
-  const safeFecha = escapeMarkdownV2(formatFechaDmy(event.fecha_vencimiento));
+  // `/` no es reservado en MarkdownV2 → no necesita escapeMarkdownV2.
+  const safeFecha = formatCivilDateAR(event.fecha_vencimiento);
   const offsetLabel = buildOffsetLabel(reminder.offset_days, event.fecha_vencimiento, now);
   const safeOffsetLabel = escapeMarkdownV2(offsetLabel);
 

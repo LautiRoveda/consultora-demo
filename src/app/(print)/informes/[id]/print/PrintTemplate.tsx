@@ -3,6 +3,7 @@ import type { FieldValues } from 'react-hook-form';
 
 import { MarkdownPreview } from '@/app/(app)/informes/[id]/MarkdownPreview';
 import { INFORME_STATUS_LABELS, INFORME_TIPO_LABELS } from '@/app/(app)/informes/schema';
+import { formatDateLongAR } from '@/shared/lib/format-date';
 import { humanBytes, humanMime } from '@/shared/storage/format';
 import { TEMPLATE_PRINT_REGISTRY } from '@/shared/templates/registry/print';
 
@@ -58,11 +59,7 @@ export type PrintTemplateProps = {
 export function PrintTemplate({ informe, metadata, branding, attachments }: PrintTemplateProps) {
   const tipoLabel = INFORME_TIPO_LABELS[informe.tipo] ?? informe.tipo;
   const statusLabel = INFORME_STATUS_LABELS[informe.status] ?? informe.status;
-  const fecha = new Date(informe.created_at).toLocaleDateString('es-AR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  const fecha = formatDateLongAR(informe.created_at);
   const idShort = informe.id.slice(0, 8);
 
   // T-023-FU4: PrintTemplate consume el SummaryContent (server-only, sin

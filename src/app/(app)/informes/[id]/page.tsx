@@ -1,15 +1,13 @@
 import type { FieldValues } from 'react-hook-form';
 import type { InformeStatus, InformeTipo } from '../schema';
 import type { AttachmentClientRow } from './editar/AttachmentsSection';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
-import { civilIsoToDate } from '@/app/(app)/calendario/event-form-helpers';
 import { EVENT_STATUS_LABELS } from '@/app/(app)/calendario/labels';
 import { getEventsByInformeId } from '@/app/(app)/calendario/queries';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
+import { formatCivilDateShortAR, formatDateTimeAR } from '@/shared/lib/format-date';
 import { createSignedAttachmentUrls } from '@/shared/storage/attachments';
 import { SIGNED_URL_TTL_UI_SEC } from '@/shared/storage/types';
 import { createClient } from '@/shared/supabase/server';
@@ -88,10 +86,7 @@ export default async function InformeDetallePage({ params }: { params: Promise<{
 
   const tipoLabel = INFORME_TIPO_LABELS[tipo] ?? informe.tipo;
   const statusLabel = INFORME_STATUS_LABELS[informe.status as InformeStatus] ?? informe.status;
-  const createdAt = new Date(informe.created_at).toLocaleString('es-AR', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
+  const createdAt = formatDateTimeAR(informe.created_at);
 
   return (
     <div className="space-y-6">
@@ -173,10 +168,7 @@ export default async function InformeDetallePage({ params }: { params: Promise<{
                     </Badge>
                     <span className="ml-2 font-medium">{ev.titulo}</span>
                     <span className="text-muted-foreground ml-2">
-                      ·{' '}
-                      {format(civilIsoToDate(ev.fecha_vencimiento), "d 'de' MMM yyyy", {
-                        locale: es,
-                      })}
+                      · {formatCivilDateShortAR(ev.fecha_vencimiento)}
                     </span>
                   </Link>
                 </li>

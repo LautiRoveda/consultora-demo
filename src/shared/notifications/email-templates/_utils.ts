@@ -3,12 +3,13 @@
  *
  * - escapeHtml: defense XSS sobre cualquier user input antes de inline en HTML.
  * - formatARS: centavos -> "$X.XXX,XX" es-AR.
- * - formatFechaCorta: ISO -> "DD/MM/YYYY" es-AR.
+ * - formatFechaCorta: ISO timestamptz -> "DD/MM/YYYY" en TZ AR.
  * - renderLayout: wrapper HTML + preheader + header + footer, slot para body.
  *
  * Patron T-031 (reminder-vencimiento): inline CSS table-based 600px,
  * paleta indigo #4f46e5, system stack, mso-hide.
  */
+import { formatDateAR } from '@/shared/lib/format-date';
 
 export const LINK_BASE = 'https://consultora-demo.test-ia.cloud';
 
@@ -35,10 +36,7 @@ export function formatFechaCorta(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const year = d.getUTCFullYear();
-  return `${day}/${month}/${year}`;
+  return formatDateAR(d);
 }
 
 export type DunningLayoutInput = {

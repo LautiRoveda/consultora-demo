@@ -1,9 +1,9 @@
 'use client';
 
 import type { CalendarEventRow } from './queries';
-import { format } from 'date-fns';
 import { useState } from 'react';
 
+import { formatCivilDateLongAR } from '@/shared/lib/format-date';
 import { cn } from '@/shared/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover';
 
@@ -80,7 +80,7 @@ export function CalendarMonthCell({
         eventsOfDay.length === 0 &&
           'hover:bg-accent/40 focus:bg-accent/40 focus:outline-none cursor-pointer',
       )}
-      aria-label={`${format(date, 'd LLLL yyyy')}, ${eventsOfDay.length} vencimientos`}
+      aria-label={`${formatCivilDateLongAR(cellIso)}, ${eventsOfDay.length} vencimientos`}
     >
       <span className={cn('text-xs font-medium', isToday && 'text-primary font-bold')}>
         {date.getDate()}
@@ -120,7 +120,7 @@ export function CalendarMonthCell({
               </PopoverTrigger>
               <PopoverContent className="w-64 p-2" align="start">
                 <p className="text-muted-foreground mb-2 text-xs font-medium">
-                  {format(date, 'd LLLL yyyy')}
+                  {formatCivilDateLongAR(cellIso)}
                 </p>
                 <ul className="flex flex-col gap-1">
                   {hidden.map((ev) => (

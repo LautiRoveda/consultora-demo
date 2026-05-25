@@ -2,8 +2,6 @@
 
 import type { CalendarEventTipo } from '@/app/(app)/calendario/defaults';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { CalendarIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
@@ -19,6 +17,7 @@ import {
 import { civilIsoToDate, dateToCivilIso } from '@/app/(app)/calendario/event-form-helpers';
 import { EVENT_TIPO_LABELS } from '@/app/(app)/calendario/labels';
 import { addRecurrenceMonths } from '@/shared/calendar/scheduling';
+import { formatCivilDateLongAR } from '@/shared/lib/format-date';
 import { cn } from '@/shared/lib/utils';
 import {
   buildDefaultEventoTitulo,
@@ -239,11 +238,7 @@ export function PostPublishEventDialog({
                           )}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {field.value
-                            ? format(civilIsoToDate(field.value), "d 'de' MMMM yyyy", {
-                                locale: es,
-                              })
-                            : 'Elegí una fecha'}
+                          {field.value ? formatCivilDateLongAR(field.value) : 'Elegí una fecha'}
                         </Button>
                       </FormControl>
                     </PopoverTrigger>

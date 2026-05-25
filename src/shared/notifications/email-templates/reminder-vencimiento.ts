@@ -1,5 +1,7 @@
 import type { ReminderWithEvent } from '../types';
 
+import { formatCivilDateLongAR } from '@/shared/lib/format-date';
+
 /**
  * T-031 · Template HTML inline para email de recordatorio de vencimiento.
  *
@@ -46,29 +48,6 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
-/**
- * Formatea YYYY-MM-DD como "DD de Mes de YYYY" en es-AR.
- */
-function formatFechaEs(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  if (!y || !m || !d) return iso;
-  const meses = [
-    'enero',
-    'febrero',
-    'marzo',
-    'abril',
-    'mayo',
-    'junio',
-    'julio',
-    'agosto',
-    'septiembre',
-    'octubre',
-    'noviembre',
-    'diciembre',
-  ];
-  return `${d} de ${meses[m - 1]} de ${y}`;
-}
-
 function buildSubject(reminder: ReminderWithEvent): string {
   const titulo = reminder.event.titulo;
   if (reminder.offset_days === 0) {
@@ -101,7 +80,7 @@ export function renderReminderEmail(input: RenderReminderEmailInput): RenderedEm
 
   const safeTitulo = escapeHtml(titulo);
   const safeTipoLabel = escapeHtml(tipoLabel(tipo));
-  const safeFecha = escapeHtml(formatFechaEs(fecha_vencimiento));
+  const safeFecha = escapeHtml(formatCivilDateLongAR(fecha_vencimiento));
   const safeDescripcion = descripcion ? escapeHtml(descripcion) : null;
   const safeName = recipientName ? escapeHtml(recipientName) : null;
 
@@ -188,7 +167,7 @@ export function renderReminderEmail(input: RenderReminderEmailInput): RenderedEm
     'Te recordamos que el siguiente vencimiento está próximo:',
     '',
     `${tipoLabel(tipo)}: ${titulo}`,
-    `Fecha: ${formatFechaEs(fecha_vencimiento)}`,
+    `Fecha: ${formatCivilDateLongAR(fecha_vencimiento)}`,
     ...(descripcion ? [`Detalle: ${descripcion}`] : []),
     '',
     'Ver vencimiento en ConsultoraDemo:',

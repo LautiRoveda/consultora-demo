@@ -3,7 +3,7 @@
 import type { MuteInput, UpdateNotificationPrefsInput } from './schema';
 import type { TelegramRowState } from './TelegramChannelRow';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { format, startOfDay } from 'date-fns';
+import { startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Bell, CalendarIcon, Mail } from 'lucide-react';
 import { useState, useTransition } from 'react';
@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { civilIsoToDate, dateToCivilIso } from '@/app/(app)/calendario/event-form-helpers';
+import { formatCivilDateLongAR, formatDateLongAR } from '@/shared/lib/format-date';
 import { cn } from '@/shared/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
@@ -213,10 +214,7 @@ export function NotificacionesSettingsView({
                   <AlertTitle>Pausadas</AlertTitle>
                   <AlertDescription>
                     No vas a recibir notificaciones hasta el{' '}
-                    {format(new Date(initialMuteStatus.untilIso), "d 'de' MMMM 'de' yyyy", {
-                      locale: es,
-                    })}
-                    .
+                    {formatDateLongAR(initialMuteStatus.untilIso)}.
                   </AlertDescription>
                 </Alert>
               )}
@@ -283,9 +281,7 @@ export function NotificacionesSettingsView({
                               data-testid="mute-date-trigger"
                             >
                               <CalendarIcon className="mr-2 h-4 w-4" />
-                              {field.value
-                                ? format(civilIsoToDate(field.value), 'PPP', { locale: es })
-                                : 'Elegir fecha'}
+                              {field.value ? formatCivilDateLongAR(field.value) : 'Elegir fecha'}
                             </Button>
                           </FormControl>
                         </PopoverTrigger>

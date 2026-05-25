@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
+import { formatDateAR } from '@/shared/lib/format-date';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,13 +71,7 @@ export function CancelSubscriptionButton({
   }
 
   const fechaCorte = new Date(periodoFin);
-  const fechaCorteStr = Number.isNaN(fechaCorte.getTime())
-    ? periodoFin
-    : fechaCorte.toLocaleDateString('es-AR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      });
+  const fechaCorteStr = Number.isNaN(fechaCorte.getTime()) ? periodoFin : formatDateAR(fechaCorte);
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>

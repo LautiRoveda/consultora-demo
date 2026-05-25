@@ -4,6 +4,8 @@ import type { CalendarEventRow } from './queries';
 import { addDays, eachDayOfInterval, endOfMonth, getDay, startOfMonth } from 'date-fns';
 import { useMemo } from 'react';
 
+import { todayCivilIsoAR } from '@/shared/lib/format-date';
+
 import { CalendarMonthCell } from './CalendarMonthCell';
 import { dateToCivilIso } from './event-form-helpers';
 
@@ -39,7 +41,7 @@ export function CalendarMonthView({ month, events, onClickDay, onClickEvent }: P
       list.push(ev);
       map.set(ev.fecha_vencimiento, list);
     }
-    const todayIso = dateToCivilIso(new Date());
+    const todayIso = todayCivilIsoAR();
     for (const list of map.values()) {
       list.sort((a, b) => {
         const aOver = a.status === 'pending' && a.fecha_vencimiento < todayIso;
@@ -55,7 +57,7 @@ export function CalendarMonthView({ month, events, onClickDay, onClickEvent }: P
     return map;
   }, [events]);
 
-  const todayIso = dateToCivilIso(new Date());
+  const todayIso = todayCivilIsoAR();
 
   return (
     <div className="overflow-hidden rounded-md border border-border">

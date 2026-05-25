@@ -52,7 +52,7 @@ describe('renderTelegramReminder', () => {
       '*Protocolo de ruido vence*\n' +
         '\n' +
         'Protocolo anual: Vence en 7 días\n' +
-        'Fecha: 15\\-06\\-2026\n' +
+        'Fecha: 15/06/2026\n' +
         '\n' +
         '[Ver en ConsultoraDemo](https://consultora-demo.test-ia.cloud/calendario/agenda?event=22222222-2222-2222-2222-222222222222)',
     );

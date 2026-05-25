@@ -7,7 +7,7 @@ import { createClient } from '@/shared/supabase/server';
 import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 
-import { formatDateEs, formatDni, isArchived } from '../labels';
+import { formatCivilDateEs, formatDateEs, formatDni, isArchived } from '../labels';
 import { getEmpleadoById } from '../queries';
 import { EmpleadoActionsButtons } from './EmpleadoActionsButtons';
 import { listPuestosAsignados, listPuestosDisponiblesParaAsignar } from './puestos/queries';
@@ -114,10 +114,13 @@ export default async function EmpleadoDetallePage({ params }: { params: Promise<
               <Field label="Puesto" value={empleado.puesto} className="md:col-span-2" />
             )}
             {empleado.fecha_ingreso && (
-              <Field label="Fecha de ingreso" value={formatDateEs(empleado.fecha_ingreso)} />
+              <Field label="Fecha de ingreso" value={formatCivilDateEs(empleado.fecha_ingreso)} />
             )}
             {empleado.fecha_nacimiento && (
-              <Field label="Fecha de nacimiento" value={formatDateEs(empleado.fecha_nacimiento)} />
+              <Field
+                label="Fecha de nacimiento"
+                value={formatCivilDateEs(empleado.fecha_nacimiento)}
+              />
             )}
           </CardContent>
         </Card>

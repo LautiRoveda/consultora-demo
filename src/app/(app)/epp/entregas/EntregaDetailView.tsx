@@ -2,6 +2,7 @@ import type { EntregaDetail, PlanificacionWithEvent } from './queries';
 import { Download } from 'lucide-react';
 import Link from 'next/link';
 
+import { formatCivilDateAR, formatDateAR, formatDateTimeAR } from '@/shared/lib/format-date';
 import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
@@ -13,20 +14,6 @@ const MOTIVO_LABELS: Record<string, string> = {
   reposicion_perdida: 'Reposición — pérdida',
   rotacion: 'Rotación',
 };
-
-const dateFormatter = new Intl.DateTimeFormat('es-AR', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-});
-
-const dateTimeFormatter = new Intl.DateTimeFormat('es-AR', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 export type EntregaDetailViewProps = {
   entrega: EntregaDetail;
@@ -60,9 +47,7 @@ export function EntregaDetailView({ entrega, firmaUrl, planificaciones }: Entreg
 
       <Card>
         <CardHeader>
-          <CardTitle>
-            Entrega EPP del {dateFormatter.format(new Date(entrega.fecha_entrega))}
-          </CardTitle>
+          <CardTitle>Entrega EPP del {formatDateAR(entrega.fecha_entrega)}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -83,7 +68,7 @@ export function EntregaDetailView({ entrega, firmaUrl, planificaciones }: Entreg
               <div className="text-xs uppercase tracking-wide text-muted-foreground">
                 Firmado el
               </div>
-              <div>{dateTimeFormatter.format(new Date(entrega.firmado_at))}</div>
+              <div>{formatDateTimeAR(entrega.firmado_at)}</div>
             </div>
           )}
           {entrega.observaciones && (
@@ -186,8 +171,8 @@ export function EntregaDetailView({ entrega, firmaUrl, planificaciones }: Entreg
                     <div className="text-xs text-muted-foreground">
                       Próxima entrega:{' '}
                       {p.calendar_event_fecha_vencimiento
-                        ? dateFormatter.format(new Date(p.calendar_event_fecha_vencimiento))
-                        : dateFormatter.format(new Date(p.fecha_proxima_entrega))}
+                        ? formatCivilDateAR(p.calendar_event_fecha_vencimiento)
+                        : formatDateAR(p.fecha_proxima_entrega)}
                       {' · '}
                       {p.frecuencia_meses} meses
                     </div>

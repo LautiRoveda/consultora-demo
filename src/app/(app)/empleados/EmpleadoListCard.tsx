@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 import { Badge } from '@/shared/ui/badge';
 
-import { formatDateEs, formatDni, isArchived } from './labels';
+import { formatCivilDateEs, formatDateEs, formatDni, isArchived } from './labels';
 
 /**
  * Densidad fija: placeholders `'—'` en cada slot vacío (matchea pattern T-049
@@ -13,7 +13,7 @@ import { formatDateEs, formatDni, isArchived } from './labels';
 export function EmpleadoListCard({ empleado }: { empleado: EmpleadoRow }) {
   const dniDisplay = formatDni(empleado.dni);
   const puesto = empleado.puesto ?? '—';
-  const fechaIngreso = empleado.fecha_ingreso ? formatDateEs(empleado.fecha_ingreso) : '—';
+  const fechaIngreso = empleado.fecha_ingreso ? formatCivilDateEs(empleado.fecha_ingreso) : '—';
 
   return (
     <Link

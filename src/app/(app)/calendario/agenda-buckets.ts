@@ -1,5 +1,7 @@
 import type { CalendarEventRow } from './queries';
 
+import { todayCivilIsoAR } from '@/shared/lib/format-date';
+
 /**
  * T-030 · Helper puro: agrupa eventos en buckets temporales relativos a `now`.
  *
@@ -19,12 +21,9 @@ import type { CalendarEventRow } from './queries';
  * Solo procesa eventos con `status='pending'` — completed/cancelled NO entran
  * (silent drop). El caller del modo `flat` de AgendaView no usa este helper.
  *
- * TZ caveat: usamos UTC para sumar dias al `todayIso`. Para un consultor
- * argentino (UTC-3), durante las horas 21:00-23:59 ART el `today` en UTC ya
- * es day+1 → un evento con fecha=hoy-ART puede leerse como "ayer" desde UTC.
- * MVP acceptable porque `fecha_vencimiento` es civil date sin hora y el cron
- * T-031 envia reminders a 09:00 ART (12:00 UTC). Revisar en T-028-FU3 cuando
- * llegue TZ per-consultora.
+ * T-085: `todayIso` se computa en TZ AR (no UTC). Antes el caller veía
+ * `today=day+1` entre 21:00-23:59 ART → "Vence hoy" desaparecía de la sección
+ * `hoy` antes de medianoche. Ahora estable durante todo el día calendario AR.
  */
 
 export type AgendaBuckets = {
@@ -38,10 +37,6 @@ export type AgendaBuckets = {
   masAdelante: CalendarEventRow[];
 };
 
-function toIsoUtc(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
 /**
  * Suma N dias (positivo o negativo) a un YYYY-MM-DD respetando rollover de
  * mes y anio en UTC. Exportado para tests; el caller normal lo usa via
@@ -51,7 +46,7 @@ export function addDaysIso(iso: string, days: number): string {
   const [y, m, d] = iso.split('-').map(Number) as [number, number, number];
   const dt = new Date(Date.UTC(y, m - 1, d));
   dt.setUTCDate(dt.getUTCDate() + days);
-  return toIsoUtc(dt);
+  return dt.toISOString().slice(0, 10);
 }
 
 function compareEvents(a: CalendarEventRow, b: CalendarEventRow): number {
@@ -65,7 +60,7 @@ export function groupEventsByBucket(
   events: ReadonlyArray<CalendarEventRow>,
   now: Date,
 ): AgendaBuckets {
-  const todayIso = toIsoUtc(now);
+  const todayIso = todayCivilIsoAR(now);
   const plus7 = addDaysIso(todayIso, 7);
   const plus30 = addDaysIso(todayIso, 30);
 

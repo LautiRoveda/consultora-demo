@@ -1,6 +1,7 @@
 import type { EntregaListItem } from './queries';
 import Link from 'next/link';
 
+import { formatDateAR } from '@/shared/lib/format-date';
 import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent } from '@/shared/ui/card';
 
@@ -8,14 +9,8 @@ export type EntregaCardProps = {
   entrega: EntregaListItem;
 };
 
-const dateFormatter = new Intl.DateTimeFormat('es-AR', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-});
-
 export function EntregaCard({ entrega }: EntregaCardProps) {
-  const fecha = dateFormatter.format(new Date(entrega.fecha_entrega));
+  const fecha = formatDateAR(entrega.fecha_entrega);
   const firmada = entrega.firmado_at !== null;
 
   return (
