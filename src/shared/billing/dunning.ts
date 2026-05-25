@@ -28,6 +28,10 @@ import { logger } from '@/shared/observability/logger';
  * `ownerEmail` se resuelve via `resolveConsultoraOwnerEmail`:
  *   consultora_members.role='owner' -> auth.admin.getUserById(user_id).email.
  *   Si null (consultora huerfana, edge migracion legacy) -> skip + log warn.
+ *
+ * CHORE-C: render+send se separa de claim. `renderAndSendDunning` se exporta
+ * para que el watchdog recovery (billing-dunning-recovery) reintente rows
+ * stale sin re-claim (la row ya existe con resend_email_id NULL).
  */
 
 type DbClient = SupabaseClient<Database>;
@@ -40,6 +44,23 @@ export type DunningTipo =
   | 'trial_expired'
   | 'payment_failed'
   | 'subscription_cancelled';
+
+export type DunningConsultora = {
+  id: string;
+  name: string;
+  retencionDatosHasta?: string | null;
+};
+
+export type DunningPayload =
+  | undefined
+  | { monto_centavos: number; razon_falla: string | null }
+  | { cancelar_en: string | null };
+
+export type DunningLogRow = {
+  id: string;
+  tipo: DunningTipo;
+  ref_id: string | null;
+};
 
 const BILLING_URL = `${LINK_BASE}/settings/billing`;
 
@@ -108,7 +129,7 @@ async function claimLogRow(
   return data?.id ?? null;
 }
 
-async function markLogResendId(
+export async function markLogResendId(
   admin: DbClient,
   logId: string,
   resendEmailId: string,
@@ -122,7 +143,7 @@ async function markLogResendId(
   }
 }
 
-async function markLogFailed(admin: DbClient, logId: string, reason: string): Promise<void> {
+export async function markLogFailed(admin: DbClient, logId: string, reason: string): Promise<void> {
   const { error } = await admin
     .from('billing_notifications_log')
     .update({ resend_email_id: `failed:${reason.slice(0, 100)}` })
@@ -165,6 +186,103 @@ async function sendViaResend(args: {
   }
 }
 
+type RenderedEmail = { subject: string; html: string; text: string };
+
+function renderDunningEmail(
+  tipo: DunningTipo,
+  consultora: DunningConsultora,
+  payload?: DunningPayload,
+): RenderedEmail {
+  switch (tipo) {
+    case 'trial_expires_in_3d':
+      return renderTrialExpiresEmail({
+        consultoraName: consultora.name,
+        daysLeft: 3,
+        billingUrl: BILLING_URL,
+      });
+    case 'trial_expires_in_1d':
+      return renderTrialExpiresEmail({
+        consultoraName: consultora.name,
+        daysLeft: 1,
+        billingUrl: BILLING_URL,
+      });
+    case 'trial_expired':
+      return renderTrialExpiredEmail({
+        consultoraName: consultora.name,
+        billingUrl: BILLING_URL,
+        retentionDate: consultora.retencionDatosHasta ?? null,
+      });
+    case 'payment_failed': {
+      const p = payload as { monto_centavos: number; razon_falla: string | null };
+      return renderPaymentFailedEmail({
+        consultoraName: consultora.name,
+        amountCentavos: p.monto_centavos,
+        errorReason: p.razon_falla,
+        billingUrl: BILLING_URL,
+      });
+    }
+    case 'subscription_cancelled': {
+      const p = payload as { cancelar_en: string | null };
+      return renderSubscriptionCancelledEmail({
+        consultoraName: consultora.name,
+        activeUntil: p.cancelar_en,
+        billingUrl: BILLING_URL,
+      });
+    }
+  }
+}
+
+// Idempotency key debe ser identico entre cron principal y watchdog: Resend
+// dedupea 24h server-side, asi que si el primer send si llego (solo crasheo
+// el UPDATE local), el reintento devuelve el mismo id sin reenviar.
+function buildIdempotencyKey(
+  consultoraId: string,
+  tipo: DunningTipo,
+  refId: string | null,
+): string {
+  if (
+    tipo === 'trial_expires_in_3d' ||
+    tipo === 'trial_expires_in_1d' ||
+    tipo === 'trial_expired'
+  ) {
+    return `${consultoraId}:${tipo}`;
+  }
+  return `${consultoraId}:${tipo}:${refId}`;
+}
+
+/**
+ * Render + Resend.send + UPDATE log. NO hace claim. Caller garantiza
+ * que `logRow` ya existe en billing_notifications_log (insertada por el
+ * cron principal o por una corrida previa que crasheo entre claim y update).
+ */
+export async function renderAndSendDunning(
+  admin: DbClient,
+  logRow: DunningLogRow,
+  consultora: DunningConsultora,
+  ownerEmail: string,
+  payload?: DunningPayload,
+): Promise<DunningResult> {
+  const rendered = renderDunningEmail(logRow.tipo, consultora, payload);
+  const result = await sendViaResend({
+    to: ownerEmail,
+    subject: rendered.subject,
+    html: rendered.html,
+    text: rendered.text,
+    idempotencyKey: buildIdempotencyKey(consultora.id, logRow.tipo, logRow.ref_id),
+  });
+
+  if (!result.ok) {
+    await markLogFailed(admin, logRow.id, result.reason);
+    logger.error(
+      { consultoraId: consultora.id, tipo: logRow.tipo, reason: result.reason },
+      'dunning: send failed',
+    );
+    return { sent: false, reason: result.reason };
+  }
+  await markLogResendId(admin, logRow.id, result.id);
+  return { sent: true, emailId: result.id };
+}
+
 export async function sendTrialExpiresIn(
   admin: DbClient,
   consultora: { id: string; name: string },
@@ -174,31 +292,7 @@ export async function sendTrialExpiresIn(
   const tipo: DunningTipo = daysLeft === 3 ? 'trial_expires_in_3d' : 'trial_expires_in_1d';
   const logId = await claimLogRow(admin, consultora.id, tipo, null);
   if (!logId) return { sent: false, reason: 'already_sent' };
-
-  const rendered = renderTrialExpiresEmail({
-    consultoraName: consultora.name,
-    daysLeft,
-    billingUrl: BILLING_URL,
-  });
-
-  const result = await sendViaResend({
-    to: ownerEmail,
-    subject: rendered.subject,
-    html: rendered.html,
-    text: rendered.text,
-    idempotencyKey: `${consultora.id}:${tipo}`,
-  });
-
-  if (!result.ok) {
-    await markLogFailed(admin, logId, result.reason);
-    logger.error(
-      { consultoraId: consultora.id, tipo, reason: result.reason },
-      'dunning: send failed',
-    );
-    return { sent: false, reason: result.reason };
-  }
-  await markLogResendId(admin, logId, result.id);
-  return { sent: true, emailId: result.id };
+  return renderAndSendDunning(admin, { id: logId, tipo, ref_id: null }, consultora, ownerEmail);
 }
 
 export async function sendTrialExpired(
@@ -209,31 +303,7 @@ export async function sendTrialExpired(
   const tipo: DunningTipo = 'trial_expired';
   const logId = await claimLogRow(admin, consultora.id, tipo, null);
   if (!logId) return { sent: false, reason: 'already_sent' };
-
-  const rendered = renderTrialExpiredEmail({
-    consultoraName: consultora.name,
-    billingUrl: BILLING_URL,
-    retentionDate: consultora.retencionDatosHasta,
-  });
-
-  const result = await sendViaResend({
-    to: ownerEmail,
-    subject: rendered.subject,
-    html: rendered.html,
-    text: rendered.text,
-    idempotencyKey: `${consultora.id}:${tipo}`,
-  });
-
-  if (!result.ok) {
-    await markLogFailed(admin, logId, result.reason);
-    logger.error(
-      { consultoraId: consultora.id, tipo, reason: result.reason },
-      'dunning: send failed',
-    );
-    return { sent: false, reason: result.reason };
-  }
-  await markLogResendId(admin, logId, result.id);
-  return { sent: true, emailId: result.id };
+  return renderAndSendDunning(admin, { id: logId, tipo, ref_id: null }, consultora, ownerEmail);
 }
 
 export async function sendPaymentFailed(
@@ -249,32 +319,13 @@ export async function sendPaymentFailed(
   const tipo: DunningTipo = 'payment_failed';
   const logId = await claimLogRow(admin, consultora.id, tipo, factura.mp_payment_id);
   if (!logId) return { sent: false, reason: 'already_sent' };
-
-  const rendered = renderPaymentFailedEmail({
-    consultoraName: consultora.name,
-    amountCentavos: factura.monto_centavos,
-    errorReason: factura.razon_falla,
-    billingUrl: BILLING_URL,
-  });
-
-  const result = await sendViaResend({
-    to: ownerEmail,
-    subject: rendered.subject,
-    html: rendered.html,
-    text: rendered.text,
-    idempotencyKey: `${consultora.id}:${tipo}:${factura.mp_payment_id}`,
-  });
-
-  if (!result.ok) {
-    await markLogFailed(admin, logId, result.reason);
-    logger.error(
-      { consultoraId: consultora.id, tipo, reason: result.reason },
-      'dunning: send failed',
-    );
-    return { sent: false, reason: result.reason };
-  }
-  await markLogResendId(admin, logId, result.id);
-  return { sent: true, emailId: result.id };
+  return renderAndSendDunning(
+    admin,
+    { id: logId, tipo, ref_id: factura.mp_payment_id },
+    consultora,
+    ownerEmail,
+    { monto_centavos: factura.monto_centavos, razon_falla: factura.razon_falla },
+  );
 }
 
 export async function sendSubscriptionCancelled(
@@ -290,29 +341,7 @@ export async function sendSubscriptionCancelled(
   const refId = suscripcion.mp_subscription_id ?? `local:${consultora.id}`;
   const logId = await claimLogRow(admin, consultora.id, tipo, refId);
   if (!logId) return { sent: false, reason: 'already_sent' };
-
-  const rendered = renderSubscriptionCancelledEmail({
-    consultoraName: consultora.name,
-    activeUntil: suscripcion.cancelar_en,
-    billingUrl: BILLING_URL,
+  return renderAndSendDunning(admin, { id: logId, tipo, ref_id: refId }, consultora, ownerEmail, {
+    cancelar_en: suscripcion.cancelar_en,
   });
-
-  const result = await sendViaResend({
-    to: ownerEmail,
-    subject: rendered.subject,
-    html: rendered.html,
-    text: rendered.text,
-    idempotencyKey: `${consultora.id}:${tipo}:${refId}`,
-  });
-
-  if (!result.ok) {
-    await markLogFailed(admin, logId, result.reason);
-    logger.error(
-      { consultoraId: consultora.id, tipo, reason: result.reason },
-      'dunning: send failed',
-    );
-    return { sent: false, reason: result.reason };
-  }
-  await markLogResendId(admin, logId, result.id);
-  return { sent: true, emailId: result.id };
 }
