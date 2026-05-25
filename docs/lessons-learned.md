@@ -34,6 +34,18 @@ Audit triggers de subscriptions externas (Telegram chat_id, Push endpoint+keys) 
 
 Las cascades `tabla.consultora_id ON DELETE CASCADE` NO se ejercitan end-to-end via DELETE de consultora porque los audit triggers se disparan DURANTE el cascade, insertan rows en `audit_log` apuntando a la consultora siendo eliminada, lo cual bloquea el DELETE original por `audit_log_consultora_id_fkey ON DELETE RESTRICT` (T-011). La cascade en el schema SI es válida — solo no se puede ejercitar via DELETE de consultora sin primero limpiar audit_log con cleanup admin explícito. Matchea patrón canónico T-027 test 11.
 
+### AUD-001 immutable trigger rompió T-074 silenciosamente
+
+**Origen**: CHORE-C (watchdog dunning rescue). **Aplicable a**: cualquier trigger BEFORE UPDATE/DELETE blanket sobre una tabla con escrituras activas.
+
+AUD-001 (`20260524000002_audit_followup.sql`) agregó `billing_notifications_log_immutable()` con un `raise exception` blanket para UPDATE+DELETE. Eso rompió el flujo legítimo T-074: el cron daily hacía `claim → Resend.send → UPDATE resend_email_id`. El UPDATE post-claim quedó rechazado → `markLogResendId`/`markLogFailed` lo loguean con `logger.warn` (no-fatal por diseño) → toda row insertada desde 2026-05-24 quedó con `resend_email_id NULL`. Emails sí se enviaban (Resend dedup por idempotencyKey 24h evitó spam), pero observabilidad rota: no se podía distinguir sends exitosos de KO en DB. CHORE-C lo descubrió porque su watchdog hace EXACTAMENTE el mismo UPDATE → mismo livelock infinito si no se refinaba el trigger.
+
+**Moraleja**: smoke productivo post-merge de migrations que afectan tablas con escrituras activas. Query las rows nuevas y verificar shape — `select count(*) from <tabla> where <campo de escritura> is null and created_at > '<fecha-merge>'`. Si el count es alto, hay flujo silenciosamente roto.
+
+**Fix forward**: refinar trigger immutable para permitir transiciones legítimas. Patrón en `20260525000002_chore_c_fix_aud_001_trigger.sql`: UPDATE permitido solo si `OLD.<col> IS NULL AND NEW.<col> IS NOT NULL AND <todas las otras columnas idénticas>`. DELETE sigue rechazado para preservar append-only audit.
+
+**Side effect en tests**: tests integration que hacían DELETE pre-cleanup sobre la tabla (ej. `billing-dunning-cron.test.ts` test 4) quedaron pre-existing broken — el DELETE rebota silenciosamente. Mantener para detección o reescribir con fixtures fresh-per-test. Mismo patrón ya documentado abajo en "Cascade DELETE bloqueado por audit_log retention".
+
 ### Placeholder check Vault robusto (regex vs equality)
 
 **Origen**: T-034 smoke pre-Lautaro. **Aplicable a**: próximas migrations que toquen `process_pending_reminders()` helper.
