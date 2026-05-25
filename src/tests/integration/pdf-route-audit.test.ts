@@ -36,6 +36,21 @@ vi.mock('next/cache', () => ({
   revalidatePath: () => {},
 }));
 
+// CHORE-D · I5: el handler usa `after(cb)` de next/server, que requiere request
+// scope. Los tests invocan el handler directo (sin Next request context), asi
+// que mockeamos para ejecutar la callback sincronamente — equivalente al
+// comportamiento previo `void cb()`. El polling de audit_log abajo cubre el
+// timing del INSERT.
+vi.mock('next/server', async () => {
+  const actual = await vi.importActual<typeof import('next/server')>('next/server');
+  return {
+    ...actual,
+    after: (cb: () => Promise<void> | void) => {
+      void cb();
+    },
+  };
+});
+
 const mockHtmlToPdf = vi.fn();
 vi.mock('@/shared/pdf/render', () => ({
   htmlToPdf: mockHtmlToPdf,

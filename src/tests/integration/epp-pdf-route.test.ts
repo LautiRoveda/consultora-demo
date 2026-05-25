@@ -40,6 +40,19 @@ vi.mock('next/headers', () => ({
 }));
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
 
+// CHORE-D · I5: handler usa `after(cb)`, requiere request scope. En tests
+// invocamos el handler directo — mockeamos para ejecutar la callback
+// sincronamente (equivalente al previo `void cb()`).
+vi.mock('next/server', async () => {
+  const actual = await vi.importActual<typeof import('next/server')>('next/server');
+  return {
+    ...actual,
+    after: (cb: () => Promise<void> | void) => {
+      void cb();
+    },
+  };
+});
+
 const FAKE_PDF_BUFFER = Buffer.from('%PDF-1.4\n%fake epp planilla\n%%EOF\n', 'utf-8');
 const mockHtmlToPdf = vi.fn().mockResolvedValue(FAKE_PDF_BUFFER);
 vi.mock('@/shared/pdf/render', () => ({

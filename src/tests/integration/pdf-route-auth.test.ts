@@ -53,6 +53,19 @@ vi.mock('next/cache', () => ({
   revalidatePath: () => {},
 }));
 
+// CHORE-D · I5: handler usa `after(cb)`, requiere request scope. En tests
+// invocamos el handler directo — mockeamos para ejecutar la callback
+// sincronamente.
+vi.mock('next/server', async () => {
+  const actual = await vi.importActual<typeof import('next/server')>('next/server');
+  return {
+    ...actual,
+    after: (cb: () => Promise<void> | void) => {
+      void cb();
+    },
+  };
+});
+
 // Mock de htmlToPdf: devuelve un buffer con magic bytes %PDF- para que el
 // caller no detecte que no es PDF real, sin levantar Chromium. Cualquier test
 // que necesite el contenido real del PDF debe ser E2E (PARADA #3).

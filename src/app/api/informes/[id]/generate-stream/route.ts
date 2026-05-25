@@ -253,6 +253,13 @@ export async function POST(
             },
             'informe_content_generated',
           );
+          // CHORE-D · I5: NO migrar a after() — este callback corre durante
+          // el streaming SSE; Next.js mantiene el proceso vivo hasta cerrar
+          // el stream, asi que el INSERT siempre alcanza a completarse antes
+          // del cierre. after() desde dentro de un callback post-handler-
+          // return tiene semantica indefinida en Next.js 16. Los otros 2 PDF
+          // routes (informes/[id]/pdf, epp/entregas/[id]/pdf) si usan after()
+          // porque son request/response sincronos.
           void writeAuditLog({
             consultoraId: consultora.id,
             userId: user.id,
