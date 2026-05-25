@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { env } from '@/env';
 import { dispatchReminderToChannels } from '@/shared/notifications/dispatch';
 import { logger } from '@/shared/observability/logger';
+import { constantTimeEqual } from '@/shared/security/timing-safe';
 import { createServiceRoleClient } from '@/shared/supabase/service-role';
 
 /**
@@ -42,9 +43,9 @@ function errorResponse(status: number, body: ErrorBody): Response {
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
-  // 1. Auth via shared secret.
+  // 1. Auth via shared secret (constant-time compare — C1 audit).
   const provided = request.headers.get('X-Internal-Cron-Secret');
-  if (!provided || provided !== env.INTERNAL_CRON_SECRET) {
+  if (!constantTimeEqual(provided, env.INTERNAL_CRON_SECRET)) {
     logger.warn({ hasHeader: Boolean(provided) }, 'dispatch-reminder: secret invalido');
     return errorResponse(401, {
       code: 'UNAUTHORIZED',

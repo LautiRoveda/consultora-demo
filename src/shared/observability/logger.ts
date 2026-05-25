@@ -19,8 +19,39 @@ import pino from 'pino';
  * Sentry — el dev no tiene que recordar reportar manualmente.
  */
 
+/**
+ * C6 audit · PII redact paths. Single source of truth para:
+ *  - `pino.redact.paths` (logs locales + stdout en prod).
+ *  - `redactSensitive(...)` helper aplicado en captureToSentry (Sentry payload).
+ *
+ * El doble apply es necesario porque pino y Sentry son sinks paralelos en el
+ * wrapper de abajo — pino redact NO se propaga al Sentry capture.
+ *
+ * Cubre Ley 25.326 art 4 (minimización) + GDPR. Si un endpoint legítimamente
+ * necesita el valor para alerting interno, lo loggea SOLO con una key no
+ * listada acá (ej. hash del userId) o ignora esta config con un módulo aparte.
+ */
+const REDACT_KEYS = new Set([
+  'ip',
+  'email',
+  'recipientEmail',
+  'payer_email',
+  'authorization',
+  'password',
+  'token',
+  'chatId',
+]);
+
+const PINO_REDACT_PATHS = [...Array.from(REDACT_KEYS).flatMap((k) => [k, `*.${k}`])];
+
 const baseLogger = pino({
   level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
+  // `remove:true` elimina el campo entero en vez de mostrar [Redacted] —
+  // menos data en wire + menos confusión al leer logs.
+  redact: {
+    paths: PINO_REDACT_PATHS,
+    remove: true,
+  },
   // Pretty output solo en dev. En prod queremos JSON estructurado para que
   // los log aggregators lo parseen.
   ...(process.env.NODE_ENV !== 'production'
@@ -35,15 +66,38 @@ const baseLogger = pino({
 
 type LogContext = Record<string, unknown>;
 
+/**
+ * Aplica el mismo set de redactions que pino, recursivo sobre objects/arrays.
+ * Devuelve un clone shallow — NO mutates el input (el caller suele pasar el
+ * mismo arg a pino.error y a Sentry, no queremos efectos cruzados).
+ */
+function redactSensitive(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') return value;
+  if (value instanceof Error) return value;
+  if (Array.isArray(value)) return value.map(redactSensitive);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (REDACT_KEYS.has(k)) continue;
+    out[k] = redactSensitive(v);
+  }
+  return out;
+}
+
 function captureToSentry(arg: unknown, msg: string | undefined): void {
   if (arg instanceof Error) {
     Sentry.captureException(arg, msg ? { extra: { msg } } : undefined);
   } else if (typeof arg === 'string') {
     Sentry.captureMessage(arg, 'error');
   } else if (msg) {
-    Sentry.captureMessage(msg, { level: 'error', extra: { context: arg } });
+    Sentry.captureMessage(msg, {
+      level: 'error',
+      extra: { context: redactSensitive(arg) },
+    });
   } else {
-    Sentry.captureMessage('Unknown error', { level: 'error', extra: { context: arg } });
+    Sentry.captureMessage('Unknown error', {
+      level: 'error',
+      extra: { context: redactSensitive(arg) },
+    });
   }
 }
 
