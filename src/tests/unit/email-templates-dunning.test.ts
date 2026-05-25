@@ -45,8 +45,15 @@ describe('_utils · formatFechaCorta', () => {
     expect(formatFechaCorta('2026-08-15T12:00:00Z')).toBe('15/08/2026');
   });
 
-  it('5. ISO date only -> DD/MM/YYYY', () => {
-    expect(formatFechaCorta('2026-01-05T00:00:00.000Z')).toBe('05/01/2026');
+  it('5. ISO timestamptz mediodía UTC -> DD/MM/YYYY en TZ AR', () => {
+    // T-085: formatFechaCorta ahora aplica TZ AR (era UTC directo).
+    // UTC 14:00 = AR 11:00 → mismo día sin cross.
+    expect(formatFechaCorta('2026-01-05T14:00:00.000Z')).toBe('05/01/2026');
+  });
+
+  it('5b. ISO UTC 00:00 cae en día anterior AR (verifica TZ aplicada)', () => {
+    // UTC 00:00 = AR 21:00 del día anterior.
+    expect(formatFechaCorta('2026-01-05T00:00:00.000Z')).toBe('04/01/2026');
   });
 
   it('6. null input -> null', () => {
@@ -123,7 +130,7 @@ describe('renderTrialExpiredEmail', () => {
     const { subject } = renderTrialExpiredEmail({
       consultoraName: 'Acme',
       billingUrl: BILLING_URL,
-      retentionDate: '2026-06-30T00:00:00Z',
+      retentionDate: '2026-06-30T14:00:00Z',
     });
     expect(subject).toBe('[ConsultoraDemo] Tu trial ha expirado');
   });
@@ -132,7 +139,7 @@ describe('renderTrialExpiredEmail', () => {
     const { html } = renderTrialExpiredEmail({
       consultoraName: 'Acme',
       billingUrl: BILLING_URL,
-      retentionDate: '2026-06-30T00:00:00Z',
+      retentionDate: '2026-06-30T14:00:00Z',
     });
     expect(html).toContain('30/06/2026');
   });
@@ -216,7 +223,7 @@ describe('renderSubscriptionCancelledEmail', () => {
   it('23. subject -> "Tu suscripción fue cancelada"', () => {
     const { subject } = renderSubscriptionCancelledEmail({
       consultoraName: 'Acme',
-      activeUntil: '2026-07-15T00:00:00Z',
+      activeUntil: '2026-07-15T14:00:00Z',
       billingUrl: BILLING_URL,
     });
     expect(subject).toBe('[ConsultoraDemo] Tu suscripción fue cancelada');
@@ -225,7 +232,7 @@ describe('renderSubscriptionCancelledEmail', () => {
   it('24. activeUntil presente -> fecha formateada en body', () => {
     const { html } = renderSubscriptionCancelledEmail({
       consultoraName: 'Acme',
-      activeUntil: '2026-07-15T00:00:00Z',
+      activeUntil: '2026-07-15T14:00:00Z',
       billingUrl: BILLING_URL,
     });
     expect(html).toContain('15/07/2026');
@@ -245,7 +252,7 @@ describe('renderSubscriptionCancelledEmail', () => {
   it('26. text contiene CTA + reactivar copy', () => {
     const { text } = renderSubscriptionCancelledEmail({
       consultoraName: 'Acme',
-      activeUntil: '2026-07-15T00:00:00Z',
+      activeUntil: '2026-07-15T14:00:00Z',
       billingUrl: BILLING_URL,
     });
     expect(text).toContain('reactivar tu plan');
