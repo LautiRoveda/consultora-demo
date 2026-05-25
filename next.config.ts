@@ -20,6 +20,68 @@ const nextConfig: NextConfig = {
       { source: '/prototipo/', destination: '/prototipo/index.html' },
     ];
   },
+  // CHORE-D · I2 · Security headers globales.
+  //
+  // CSP ajustada al stack real del MVP — NO incluye los típicos "por las dudas"
+  // que aún no usamos (cdn.mercadopago.com, *.sentry.io, api.mercadopago.com,
+  // mercadopago.com.ar como frame). Si se agrega MP Brick o se desactiva el
+  // tunnel /monitoring de Sentry, relaxear puntualmente con comment justificando.
+  //
+  //  - script-src 'self' + 'unsafe-inline' (Next.js RSC payload + hydration scripts
+  //    inline; migración a nonce-based queda para una iter futura).
+  //  - style-src 'self' + 'unsafe-inline' (Tailwind 4 + shadcn).
+  //  - img-src: data: (avatars/SVG), blob: (canvas/PDF preview), *.supabase.co
+  //    (signed URLs Storage — logos, attachments de informes).
+  //  - connect-src: *.supabase.co REST + wss://*.supabase.co defensivo por si se
+  //    agrega realtime (no se usa hoy). MP API es server-side, no entra acá.
+  //  - frame-src 'none' + X-Frame-Options DENY: doble defensa anti-clickjacking.
+  //  - frame-ancestors 'none': bloquea que NOS embeban en otros sitios.
+  //
+  // El route group (print) en src/app/(print)/layout.tsx mete su propio <meta>
+  // CSP más estricto (script-src 'none', connect-src 'none'). Browser aplica
+  // intersección — ambos conviven sin conflicto.
+  async headers() {
+    // React DEV mode usa eval() para debugging features (reconstrucción de
+    // stacktraces, fast refresh). En prod NUNCA usa eval — agregamos
+    // 'unsafe-eval' SOLO en development. Smoke validado: sin esto en dev, los
+    // chunks turbopack tiran ~25 CSP violations por página + "eval is not
+    // supported" error en hydration → app deja de hidratar interactividad.
+    const isDev = process.env.NODE_ENV === 'development';
+    const scriptSrc = isDev
+      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+      : "script-src 'self' 'unsafe-inline'";
+
+    const csp = [
+      "default-src 'self'",
+      scriptSrc,
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https://*.supabase.co",
+      "font-src 'self' data:",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      "frame-src 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join('; ');
+
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: csp },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+        ],
+      },
+    ];
+  },
 };
 
 export default withSentryConfig(nextConfig, {
