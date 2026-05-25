@@ -588,6 +588,97 @@ describe('createEntregaAction · cross-tenant defense', () => {
   });
 });
 
+describe('createEntregaAction · C3 magic bytes anti MIME-spoof', () => {
+  it('10. firma con prefix PNG pero payload HTML → INVALID_INPUT con fieldError firma_base64 (no row + no storage)', async () => {
+    await signInAs(emailOwnerA);
+    const { createEntregaAction } = await import('@/app/(app)/epp/entregas/actions');
+
+    const { count: beforeCount } = await admin
+      .from('epp_entregas')
+      .select('id', { count: 'exact', head: true })
+      .eq('consultora_id', cAId);
+
+    const htmlB64 = Buffer.from('<html><script>alert(1)</script></html>').toString('base64');
+    const result = await createEntregaAction({
+      empleado_id: empleadoAId,
+      items: [{ item_id: itemSimpleAId, cantidad: 1, motivo_entrega: 'inicial' }],
+      firma_base64: `data:image/png;base64,${htmlB64}`,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe('INVALID_INPUT');
+    if (result.code !== 'INVALID_INPUT') return;
+    expect(result.fieldErrors.firma_base64).toBeDefined();
+
+    // Atomic: ninguna row + ningún storage object nuevo.
+    const { count: afterCount } = await admin
+      .from('epp_entregas')
+      .select('id', { count: 'exact', head: true })
+      .eq('consultora_id', cAId);
+    expect(afterCount).toBe(beforeCount);
+  });
+
+  it('11. firma con prefix PNG pero payload binario random → INVALID_INPUT', async () => {
+    await signInAs(emailOwnerA);
+    const { createEntregaAction } = await import('@/app/(app)/epp/entregas/actions');
+
+    // Bytes que NO matchean magic header PNG (89 50 4E 47 0D 0A 1A 0A).
+    const randomB64 = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]).toString(
+      'base64',
+    );
+    const result = await createEntregaAction({
+      empleado_id: empleadoAId,
+      items: [{ item_id: itemSimpleAId, cantidad: 1, motivo_entrega: 'inicial' }],
+      firma_base64: `data:image/png;base64,${randomB64}`,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe('INVALID_INPUT');
+    if (result.code !== 'INVALID_INPUT') return;
+    expect(result.fieldErrors.firma_base64).toBeDefined();
+  });
+});
+
+describe('createEntregaAction · C4 upload-first reorder', () => {
+  it('12. happy path post-reorder: audit_log tiene 1 entry "created" (no "updated") porque firma+firmado_at vienen del INSERT', async () => {
+    await signInAs(emailOwnerA);
+    const { createEntregaAction } = await import('@/app/(app)/epp/entregas/actions');
+
+    const result = await createEntregaAction({
+      empleado_id: empleadoAId,
+      items: [{ item_id: itemSimpleAId, cantidad: 1, motivo_entrega: 'inicial' }],
+      firma_base64: FIRMA_PNG_BASE64,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    trackEntrega(result.entregaId);
+
+    // Verificar header firmado desde el INSERT.
+    const { data: header } = await admin
+      .from('epp_entregas')
+      .select('firmado_at, firma_storage_path')
+      .eq('id', result.entregaId)
+      .single();
+    expect(header?.firmado_at).not.toBeNull();
+    expect(header?.firma_storage_path).toBe(`${cAId}/${result.entregaId}.png`);
+
+    // Audit log: post-reorder esperamos SOLO 'created' (1 entry), no 'updated'.
+    // Pre-reorder eran 2 (created por INSERT + updated por UPDATE de firma).
+    const { data: auditEntries } = await admin
+      .from('audit_log')
+      .select('action')
+      .eq('entity_id', result.entregaId)
+      .eq('entity_type', 'epp_entregas');
+
+    const created = (auditEntries ?? []).filter((a) => a.action === 'created');
+    const updated = (auditEntries ?? []).filter((a) => a.action === 'updated');
+    expect(created.length).toBe(1);
+    expect(updated.length).toBe(0); // post-reorder NO debe haber UPDATE.
+  });
+});
+
 describe('createEntregaAction · inmutabilidad post-firma', () => {
   it('9. member del mismo tenant NO puede UPDATE epp_entregas firmada (sin policy UPDATE)', async () => {
     await signInAs(emailOwnerA);
