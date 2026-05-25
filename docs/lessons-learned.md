@@ -277,3 +277,33 @@ Service-role bypasea RLS — usar SOLO cuando RLS default-deny bloquea legítima
 ### at-most-once delivery (UPDATE 'sent' ANTES del HTTP side-effect)
 
 **Origen**: T-031. UPDATE `status='sent'` en la misma transacción que el SELECT FOR UPDATE SKIP LOCKED, ANTES del `net.http_post`. Si HTTP falla, no reintenta — log a `notification_log` con `failed` + Sentry capture. Notification no es critical path; at-most-once aceptado vs at-least-once que duplica spam al user.
+
+### API privada por default — `isPublicApi` helper en middleware
+
+**Origen**: CHORE-A (C7 audit). **Aplicable forward**: toda route API nueva.
+
+`src/shared/supabase/middleware.ts:updateSession` corta con 401 toda request `/api/*` sin sesión, EXCEPTO las que matchean `isPublicApi(pathname)`. Helper combina `PUBLIC_API_PREFIXES` (regex de prefijos públicos por convención: `/api/health`, `/api/webhooks/*`, `/api/cron/*`, `/api/push/*`, `/api/test-error`, `/api/monitoring/*`) + `PUBLIC_API_EXACT` (set de paths exactos públicos por razón legacy, ej `/api/calendar/dispatch-reminder` que se creó pre-convention `/api/cron/`).
+
+Defense-in-depth: si un route handler omite `auth.getUser()` por regression de PR, el middleware corta antes. Convención forward: API nueva privada por default. Para hacerla pública, sumar al PUBLIC_API_PREFIXES (si toda la familia es pública) o a PUBLIC_API_EXACT (si es un caso aislado). NO sumar prefix nuevo (ej `calendar`) si solo una route del prefix es pública — preferir exact path para evitar que routes futuras bajo el mismo prefix queden públicas por accidente.
+
+### Constant-time compare para secrets en webhooks (`constantTimeEqual`)
+
+**Origen**: CHORE-A (C1 audit). **Aplicable forward**: cualquier webhook/cron endpoint que valide un secret en header.
+
+`===` y `!==` abortan en el primer byte distinto → leak por timing del prefix correcto del secret a atacantes remotos. Usar `constantTimeEqual(provided, env.SECRET)` de `@/shared/security/timing-safe.ts` (wrapper sobre `node:crypto.timingSafeEqual` con length check defensive).
+
+Aplicado en 3 webhooks pre-launch: `/api/webhooks/telegram`, `/api/calendar/dispatch-reminder`, `/api/cron/billing-notifications`. MP signature verify ya usa `timingSafeEqual` directo desde T-067 (puede refactorizarse al helper pero no urgente).
+
+### PII redact en logger — `pino.redact` + `redactSensitive` para Sentry
+
+**Origen**: CHORE-A (C6 audit). **Aplicable forward**: cualquier `logger.error({ ... })` con context PII.
+
+`pino.redact` SOLO afecta el transport local (stdout / file). `Sentry.captureMessage(msg, { extra: { context: arg } })` recibe el arg crudo porque va por path paralelo en el wrapper. Por eso `src/shared/observability/logger.ts` aplica DOS redactions: `pino.redact.paths` para stdout + `redactSensitive(arg)` interno antes del `Sentry.captureMessage`. Single source of truth en `REDACT_KEYS` set: `ip`, `email`, `recipientEmail`, `payer_email`, `authorization`, `password`, `token`, `chatId`.
+
+Convención forward: si necesitás loggear PII para alerting interno, usar key NO listada en `REDACT_KEYS` (ej hash del userId, IP truncated a /24).
+
+### IP validation antes de INSERT en `audit_log.ip` (`inet`)
+
+**Origen**: CHORE-A (C8 audit). **Aplicable forward**: cualquier write a columna `inet`.
+
+`request.headers.get('x-forwarded-for')` es controlado por el cliente y puede traer basura, CSV con proxy chain, o vacío. INSERT directo a columna `inet` falla con error opaco si el valor no parsea. Usar `getValidatedClientIp(request)` de `@/shared/security/identify.ts` que aplica `getClientIp` (primer hop del CSV) + regex IPv4/IPv6 simple + retorna `null` si no es válido. Aplicado en los 3 audit_log writers: `/api/informes/[id]/pdf`, `/api/informes/[id]/generate-stream`, `/api/epp/entregas/[id]/pdf`.

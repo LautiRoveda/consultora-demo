@@ -13,6 +13,7 @@ import { getInternalPdfRenderToken } from '@/shared/pdf/browser-pool';
 import { buildPdfFilename } from '@/shared/pdf/filename';
 import { injectBaseHref } from '@/shared/pdf/inject-base-href';
 import { htmlToPdf, PdfRenderTimeoutError } from '@/shared/pdf/render';
+import { getValidatedClientIp } from '@/shared/security/identify';
 import { createClient } from '@/shared/supabase/server';
 import { createServiceRoleClient } from '@/shared/supabase/service-role';
 
@@ -209,7 +210,8 @@ export async function GET(
     pdfSizeBytes: pdfBuffer.length,
     contentSize: informe.contenido.length,
     generationMs,
-    ip: request.headers.get('x-forwarded-for'),
+    // C8 audit · IP validada antes de INSERT (audit_log.ip es `inet`).
+    ip: getValidatedClientIp(request),
     userAgent: request.headers.get('user-agent'),
   });
 

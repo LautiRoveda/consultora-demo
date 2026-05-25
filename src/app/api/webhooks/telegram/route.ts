@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { env } from '@/env';
 import { logger } from '@/shared/observability/logger';
+import { getRateLimiter } from '@/shared/security/rate-limit';
+import { constantTimeEqual } from '@/shared/security/timing-safe';
 import { createServiceRoleClient } from '@/shared/supabase/service-role';
 import { getTelegramBotClient } from '@/shared/telegram/bot-client';
 import { LINK_CODE_LENGTH } from '@/shared/telegram/link-code';
@@ -39,10 +41,21 @@ export const runtime = 'nodejs';
 // `^` y `$` anchored, `i` NO porque alfabeto es uppercase only.
 const START_CMD_REGEX = new RegExp(`^/start\\s+([A-Z2-9]{${LINK_CODE_LENGTH}})$`);
 
+// C1 audit · rate-limit por telegram from.id. Singleton module-level (pattern
+// existente, ver signup/actions.ts:18-22). 120/min es generoso para users
+// legítimos (un humano no envía 2 mensajes/seg sostenido) pero corta abuse
+// automatizado del webhook con chat_id spoofed.
+const telegramLimiter = getRateLimiter({
+  identifier: 'telegram-webhook',
+  limit: 120,
+  window: '1 m',
+});
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // 1. Validación secret header (defense in depth contra spoofers).
+  //    Constant-time compare — C1 audit.
   const providedSecret = request.headers.get('X-Telegram-Bot-Api-Secret-Token');
-  if (!providedSecret || providedSecret !== env.TELEGRAM_WEBHOOK_SECRET) {
+  if (!constantTimeEqual(providedSecret, env.TELEGRAM_WEBHOOK_SECRET)) {
     logger.warn(
       { hasHeader: Boolean(providedSecret) },
       'telegram webhook: secret invalido o ausente',
@@ -81,6 +94,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const chatId = message.from.id;
   const username = message.from.username ?? null;
   const text = message.text.trim();
+
+  // C1 audit · rate-limit por from.id. Silent ack si excede — devolver 429
+  // hace que Telegram Bot API reintente con backoff exponencial, multiplicando
+  // el problema. Coherente con el resto del handler (200 en todos los paths
+  // excepto secret mismatch). Alerting interno via logger.warn (chatId
+  // redactado por C6 antes del Sentry capture).
+  const limited = await telegramLimiter.limit(String(chatId));
+  if (!limited.success) {
+    logger.warn(
+      { chatId, remaining: limited.remaining },
+      'telegram webhook: rate limit exceeded — silent ack',
+    );
+    return NextResponse.json({ ok: true }, { status: 200 });
+  }
+
   const admin = createServiceRoleClient();
   const bot = getTelegramBotClient();
 

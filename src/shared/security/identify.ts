@@ -50,3 +50,33 @@ function extractIpFromForwardedFor(fwd: string | null): string {
 export function normalizeEmailKey(email: string): string {
   return email.toLowerCase().trim();
 }
+
+/**
+ * C8 audit · IP validation antes de INSERT en audit_log.ip (tipo `inet`).
+ *
+ * El header `x-forwarded-for` es controlado por el cliente. Puede traer:
+ *  - '1.2.3.4' (típico, Cloudflare/EasyPanel populates).
+ *  - '1.2.3.4, 5.6.7.8' (proxy chain — getClientIp ya toma el primero).
+ *  - basura, string vacío, 'unknown' literal (abuse o env mal configurado)
+ *    → Postgres `inet` rechaza el INSERT con error opaco.
+ *
+ * Esta función:
+ *  1. Aplica `getClientIp` para tomar primer hop del CSV.
+ *  2. Valida con regex IPv4/IPv6 simple. Postgres `inet` valida la structure
+ *     formal — peor caso: rechazo a nivel DB en lugar de a nivel app. Aceptable
+ *     porque el caller usa audit log non-blocking.
+ *  3. Retorna `null` si no es IP válida → el caller persiste `null` en lugar
+ *     de basura.
+ *
+ * IPv6 regex permisivo: matchea cualquier secuencia hex+colons (incluye '::1',
+ * '::ffff:1.2.3.4', etc). Si querés strict validation usar una lib dedicada.
+ */
+const IPV4_REGEX = /^(?:\d{1,3}\.){3}\d{1,3}$/;
+const IPV6_REGEX = /^[0-9a-f:]+$/i;
+
+export function getValidatedClientIp(request: Request): string | null {
+  const raw = getClientIp(request);
+  if (raw === 'unknown') return null;
+  if (IPV4_REGEX.test(raw) || IPV6_REGEX.test(raw)) return raw;
+  return null;
+}

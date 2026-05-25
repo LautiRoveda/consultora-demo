@@ -11,6 +11,7 @@ import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { requireBillingAccess } from '@/shared/billing/access';
 import { getGateMessage } from '@/shared/billing/messages';
 import { logger } from '@/shared/observability/logger';
+import { getValidatedClientIp } from '@/shared/security/identify';
 import { getRateLimiter } from '@/shared/security/rate-limit';
 import { createClient } from '@/shared/supabase/server';
 import { createServiceRoleClient } from '@/shared/supabase/service-role';
@@ -265,7 +266,8 @@ export async function POST(
             bytesEmitted: info.bytesEmitted,
             chunksEmitted: info.chunksEmitted,
             ms: info.ms,
-            ip: request.headers.get('x-forwarded-for'),
+            // C8 audit · IP validada antes de INSERT (audit_log.ip es `inet`).
+            ip: getValidatedClientIp(request),
             userAgent: request.headers.get('user-agent'),
           });
         },
