@@ -329,6 +329,56 @@ export async function createSubscriptionAction(): Promise<CreateSubscriptionResu
   });
 
   if (insErr) {
+    // CHORE-D · I1: race con click simultáneo en "Suscribirme". El index
+    // partial uniq_suscripciones_consultora_activa (migration 20260525000003)
+    // bloquea 2 rows simultáneas en estado activo o pendiente para la misma
+    // consultora. El loser recibe 23505 — cancelamos su preapproval huérfano
+    // en MP y devolvemos el initPoint del ganador (mismo shape semántico que
+    // el path normal de DUPLICATE_SUBSCRIPTION_PENDING línea 213-218).
+    if (insErr.code === '23505') {
+      await cancelPreapprovalBestEffort(preapproval.id, {
+        userId: user.id,
+        consultoraId: consultora.id,
+        reason: 'i1_race_loser_cleanup',
+      });
+
+      const winner = await getActiveSubscription(supabase);
+      if (winner && winner.estado === 'pendiente_autorizacion' && winner.init_point) {
+        logger.info(
+          {
+            userId: user.id,
+            consultoraId: consultora.id,
+            winnerSubId: winner.id,
+            loserMpId: preapproval.id,
+          },
+          'createSubscriptionAction: I1 race detected, devolviendo initPoint del ganador',
+        );
+        return {
+          ok: false,
+          code: 'DUPLICATE_SUBSCRIPTION_PENDING',
+          initPoint: winner.init_point,
+          message: 'Ya tenés una autorización pendiente en Mercado Pago.',
+        };
+      }
+
+      // Race rarísima: 23505 pero al re-fetch ya no hay sub pendiente (otro
+      // cleanup path corrió en simultáneo). Log + INTERNAL_ERROR genérico.
+      logger.error(
+        {
+          userId: user.id,
+          consultoraId: consultora.id,
+          mpSubscriptionId: preapproval.id,
+          winnerState: winner?.estado ?? null,
+        },
+        'createSubscriptionAction: I1 23505 pero re-fetch no encontró pendiente — race rara',
+      );
+      return {
+        ok: false,
+        code: 'INTERNAL_ERROR',
+        message: 'Conflicto creando tu suscripción. Reintentá en un momento.',
+      };
+    }
+
     logger.error(
       {
         err: insErr,

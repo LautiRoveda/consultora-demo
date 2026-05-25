@@ -29,13 +29,15 @@ import { logger } from '@/shared/observability/logger';
  *    rehype-sanitize + CSP `script-src 'none'` (defensa en profundidad).
  *  - `--disable-dev-shm-usage`: Docker `/dev/shm` default = 64 MB; en su
  *    lugar usa `/tmp` que crece con el container.
- *  - `--single-process`: reduce RAM ~50% pero un crash de page tira el
- *    browser entero. Aceptable en MVP (re-init en el proximo request); si
- *    en prod vemos crashes, se saca.
- *  - `--no-zygote`: requerido junto con `--single-process` en algunos alpine.
  *  - `--font-render-hinting=none`: rendering consistente de fonts (acentos
  *    españoles) cross-platform; default 'medium' rasteriza diferente segun
  *    DPI virtual.
+ *
+ * Flags retirados (CHORE-D · I3):
+ *  - `--single-process` + `--no-zygote`: ahorraban ~50% RAM pero un crash de
+ *    page tiraba el browser entero. VPS Hostinger 8GB no está RAM-constrained,
+ *    ganamos crash isolation. Si memory regression sostenida >1GB post-deploy
+ *    bajo carga normal, revertir + ticket de investigacion.
  */
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -114,8 +116,9 @@ export async function getBrowser(): Promise<Browser> {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--no-zygote',
-        '--single-process',
+        // CHORE-D · I3: retirados '--single-process' y '--no-zygote'. Ahorraban
+        // ~50% RAM en MVP a costa de crash isolation (crash de page → browser
+        // entero muere). VPS Hostinger 8GB no está RAM-constrained.
         '--font-render-hinting=none',
       ],
     })

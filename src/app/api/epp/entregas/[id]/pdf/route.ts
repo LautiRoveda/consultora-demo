@@ -1,5 +1,6 @@
 import type { Json } from '@/shared/supabase/types';
-import { type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { after } from 'next/server';
 
 import { getEntregaForPlanilla } from '@/app/(app)/epp/entregas/queries';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
@@ -200,17 +201,31 @@ export async function GET(
     fechaEntrega: entrega.fecha_entrega,
   });
 
-  void writeAuditLog({
-    consultoraId: consultora.id,
-    userId: user.id,
-    entregaId: id,
-    empleadoApellido: entrega.empleado.apellido,
-    itemsCount: entrega.items.length,
-    pdfSizeBytes: pdfBuffer.length,
-    generationMs,
-    // C8 audit · IP validada antes de INSERT (audit_log.ip es `inet`).
-    ip: getValidatedClientIp(request),
-    userAgent: request.headers.get('user-agent'),
+  // CHORE-D · I5: `after()` garantiza que el INSERT corre DESPUES del response
+  // pero ANTES de que el container/instance termine. `void` por si solo no lo
+  // garantiza — en serverless/container el proceso puede matar la operacion
+  // si el response cierra antes que el INSERT resuelva. writeAuditLog tiene
+  // try/catch interno (linea ~255), no propaga errores al response.
+  //
+  // Captura del apellido antes del closure: el narrowing de `entrega.empleado`
+  // del guard linea 121 no se preserva dentro del async () =>, asi que lo
+  // resolvemos en una const fuera del closure.
+  const empleadoApellido = entrega.empleado.apellido;
+  const itemsCount = entrega.items.length;
+  const ip = getValidatedClientIp(request);
+  const userAgent = request.headers.get('user-agent');
+  after(async () => {
+    await writeAuditLog({
+      consultoraId: consultora.id,
+      userId: user.id,
+      entregaId: id,
+      empleadoApellido,
+      itemsCount,
+      pdfSizeBytes: pdfBuffer.length,
+      generationMs,
+      ip,
+      userAgent,
+    });
   });
 
   logger.info(

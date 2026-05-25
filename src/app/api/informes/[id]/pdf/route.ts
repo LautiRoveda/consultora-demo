@@ -1,6 +1,7 @@
 import type { InformeTipo } from '@/app/(app)/informes/schema';
 import type { Json } from '@/shared/supabase/types';
-import { type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { after } from 'next/server';
 
 import { getInformeById } from '@/app/(app)/informes/queries';
 import { INFORME_TIPOS } from '@/app/(app)/informes/schema';
@@ -201,18 +202,33 @@ export async function GET(
   // authenticated, solo service-role o triggers AFTER). Non-blocking: si el
   // INSERT falla, loggeamos pero NO bloqueamos el response — el user ya
   // pago el costo de generacion, perder el log es menos malo que perder el PDF.
-  void writeAuditLog({
-    consultoraId: consultora.id,
-    userId: user.id,
-    informeId: id,
-    titulo: informe.titulo,
-    tipo,
-    pdfSizeBytes: pdfBuffer.length,
-    contentSize: informe.contenido.length,
-    generationMs,
-    // C8 audit · IP validada antes de INSERT (audit_log.ip es `inet`).
-    ip: getValidatedClientIp(request),
-    userAgent: request.headers.get('user-agent'),
+  //
+  // CHORE-D · I5: `after()` garantiza que el INSERT corre DESPUES del response
+  // pero ANTES de que el container/instance termine. `void` por si solo no lo
+  // garantiza — en serverless/container el proceso puede matar la operacion
+  // si el response cierra antes que el INSERT resuelva. writeAuditLog tiene
+  // try/catch interno (linea ~260), no propaga errores al response.
+  //
+  // Captura del contenido.length antes del closure: el narrowing de
+  // `informe.contenido` del guard linea 108 no se preserva dentro del
+  // async () =>, asi que resolvemos en consts fuera del closure.
+  const titulo = informe.titulo;
+  const contentSize = informe.contenido.length;
+  const ip = getValidatedClientIp(request);
+  const userAgent = request.headers.get('user-agent');
+  after(async () => {
+    await writeAuditLog({
+      consultoraId: consultora.id,
+      userId: user.id,
+      informeId: id,
+      titulo,
+      tipo,
+      pdfSizeBytes: pdfBuffer.length,
+      contentSize,
+      generationMs,
+      ip,
+      userAgent,
+    });
   });
 
   logger.info(
