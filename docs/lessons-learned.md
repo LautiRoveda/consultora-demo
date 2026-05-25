@@ -307,3 +307,11 @@ Convención forward: si necesitás loggear PII para alerting interno, usar key N
 **Origen**: CHORE-A (C8 audit). **Aplicable forward**: cualquier write a columna `inet`.
 
 `request.headers.get('x-forwarded-for')` es controlado por el cliente y puede traer basura, CSV con proxy chain, o vacío. INSERT directo a columna `inet` falla con error opaco si el valor no parsea. Usar `getValidatedClientIp(request)` de `@/shared/security/identify.ts` que aplica `getClientIp` (primer hop del CSV) + regex IPv4/IPv6 simple + retorna `null` si no es válido. Aplicado en los 3 audit_log writers: `/api/informes/[id]/pdf`, `/api/informes/[id]/generate-stream`, `/api/epp/entregas/[id]/pdf`.
+
+## Timezone
+
+### Display siempre TZ AR vía helper, storage UTC
+
+**Origen**: T-085. **Aplicable forward**: cualquier display de fecha.
+
+Política completa en [docs/technical/08-timezone.md](technical/08-timezone.md). Helper centralizado en [src/shared/lib/format-date.ts](../src/shared/lib/format-date.ts) — hardcodea `timeZone: 'America/Argentina/Buenos_Aires'` en cada `Intl.DateTimeFormat`, inmune al runtime TZ (UTC del container, local del browser). Dos familias separadas: `format*AR` para timestamptz UTC (`created_at`, `firmado_at`), `formatCivil*AR` para `date` civil YYYY-MM-DD (`fecha_vencimiento`, `fecha_ingreso`). Prohibido en código nuevo: `toLocaleDateString`, `Intl.DateTimeFormat` directo, `date-fns/format()` sobre timestamps. Excepción documentada: `event-form-helpers.ts` (roundtrip browser-local para el date picker).
