@@ -1,9 +1,15 @@
 /**
  * AUD-001 + AUD-002 · Audit RLS pre-launch follow-up tests.
  *
- * AUD-001 (billing_notifications_log immutability):
+ * AUD-001 (billing_notifications_log immutability — semántica refinada
+ * por CHORE-C: el trigger original rechazaba todo UPDATE, lo que rompía
+ * el flujo legítimo T-074 markLogResendId. Refinado para permitir SOLO
+ * la transición resend_email_id NULL → non-NULL):
  *  a. INSERT via service_role → OK.
- *  b. UPDATE via service_role → raise exception "es inmutable".
+ *  b1. UPDATE resend_email_id NULL → non-NULL → OK (flujo cron legítimo).
+ *  b2. UPDATE de otra columna (tipo, ref_id, consultora_id, etc.) → rechazado.
+ *  b3. UPDATE resend_email_id non-NULL → distinto valor → rechazado
+ *      (no se puede re-marcar una row ya confirmada).
  *  c. DELETE via service_role → raise exception "es inmutable".
  *
  * AUD-002 (epp_planificaciones default-deny INSERT para authenticated):
@@ -192,15 +198,49 @@ describe('AUD-001 · billing_notifications_log immutable', () => {
     billingLogIds.push(data!.id);
   });
 
-  it('b. UPDATE via service_role → raise exception "inmutable"', async () => {
+  it('b1. UPDATE resend_email_id NULL → non-NULL → OK (flujo cron legítimo)', async () => {
     const id = billingLogIds[0];
     if (!id) throw new Error('AUD-001a no insertó row — fixture inválido');
     const { error } = await admin
       .from('billing_notifications_log')
-      .update({ resend_email_id: 'tampered_value' })
+      .update({ resend_email_id: 'rsd_test_legitimate_mark' })
+      .eq('id', id);
+    expect(error).toBeNull();
+    const { data: row } = await admin
+      .from('billing_notifications_log')
+      .select('resend_email_id')
+      .eq('id', id)
+      .single();
+    expect(row?.resend_email_id).toBe('rsd_test_legitimate_mark');
+  });
+
+  it('b2. UPDATE de otra columna (tipo) → rechazado (solo resend_email_id mutable)', async () => {
+    // Insertar row fresca: necesitamos resend_email_id NULL como precondicion
+    // del trigger, sino la rama "solo resend_email_id" cae primero.
+    const { data: fresh } = await admin
+      .from('billing_notifications_log')
+      .insert({ consultora_id: consultoraId, tipo: 'trial_expires_in_1d', ref_id: null })
+      .select('id')
+      .single();
+    billingLogIds.push(fresh!.id);
+    const { error } = await admin
+      .from('billing_notifications_log')
+      .update({ tipo: 'trial_expired' })
+      .eq('id', fresh!.id);
+    expect(error).not.toBeNull();
+    expect(error?.message).toMatch(/solo permitida la transición|inmutable/i);
+  });
+
+  it('b3. UPDATE resend_email_id non-NULL → otro valor → rechazado (re-mark prohibido)', async () => {
+    // billingLogIds[0] ya fue marcado en b1 con 'rsd_test_legitimate_mark'.
+    const id = billingLogIds[0];
+    if (!id) throw new Error('AUD-001 b1 no marcó row — fixture inválido');
+    const { error } = await admin
+      .from('billing_notifications_log')
+      .update({ resend_email_id: 'rsd_tampered_remark' })
       .eq('id', id);
     expect(error).not.toBeNull();
-    expect(error?.message).toMatch(/inmutable/i);
+    expect(error?.message).toMatch(/solo permitida la transición|inmutable/i);
   });
 
   it('c. DELETE via service_role → raise exception "inmutable"', async () => {
