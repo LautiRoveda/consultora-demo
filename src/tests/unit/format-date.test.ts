@@ -22,6 +22,7 @@ import {
   formatDateAR,
   formatDateLongAR,
   formatDateLongWithWeekdayAR,
+  formatDateShortAR,
   formatDateTimeAR,
   formatRelativeAR,
   todayCivilIsoAR,
@@ -70,6 +71,12 @@ describe('formatDateTimeAR · "DD/MM/YYYY HH:mm" en TZ AR, 24h', () => {
 
   it('formato 24h (no AM/PM)', () => {
     expect(formatDateTimeAR('2026-05-25T20:45:00Z')).toBe('25/05/2026 17:45');
+  });
+});
+
+describe('formatDateShortAR · "DD de mes-abrev de YYYY" en TZ AR', () => {
+  it('25/05/2026 → "25 de may de 2026"', () => {
+    expect(formatDateShortAR('2026-05-25T16:00:00Z')).toBe('25 de may de 2026');
   });
 });
 

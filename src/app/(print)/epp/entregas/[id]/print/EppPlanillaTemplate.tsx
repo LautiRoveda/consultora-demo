@@ -1,5 +1,6 @@
 import type { EntregaForPlanilla, EntregaItemForPlanilla } from '@/app/(app)/epp/entregas/queries';
 
+import { formatCivilDateAR, formatDateAR, formatDateTimeAR } from '@/shared/lib/format-date';
 import { RES_299_11_DECLARACION } from '@/shared/templates/epp-planilla/declaracion-legal';
 
 /**
@@ -23,25 +24,6 @@ const MOTIVO_LABELS: Record<string, string> = {
   reposicion_perdida: 'Reposición — pérdida',
   rotacion: 'Rotación',
 };
-
-const dateFormatter = new Intl.DateTimeFormat('es-AR', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-});
-
-const dateTimeFormatter = new Intl.DateTimeFormat('es-AR', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '—';
-  return dateFormatter.format(new Date(value));
-}
 
 function joinAddress(cliente: EntregaForPlanilla['cliente']): string {
   if (!cliente) return '—';
@@ -76,12 +58,10 @@ export function EppPlanillaTemplate({
 }: EppPlanillaTemplateProps) {
   const empleado = entrega.empleado;
   const cliente = entrega.cliente;
-  const fechaEntrega = formatDate(entrega.fecha_entrega);
-  const firmadoAt = entrega.firmado_at
-    ? dateTimeFormatter.format(new Date(entrega.firmado_at))
-    : '—';
+  const fechaEntrega = formatDateAR(entrega.fecha_entrega);
+  const firmadoAt = entrega.firmado_at ? formatDateTimeAR(entrega.firmado_at) : '—';
   const idShort = entrega.id.slice(0, 8);
-  const generatedAtFormatted = dateTimeFormatter.format(new Date(generatedAt));
+  const generatedAtFormatted = formatDateTimeAR(generatedAt);
 
   return (
     <>
@@ -193,7 +173,7 @@ export function EppPlanillaTemplate({
             </div>
             <div className="pdf-field">
               <dt>Fecha ingreso</dt>
-              <dd>{formatDate(empleado?.fecha_ingreso ?? null)}</dd>
+              <dd>{empleado?.fecha_ingreso ? formatCivilDateAR(empleado.fecha_ingreso) : '—'}</dd>
             </div>
             <div className="pdf-field">
               <dt>Fecha entrega</dt>

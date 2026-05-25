@@ -4,7 +4,6 @@ import type { Resolver } from 'react-hook-form';
 import type { CalendarEventTipo } from './defaults';
 import type { CalendarEventRow } from './queries';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { CalendarIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -12,6 +11,7 @@ import { useMemo, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
 
+import { formatCivilDateLongAR } from '@/shared/lib/format-date';
 import { cn } from '@/shared/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
@@ -364,9 +364,7 @@ export function EventForm(props: Props) {
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {field.value
-                        ? format(civilIsoToDate(field.value), 'PPP', { locale: es })
-                        : 'Elegir fecha'}
+                      {field.value ? formatCivilDateLongAR(field.value) : 'Elegir fecha'}
                     </Button>
                   </FormControl>
                 </PopoverTrigger>

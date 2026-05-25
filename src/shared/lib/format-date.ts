@@ -32,7 +32,7 @@ function toDate(input: DateInput): Date {
  * extraídos son idempotentes al runtime TZ.
  */
 function civilIsoToArNoonDate(civilIso: string): Date {
-  const [y, m, d] = civilIso.split('-').map(Number);
+  const [y, m, d] = civilIso.split('-').map(Number) as [number, number, number];
   return new Date(Date.UTC(y, m - 1, d, 15, 0, 0));
 }
 
@@ -72,6 +72,13 @@ const dateLongWithWeekdayArFormatter = new Intl.DateTimeFormat(AR_LOCALE, {
   year: 'numeric',
 });
 
+const dateShortArFormatter = new Intl.DateTimeFormat(AR_LOCALE, {
+  timeZone: AR_TIMEZONE,
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
+
 const relativeArFormatter = new Intl.RelativeTimeFormat(AR_LOCALE, { numeric: 'auto' });
 
 /** `"25/05/2026"` desde timestamptz UTC (Date o ISO string). */
@@ -87,6 +94,11 @@ export function formatDateTimeAR(input: DateInput): string {
   const parts = dateTimeArFormatter.formatToParts(toDate(input));
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
   return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}:${get('minute')}`;
+}
+
+/** `"25 de may de 2026"` (mes abreviado) desde timestamptz UTC. */
+export function formatDateShortAR(input: DateInput): string {
+  return dateShortArFormatter.format(toDate(input));
 }
 
 /** `"25 de mayo de 2026"` desde timestamptz UTC. */

@@ -2,6 +2,7 @@ import type { InformeListRow } from './queries';
 import type { InformeStatus, InformeTipo } from './schema';
 import Link from 'next/link';
 
+import { formatDateShortAR } from '@/shared/lib/format-date';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 
@@ -60,11 +61,7 @@ export function InformesList({ informes }: { informes: InformeListRow[] }) {
                   dateTime={informe.created_at}
                   className="text-muted-foreground shrink-0 text-sm"
                 >
-                  {new Date(informe.created_at).toLocaleDateString('es-AR', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
+                  {formatDateShortAR(informe.created_at)}
                 </time>
               </div>
             </Link>

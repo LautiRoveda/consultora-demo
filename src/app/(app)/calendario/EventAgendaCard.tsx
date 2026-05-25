@@ -1,13 +1,12 @@
 'use client';
 
 import type { CalendarEventRow } from './queries';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { Pencil } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { formatCivilDateLongWithWeekdayAR, todayCivilIsoAR } from '@/shared/lib/format-date';
 import { cn } from '@/shared/lib/utils';
 import {
   AlertDialog,
@@ -26,7 +25,6 @@ import { Card } from '@/shared/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/tooltip';
 
 import { completeCalendarEventAction } from './actions';
-import { civilIsoToDate } from './event-form-helpers';
 import { EVENT_TIPO_LABELS, formatRecurrence } from './labels';
 
 /**
@@ -74,14 +72,12 @@ export function EventAgendaCard({
   const router = useRouter();
   const [completing, setCompleting] = useState(false);
   const canEdit = event.created_by === currentUserId || currentUserRole === 'owner';
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = todayCivilIsoAR();
   const isOverdue = event.status === 'pending' && event.fecha_vencimiento < todayIso;
   const isToday = event.status === 'pending' && event.fecha_vencimiento === todayIso;
 
   const tipoLabel = EVENT_TIPO_LABELS[event.tipo as keyof typeof EVENT_TIPO_LABELS] ?? event.tipo;
-  const fechaLabel = format(civilIsoToDate(event.fecha_vencimiento), "EEEE d 'de' LLLL yyyy", {
-    locale: es,
-  });
+  const fechaLabel = formatCivilDateLongWithWeekdayAR(event.fecha_vencimiento);
   const recurrenceLabel = formatRecurrence(event.recurrence_months);
 
   function handleErrorCode(code: string, message: string) {

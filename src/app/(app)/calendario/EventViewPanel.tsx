@@ -1,17 +1,19 @@
 'use client';
 
 import type { CalendarEventRow } from './queries';
-import { format, parseISO } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { Pencil } from 'lucide-react';
 import Link from 'next/link';
 
+import {
+  formatCivilDateLongWithWeekdayAR,
+  formatDateTimeAR,
+  todayCivilIsoAR,
+} from '@/shared/lib/format-date';
 import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
 import { Separator } from '@/shared/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/tooltip';
 
-import { civilIsoToDate } from './event-form-helpers';
 import { EventStatusActions } from './EventStatusActions';
 import { EVENT_STATUS_LABELS, EVENT_TIPO_LABELS, formatRecurrence } from './labels';
 
@@ -47,9 +49,7 @@ export function EventViewPanel({
   // o created_via_recurrence en calendar_events — heuristica sin schema no es
   // confiable (falsos positivos en eventos custom a futuro lejano).
 
-  const fechaCivil = civilIsoToDate(event.fecha_vencimiento);
-  const isOverdue =
-    event.status === 'pending' && event.fecha_vencimiento < new Date().toISOString().slice(0, 10);
+  const isOverdue = event.status === 'pending' && event.fecha_vencimiento < todayCivilIsoAR();
 
   return (
     <div className="space-y-4">
@@ -126,7 +126,7 @@ export function EventViewPanel({
       <dl className="space-y-3 text-sm">
         <DetailRow label="Vencimiento">
           <span data-testid="event-fecha">
-            {format(fechaCivil, "EEEE d 'de' LLLL yyyy", { locale: es })}
+            {formatCivilDateLongWithWeekdayAR(event.fecha_vencimiento)}
           </span>
         </DetailRow>
         <DetailRow label="Recurrencia">{formatRecurrence(event.recurrence_months)}</DetailRow>
@@ -149,9 +149,7 @@ export function EventViewPanel({
           </div>
         </DetailRow>
         {event.completed_at && (
-          <DetailRow label="Completado">
-            {format(parseISO(event.completed_at), "d 'de' LLLL yyyy 'a las' HH:mm", { locale: es })}
-          </DetailRow>
+          <DetailRow label="Completado">{formatDateTimeAR(event.completed_at)}</DetailRow>
         )}
         {event.metadata &&
         typeof event.metadata === 'object' &&

@@ -1,18 +1,16 @@
 import 'server-only';
 
 import type { CalendarEventRow } from '../calendario/queries';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { AlertTriangle, Bell, Calendar as CalIcon, CheckCircle2, Clock } from 'lucide-react';
 import Link from 'next/link';
 
+import { formatCivilDateShortAR, todayCivilIsoAR } from '@/shared/lib/format-date';
 import { cn } from '@/shared/lib/utils';
 import { createClient } from '@/shared/supabase/server';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 
 import { groupEventsByBucket } from '../calendario/agenda-buckets';
-import { civilIsoToDate } from '../calendario/event-form-helpers';
 import { getOverdueEvents, getUpcomingEvents } from '../calendario/queries';
 
 /**
@@ -207,11 +205,10 @@ function StatCard({
 }
 
 function formatEventDate(ev: CalendarEventRow): string {
-  const eventDate = civilIsoToDate(ev.fecha_vencimiento);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diffMs = eventDate.getTime() - today.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  // Comparación civil string-vs-string: ambos YYYY-MM-DD. Evita roundtrip a
+  // Date que dependería del runtime TZ.
+  const today = todayCivilIsoAR();
+  const diffDays = civilDayDiff(today, ev.fecha_vencimiento);
   if (diffDays < 0) {
     const abs = Math.abs(diffDays);
     return `Venció hace ${abs} ${abs === 1 ? 'día' : 'días'}`;
@@ -219,5 +216,13 @@ function formatEventDate(ev: CalendarEventRow): string {
   if (diffDays === 0) return 'Vence hoy';
   if (diffDays === 1) return 'Vence mañana';
   if (diffDays <= 7) return `Vence en ${diffDays} días`;
-  return format(eventDate, "d 'de' LLLL", { locale: es });
+  return formatCivilDateShortAR(ev.fecha_vencimiento);
+}
+
+function civilDayDiff(fromCivilIso: string, toCivilIso: string): number {
+  const [fy, fm, fd] = fromCivilIso.split('-').map(Number) as [number, number, number];
+  const [ty, tm, td] = toCivilIso.split('-').map(Number) as [number, number, number];
+  const fromUtc = Date.UTC(fy, fm - 1, fd);
+  const toUtc = Date.UTC(ty, tm - 1, td);
+  return Math.round((toUtc - fromUtc) / 86_400_000);
 }
