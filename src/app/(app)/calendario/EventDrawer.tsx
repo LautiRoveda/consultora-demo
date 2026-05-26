@@ -1,6 +1,6 @@
 'use client';
 
-import type { CalendarEventRow } from './queries';
+import type { CalendarEventRow, EppEventContext } from './queries';
 import { useMemo } from 'react';
 
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/shared/ui/sheet';
@@ -38,6 +38,11 @@ type Props = {
     gotoMonth?: { year: number; month: number } | null;
     switchToView?: string;
   }) => void;
+  /**
+   * T-105: context EPP resuelto en el SC padre. Sólo lleva entries para eventos
+   * `tipo='epp_entrega'` del frame visible. EventViewPanel lo consume opcional.
+   */
+  eppContextByEventId?: Record<string, EppEventContext>;
 };
 
 export function EventDrawer({
@@ -49,6 +54,7 @@ export function EventDrawer({
   onClose,
   onSwitchToEdit,
   onMutated,
+  eppContextByEventId,
 }: Props) {
   const open = state.mode !== 'closed';
 
@@ -106,6 +112,7 @@ export function EventDrawer({
                 currentMonth={currentMonth}
                 onSwitchToEdit={onSwitchToEdit}
                 onMutated={onMutated}
+                eppContext={eppContextByEventId?.[event.id] ?? null}
               />
             ) : (
               <NotFoundView />

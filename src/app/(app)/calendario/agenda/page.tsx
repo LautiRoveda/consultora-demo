@@ -5,6 +5,7 @@ import { createClient } from '@/shared/supabase/server';
 
 import {
   getCalendarEventsForConsultora,
+  getEppContextForEvents,
   getEventsBeyondDays,
   getOverdueEvents,
   getUpcomingEvents,
@@ -59,6 +60,9 @@ export default async function CalendarioAgendaPage({
         ? allPending.filter((e) => (urlState.tipo as readonly string[]).includes(e.tipo))
         : allPending;
 
+    // T-105: context EPP para events epp_entrega del frame ya filtrado.
+    const eppContextByEventId = await getEppContextForEvents(supabase, filtered);
+
     return (
       <AgendaView
         initialEvents={filtered}
@@ -67,6 +71,7 @@ export default async function CalendarioAgendaPage({
         currentUserId={user.id}
         currentUserRole={consultora.role}
         mode="buckets"
+        initialEppContextByEventId={eppContextByEventId}
       />
     );
   }
@@ -80,6 +85,9 @@ export default async function CalendarioAgendaPage({
   // DESC en memoria — historial reverso, mas recientes arriba.
   const events = [...eventsAsc].reverse();
 
+  // T-105: context EPP para events epp_entrega del historial visible.
+  const eppContextByEventId = await getEppContextForEvents(supabase, events);
+
   return (
     <AgendaView
       initialEvents={events}
@@ -88,6 +96,7 @@ export default async function CalendarioAgendaPage({
       currentUserId={user.id}
       currentUserRole={consultora.role}
       mode="flat"
+      initialEppContextByEventId={eppContextByEventId}
     />
   );
 }

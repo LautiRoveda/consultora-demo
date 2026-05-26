@@ -1,11 +1,12 @@
 'use client';
 
-import type { CalendarEventRow } from './queries';
+import type { CalendarEventRow, EppEventContext } from './queries';
 import { Pencil } from 'lucide-react';
 import Link from 'next/link';
 
 import {
   formatCivilDateLongWithWeekdayAR,
+  formatDateAR,
   formatDateTimeAR,
   todayCivilIsoAR,
 } from '@/shared/lib/format-date';
@@ -30,6 +31,8 @@ type Props = {
     gotoEventId?: string | null;
     gotoMonth?: { year: number; month: number } | null;
   }) => void;
+  /** T-105: context EPP resuelto en el SC padre. Sólo aplica si `event.tipo === 'epp_entrega'`. */
+  eppContext?: EppEventContext | null;
 };
 
 export function EventViewPanel({
@@ -39,6 +42,7 @@ export function EventViewPanel({
   currentMonth,
   onSwitchToEdit,
   onMutated,
+  eppContext,
 }: Props) {
   // Ajuste 4: permission gate. Mostrar disabled + tooltip si non-creator
   // non-owner. Coincide con el gate del backend (T-028 update/complete/cancel).
@@ -159,6 +163,63 @@ export function EventViewPanel({
             <span className="whitespace-pre-wrap">
               {String((event.metadata as Record<string, unknown>).cancel_reason)}
             </span>
+          </DetailRow>
+        ) : null}
+        {event.tipo === 'epp_entrega' && eppContext ? (
+          <DetailRow label="Vinculado con">
+            <div className="space-y-1">
+              <div>
+                Empleado:{' '}
+                {eppContext.empleado ? (
+                  <Link
+                    href={`/empleados/${eppContext.empleado.id}`}
+                    data-testid="event-epp-empleado-link"
+                    className="text-primary hover:underline"
+                  >
+                    {eppContext.empleado.nombre} {eppContext.empleado.apellido}
+                  </Link>
+                ) : (
+                  <span
+                    data-testid="event-epp-context-degraded"
+                    className="text-muted-foreground italic"
+                  >
+                    &lt;eliminado&gt;
+                  </span>
+                )}
+              </div>
+              <div>
+                Ítem EPP:{' '}
+                {eppContext.item ? (
+                  <span data-testid="event-epp-item-text">{eppContext.item.nombre}</span>
+                ) : (
+                  <span
+                    data-testid="event-epp-context-degraded"
+                    className="text-muted-foreground italic"
+                  >
+                    &lt;eliminado&gt;
+                  </span>
+                )}
+              </div>
+              <div>
+                Entrega original:{' '}
+                {eppContext.entrega ? (
+                  <Link
+                    href={`/epp/entregas/${eppContext.entrega.id}`}
+                    data-testid="event-epp-entrega-link"
+                    className="text-primary hover:underline"
+                  >
+                    Entrega del {formatDateAR(eppContext.entrega.fecha_entrega)}
+                  </Link>
+                ) : (
+                  <span
+                    data-testid="event-epp-context-degraded"
+                    className="text-muted-foreground italic"
+                  >
+                    &lt;eliminado&gt;
+                  </span>
+                )}
+              </div>
+            </div>
           </DetailRow>
         ) : null}
       </dl>

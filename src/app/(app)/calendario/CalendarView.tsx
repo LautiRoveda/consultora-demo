@@ -2,7 +2,7 @@
 
 import type { CalendarEventStatus, CalendarEventTipo } from './defaults';
 import type { DrawerState } from './EventDrawer';
-import type { CalendarEventRow } from './queries';
+import type { CalendarEventRow, EppEventContext } from './queries';
 import type { UrlState } from './url-state';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -39,6 +39,8 @@ type Props = {
   initialEventOpen: string | null;
   currentUserId: string;
   currentUserRole: 'owner' | 'member';
+  /** T-105: context EPP precomputado en el SC para events `tipo='epp_entrega'` del mes. */
+  initialEppContextByEventId: Record<string, EppEventContext>;
 };
 
 /**
@@ -58,6 +60,7 @@ export function CalendarView({
   initialEventOpen,
   currentUserId,
   currentUserRole,
+  initialEppContextByEventId,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -234,6 +237,7 @@ export function CalendarView({
           onClose={closeDrawer}
           onSwitchToEdit={openEditEvent}
           onMutated={handleMutated}
+          eppContextByEventId={initialEppContextByEventId}
         />
       </div>
     </TooltipProvider>

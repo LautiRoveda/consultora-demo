@@ -4,7 +4,7 @@ import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { createClient } from '@/shared/supabase/server';
 
 import { CalendarView } from './CalendarView';
-import { getCalendarEventsForConsultora } from './queries';
+import { getCalendarEventsForConsultora, getEppContextForEvents } from './queries';
 import { monthBoundsIso, parseUrlState } from './url-state';
 
 /**
@@ -44,6 +44,10 @@ export default async function CalendarioPage({
     limit: 500,
   });
 
+  // T-105: context EPP para los eventos epp_entrega del mes (3 queries IN(...)
+  // paralelas, early-return {} si el frame no tiene eventos EPP).
+  const eppContextByEventId = await getEppContextForEvents(supabase, events);
+
   return (
     <CalendarView
       initialEvents={events}
@@ -52,6 +56,7 @@ export default async function CalendarioPage({
       initialEventOpen={urlState.event}
       currentUserId={user.id}
       currentUserRole={consultora.role}
+      initialEppContextByEventId={eppContextByEventId}
     />
   );
 }
