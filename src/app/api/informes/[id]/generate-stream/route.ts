@@ -298,6 +298,7 @@ export async function POST(
             model: info.model,
             stopReason: info.stopReason ?? 'end_turn',
             hasMetadata,
+            srtBlocks: systemBlocks.length - 1,
             usage: info.usage,
             bytesEmitted: info.bytesEmitted,
             chunksEmitted: info.chunksEmitted,
@@ -368,6 +369,7 @@ type AuditLogArgs = {
   model: string;
   stopReason: string;
   hasMetadata: boolean;
+  srtBlocks: number;
   usage: {
     inputTokens: number;
     outputTokens: number;
@@ -390,6 +392,7 @@ async function writeAuditLog(args: AuditLogArgs): Promise<void> {
       model: args.model,
       stop_reason: args.stopReason,
       has_metadata: args.hasMetadata,
+      srt_blocks: args.srtBlocks,
       input_tokens: args.usage.inputTokens,
       output_tokens: args.usage.outputTokens,
       cache_read_input_tokens: args.usage.cacheReadInputTokens,
