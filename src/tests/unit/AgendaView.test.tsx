@@ -129,6 +129,7 @@ function renderAgenda(opts: Partial<Parameters<typeof AgendaView>[0]> = {}) {
     currentUserId: OWNER_ID,
     currentUserRole: 'owner',
     mode: 'buckets',
+    initialEppContextByEventId: {},
   };
   return render(<AgendaView {...defaultProps} {...opts} />);
 }

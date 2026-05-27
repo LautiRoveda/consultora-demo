@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { Database } from '@/shared/supabase/types';
+import type { Database, Json } from '@/shared/supabase/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CalendarEventStatus, CalendarEventTipo } from './defaults';
 
@@ -182,4 +182,105 @@ export async function getEventsBeyondDays(
     .order('id', { ascending: true })
     .limit(limit);
   return data ?? [];
+}
+
+/**
+ * T-105 · Context enrichment para eventos `tipo='epp_entrega'`.
+ *
+ * Resuelve los UUIDs de `metadata` ({ empleado_id, epp_item_id, epp_entrega_id })
+ * a sus rows de display para que `EventViewPanel` muestre links navegables.
+ *
+ * Campos `null` = degraded (RLS cross-tenant reject, archived, hard-delete).
+ * La UI renderiza `<eliminado>` en cada slot null sin romper la card.
+ */
+export type EppEventContext = {
+  empleado: { id: string; nombre: string; apellido: string } | null;
+  item: { id: string; nombre: string } | null;
+  entrega: { id: string; fecha_entrega: string } | null;
+};
+
+type EppEventMetadataShape = {
+  empleado_id: string;
+  epp_item_id: string;
+  epp_entrega_id: string;
+};
+
+function extractEppMetadata(m: Json | null): EppEventMetadataShape | null {
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return null;
+  const obj = m as Record<string, unknown>;
+  const empleado_id = obj.empleado_id;
+  const epp_item_id = obj.epp_item_id;
+  const epp_entrega_id = obj.epp_entrega_id;
+  if (
+    typeof empleado_id !== 'string' ||
+    typeof epp_item_id !== 'string' ||
+    typeof epp_entrega_id !== 'string'
+  ) {
+    return null;
+  }
+  return { empleado_id, epp_item_id, epp_entrega_id };
+}
+
+/**
+ * Batch-fetch del context EPP para un frame de eventos (todos los eventos
+ * visibles en /calendario o /calendario/agenda). 3 queries `.in(...)`
+ * paralelas + dedup de UUIDs → costo constante sin importar cuántos eventos
+ * EPP entren en el frame.
+ *
+ * RLS: usa el `supabase` authed que recibe → cross-tenant filtra
+ * automáticamente. NO `createServiceRoleClient()` (lesson T-050/T-053).
+ *
+ * Empleado e item se filtran por `is('archived_at', null)`: rows archived
+ * caen en degraded. `epp_entregas` no tiene `archived_at` (inmutable post-firma
+ * Res 299/11), por eso no se filtra.
+ */
+export async function getEppContextForEvents(
+  supabase: SupabaseClient<Database>,
+  events: ReadonlyArray<CalendarEventRow>,
+): Promise<Record<string, EppEventContext>> {
+  const parsed: Array<{ eventId: string; meta: EppEventMetadataShape }> = [];
+  for (const e of events) {
+    if (e.tipo !== 'epp_entrega') continue;
+    const meta = extractEppMetadata(e.metadata);
+    if (!meta) continue;
+    parsed.push({ eventId: e.id, meta });
+  }
+  if (parsed.length === 0) return {};
+
+  const empleadoIds = [...new Set(parsed.map((p) => p.meta.empleado_id))];
+  const itemIds = [...new Set(parsed.map((p) => p.meta.epp_item_id))];
+  const entregaIds = [...new Set(parsed.map((p) => p.meta.epp_entrega_id))];
+
+  const [empleadosRes, itemsRes, entregasRes] = await Promise.all([
+    supabase
+      .from('empleados')
+      .select('id, nombre, apellido')
+      .in('id', empleadoIds)
+      .is('archived_at', null),
+    supabase.from('epp_items').select('id, nombre').in('id', itemIds).is('archived_at', null),
+    supabase.from('epp_entregas').select('id, fecha_entrega').in('id', entregaIds),
+  ]);
+
+  const empleadoMap = new Map<string, { id: string; nombre: string; apellido: string }>();
+  for (const row of empleadosRes.data ?? []) {
+    empleadoMap.set(row.id, { id: row.id, nombre: row.nombre, apellido: row.apellido });
+  }
+  const itemMap = new Map<string, { id: string; nombre: string }>();
+  for (const row of itemsRes.data ?? []) {
+    itemMap.set(row.id, { id: row.id, nombre: row.nombre });
+  }
+  const entregaMap = new Map<string, { id: string; fecha_entrega: string }>();
+  for (const row of entregasRes.data ?? []) {
+    entregaMap.set(row.id, { id: row.id, fecha_entrega: row.fecha_entrega });
+  }
+
+  const out: Record<string, EppEventContext> = {};
+  for (const { eventId, meta } of parsed) {
+    out[eventId] = {
+      empleado: empleadoMap.get(meta.empleado_id) ?? null,
+      item: itemMap.get(meta.epp_item_id) ?? null,
+      entrega: entregaMap.get(meta.epp_entrega_id) ?? null,
+    };
+  }
+  return out;
 }

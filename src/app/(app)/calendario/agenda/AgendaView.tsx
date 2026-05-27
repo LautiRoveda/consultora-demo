@@ -2,7 +2,7 @@
 
 import type { CalendarEventStatus, CalendarEventTipo } from '../defaults';
 import type { DrawerState } from '../EventDrawer';
-import type { CalendarEventRow } from '../queries';
+import type { CalendarEventRow, EppEventContext } from '../queries';
 import type { UrlState } from '../url-state';
 import { ChevronDown, Plus } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -51,6 +51,8 @@ type Props = {
   currentUserId: string;
   currentUserRole: 'owner' | 'member';
   mode: 'buckets' | 'flat';
+  /** T-105: context EPP precomputado en el SC para events `tipo='epp_entrega'` del frame. */
+  initialEppContextByEventId: Record<string, EppEventContext>;
 };
 
 export function AgendaView({
@@ -60,6 +62,7 @@ export function AgendaView({
   currentUserId,
   currentUserRole,
   mode,
+  initialEppContextByEventId,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -278,6 +281,7 @@ export function AgendaView({
           onClose={closeDrawer}
           onSwitchToEdit={openEditEvent}
           onMutated={handleMutated}
+          eppContextByEventId={initialEppContextByEventId}
         />
       </div>
     </TooltipProvider>

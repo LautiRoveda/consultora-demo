@@ -1,16 +1,16 @@
 # Sprint 5 — EPP (Elementos de Protección Personal)
 
-**Status:** 🚧 EN CURSO (1 ticket en review · T-100 schema base)
+**Status:** ✅ CERRADO (7/7 tickets merged)
 
 | Ticket | Status | Descripción |
 |--------|--------|-------------|
-| T-100 | 🚧 | Migration EPP schema (7 tablas + audit + RLS + trigger post-entrega) |
-| T-101 | ⏳ | Server actions CRUD + UI catálogo (categorías/items/puestos) + seed inicial |
-| T-102 | ⏳ | UI Entregas + form + invocación post-entrega trigger |
-| T-103 | ⏳ | UI Empleado ↔ Puestos (M:N) |
-| T-104 | ⏳ | Planilla Res SRT 299/11 PDF + firma digital canvas |
-| T-105 | ⏳ | Eventos calendario auto-EPP (validar/completar trigger T-100) |
-| T-106 | ⏳ | Padrón empleado + IA sugerencia EPP por puesto |
+| T-100 | ✅ | Migration EPP schema (7 tablas + audit + RLS + trigger post-entrega) |
+| T-101 | ✅ | Server actions CRUD + UI catálogo (categorías/items/puestos) + seed inicial |
+| T-102 | ✅ | UI Entregas + form + invocación post-entrega trigger |
+| T-103 | ✅ | UI Empleado ↔ Puestos (M:N) |
+| T-104 | ✅ | Planilla Res SRT 299/11 PDF + firma digital canvas |
+| T-105 | ✅ | Eventos calendario auto-EPP + EventViewPanel "Vinculado con" (empleado/item/entrega) |
+| T-106 | ✅ | Padrón empleado + IA sugerencia EPP por puesto |
 
 ## Motivación del sprint
 
