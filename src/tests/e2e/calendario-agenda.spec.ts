@@ -17,6 +17,8 @@
  */
 import { expect, test } from '@playwright/test';
 
+import { todayCivilIsoAR } from '@/shared/lib/format-date';
+
 import {
   adminClient,
   createTestUserWithConsultora,
@@ -37,10 +39,17 @@ test.afterEach(async () => {
   }
 });
 
+// Cross-day fix: el bucketing del agenda usa `todayCivilIsoAR()` (T-085).
+// Si construimos el offset desde `new Date()` UTC, en runners que corren entre
+// 00:00 y 03:00 UTC (= 21:00-00:00 AR del dia anterior) el "hoy" UTC adelanta
+// un dia al "hoy AR" → el evento "hoy" cae en bucket-siete y el test falla.
+// Anclamos a `todayCivilIsoAR()` + UTC noon para ser idempotente al TZ del runner.
 function isoDaysFromNow(n: number): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
+  const todayCivil = todayCivilIsoAR();
+  const [y, m, d] = todayCivil.split('-').map(Number) as [number, number, number];
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
 }
 
 test.describe('Calendario agenda', () => {

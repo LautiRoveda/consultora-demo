@@ -15,6 +15,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { EventAgendaCard } from '@/app/(app)/calendario/EventAgendaCard';
+import { todayCivilIsoAR } from '@/shared/lib/format-date';
 import { TooltipProvider } from '@/shared/ui/tooltip';
 
 vi.mock('server-only', () => ({}));
@@ -159,7 +160,11 @@ describe('EventAgendaCard', () => {
   });
 
   it('muestra badge "Hoy" cuando fecha = today + status pending', () => {
-    const todayIso = new Date().toISOString().slice(0, 10);
+    // Cross-day fix: el badge "Hoy" se decide contra `todayCivilIsoAR()` (T-085).
+    // `new Date().toISOString().slice(0,10)` da el dia UTC, que en runners entre
+    // 00:00-03:00 UTC adelanta un dia al "hoy AR" -> el badge cae como "manana"
+    // y el test falla. Anclamos al dia AR como hace el componente.
+    const todayIso = todayCivilIsoAR();
     renderCard({ event: makeEvent({ fecha_vencimiento: todayIso }) });
     expect(screen.getByText('Hoy')).toBeInTheDocument();
     expect(screen.queryByText('Vencido')).not.toBeInTheDocument();
