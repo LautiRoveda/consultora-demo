@@ -15,6 +15,8 @@
  */
 import { expect, test } from '@playwright/test';
 
+import { todayCivilIsoAR } from '@/shared/lib/format-date';
+
 import {
   adminClient,
   createTestUserWithConsultora,
@@ -38,11 +40,18 @@ test.afterEach(async () => {
 /**
  * Devuelve un YYYY-MM-DD garantizado a >= 90 dias futuro (asegura que NINGUN
  * default de offsets caiga en "skipped por pasado").
+ *
+ * Anclado a `todayCivilIsoAR()` por consistencia con los otros specs E2E (los
+ * targets de prod usan TZ AR post-T-085). Con default daysAhead=120 el bug
+ * cross-day no se manifiesta, pero mantenemos el anchor para evitar drift si
+ * algun caller futuro pasa un offset chico.
  */
 function farFutureIso(daysAhead = 120): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + daysAhead);
-  return d.toISOString().slice(0, 10);
+  const todayCivil = todayCivilIsoAR();
+  const [y, m, d] = todayCivil.split('-').map(Number) as [number, number, number];
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  dt.setUTCDate(dt.getUTCDate() + daysAhead);
+  return dt.toISOString().slice(0, 10);
 }
 
 function ymOf(iso: string): { year: number; month: number } {
