@@ -14,6 +14,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgendaView } from '@/app/(app)/calendario/agenda/AgendaView';
+import { todayCivilIsoAR } from '@/shared/lib/format-date';
 
 vi.mock('server-only', () => ({}));
 
@@ -115,10 +116,18 @@ function makeEvent(overrides: Partial<CalendarEventRow>): CalendarEventRow {
   };
 }
 
+// Cross-day fix: el bucketing de prod usa `todayCivilIsoAR()` (TZ AR, T-085).
+// Si construimos el offset desde `new Date()` UTC, en runners que corren entre
+// 00:00 y 03:00 UTC (= 21:00-00:00 AR del dia anterior) el "hoy" UTC adelanta
+// un dia al "hoy" AR → el evento "hoy" cae en bucket-siete y los tests fallan.
+// Anclamos el offset a `todayCivilIsoAR()` para que sea idempotente.
 function isoDaysFromNow(n: number): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
+  const todayCivil = todayCivilIsoAR();
+  const [y, m, d] = todayCivil.split('-').map(Number) as [number, number, number];
+  // UTC noon evita que setUTCDate cruce de dia por TZ del runner.
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
 }
 
 function renderAgenda(opts: Partial<Parameters<typeof AgendaView>[0]> = {}) {
