@@ -27,8 +27,10 @@ const SRT_TABLES_BY_AGENTE: Partial<Record<AgenteHys, SRTTable>> = {
  * Throw on invalid format por diseño — un disclaimer con fecha rota es bug
  * visible que el matriculado va a notar al revisar. Silent fallback escondería
  * el problema. Ver ADR-0013.
+ *
+ * @internal Exportado únicamente para tests; no es parte del API público.
  */
-function formatVerifiedAt(versionTabla: string): string {
+export function formatVerifiedAt(versionTabla: string): string {
   const match = versionTabla.match(/^(\d{4}-\d{2}-\d{2})/);
   if (!match || !match[1]) {
     throw new Error(`Invalid version_tabla format: ${versionTabla}`);
