@@ -49,7 +49,7 @@ Roadmap por fases en [`docs/technical/10-roadmap.md`](docs/technical/10-roadmap.
 | 4 🚧 | T-047..T-053 clientes + empleados (módulo Clientes ✅) | [sprint-4.md](docs/sprints/sprint-4.md) |
 | Op | Transversales (T-079 email templates, T-052-FU1/FU2 VPS runbook + monitor, …) | [operativo.md](docs/sprints/operativo.md) |
 
-**Próximo ticket**: pendiente definición post-cierre Sprint 5 EPP (T-100..T-106 todos ✅). Reordenamiento del roadmap 12 semanas en curso — orquestador armando briefing A6 (tablas SRT al prompt IA, diferenciador único vs Previo/GENESIS/SIGHyS) + F1 (landing /precios /features) + quick wins semana 1.
+**Próximo ticket**: pendiente definición orquestador post-T-107. Reordenamiento roadmap 12 semanas en curso. Próximo candidato: T-108 (landing pública + /precios + /features, antes "F1" del audit).
 
 ## RLS / multi-tenancy
 
