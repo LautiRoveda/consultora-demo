@@ -349,3 +349,27 @@ function isoDaysFromNow(n: number): string {
 Reproducción local: clock real entre 00:00 y 03:00 UTC (= 21:00–00:00 AR día anterior), o `vi.useFakeTimers() + vi.setSystemTime(new Date('2026-05-27T00:30:00Z'))`. Validación cerrada cuando el patrón pre-fix falla y el post-fix pasa en el mismo runner.
 
 **Audit pendiente**: 5 integration tests con el mismo bug listados en issue [#148 (T-105-FU2)](https://github.com/LautiRoveda/consultora-demo/issues/148). No bloquean CI hoy (requieren `.env.local`) pero rompen smoke local en cross-day. Tech-debt clase B.
+
+## AI / Prompts
+
+### Tablas SRT al prompt IA (T-107)
+
+**Origen**: T-107. **Aplicable forward**: T-107-FU0 (Res 84/12 iluminación), T-107-FU1 (Res 886/15 ergonomía), T-107-FU2 (Res 295/03 químicos), T-107-FU3 (IRAM WBGT carga térmica).
+
+Tablas regulatorias HyS (Res SRT) cargadas como `const` TypeScript en `src/shared/ai/srt-tables/`, **NO en DB**, inyectadas al prompt vía 2do breakpoint `cache_control: 'ephemeral'` en `system[]`. Patrón canónico para futuros agentes.
+
+**Por qué NO en DB**: versionado via git + diff visible en PR + sin UI admin overhead. Trade-off: cambio requiere deploy, no toggle runtime. Aceptable porque las tablas SRT cambian raramente (Dec 351/79 sigue siendo base hace 47 años; cambios típicos 1-2x por década).
+
+**Por qué 2 breakpoints `system[]`**: el bloque SRT varía con `agentes_a_relevar` del informe. Si concatenamos al `system[0]` (prompt static), cualquier cambio de agentes invalida el cache cross-informe del prompt completo (~3600 tokens). Separado en `system[1]` → cache hit cuando misma combinación de agentes (caso real: regeneración del mismo informe + informes consecutivos del mismo consultor). El `system[0]` sigue cacheando normal sin importar el shape de `system[1]` porque es prefix base. Anthropic SDK 0.95.1 acepta hasta 4 breakpoints por request.
+
+**Mínimo cache Sonnet 4.6**: 1024 tokens (NO 2048 como decía el comentario del prompt pre-T-107). Verificado contra docs Anthropic 2026-05-27. Medir tokens del bloque ANTES del primer commit del módulo con `client.messages.countTokens()` — patrón en `scripts/dev-measure-srt-tokens.ts` + `pnpm dev:measure-srt-tokens`.
+
+**Política de actualización**: detección manual mensual newsletter SRT + RSS BO sección Trabajo (responsable hasta T-107-FU4: Lautaro). Cambio menor (valor numérico, vigencia, fraseo) → bump `version_tabla` + commit con quote textual literal de la nueva fuente primaria + URL Infoleg en el mensaje + redeploy. Cambio mayor (norma reemplazada por número nuevo) → nuevo file `res-XX-YY-[agente].ts`; versión vieja queda en git history (NO archivada como `_V1` para evitar confusión runtime).
+
+**Disclaimer obligatorio en output del informe**: footnote en sección 4 `Mediciones realizadas` con fecha de verificación (`{VERIFIED_AT}` reemplazado por el helper) + link a `srt.gob.ar`. Sin esto, riesgo legal real si la tabla queda stale. El helper `formatVerifiedAt` **throws** en formato inválido del `version_tabla` por diseño — disclaimer con fecha rota es bug VISIBLE que el matriculado nota al revisar; silent fallback escondería el problema.
+
+**Regla SRT condicional en el prompt static**: pre-T-107 el prompt prohibía toda cita literal de Res SRT. Post-T-107 la regla es condicional: "Si aparece bloque `## Criterios SRT para evaluación de [AGENTE]`, citá literal; si no, modo genérico". Aplicable a cualquier futuro prompt que reciba contexto regulatorio dinámico.
+
+**Audit observabilidad**: log de `informe_content_generated` ahora incluye `srtBlocks: number` (0 ó 1) — útil para verificar en logs productivos que el cache hit del 2do breakpoint se está dando cuando se espera.
+
+**Origen del patrón**: [ADR-0013](adr/0013-srt-tables-en-prompt-ia.md).

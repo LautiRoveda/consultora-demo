@@ -1,11 +1,13 @@
 import type { InformeTipo } from '@/app/(app)/informes/schema';
 import type { Json } from '@/shared/supabase/types';
+import type { RelevamientoMetadata } from '@/shared/templates/relevamiento/schema';
 import { type NextRequest } from 'next/server';
 
 import { getInformeById } from '@/app/(app)/informes/queries';
 import { INFORME_TIPOS } from '@/app/(app)/informes/schema';
 import { CLAUDE_MODEL } from '@/shared/ai/anthropic';
 import { getSystemPromptForTipo } from '@/shared/ai/prompts';
+import { injectSRTTables } from '@/shared/ai/srt-tables';
 import { streamAnthropicMessage } from '@/shared/ai/stream';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { requireBillingAccess } from '@/shared/billing/access';
@@ -178,6 +180,7 @@ export async function POST(
   // action: schema drift → fallback sin contexto, no bloquea generacion.
   let promptContext = '';
   let hasMetadata = false;
+  let srtTablesBlock = '';
   const tipoEntry = getServerTemplate(tipo);
   if (tipoEntry) {
     const { data: metaRow, error: metaErr } = await supabase
@@ -196,6 +199,14 @@ export async function POST(
       if (parsedMeta.success) {
         promptContext = tipoEntry.render(parsedMeta.data);
         hasMetadata = true;
+        // T-107 · Inyectar tablas SRT verificadas al system prompt si el tipo
+        // relevamiento incluye agentes con tabla cargada (ruido en MVP).
+        // Bloque vacio si ningun agente del informe tiene tabla → fallback al
+        // modo generico del prompt static.
+        if (tipo === 'relevamiento') {
+          const agentes = (parsedMeta.data as RelevamientoMetadata).agentes_a_relevar;
+          srtTablesBlock = injectSRTTables(agentes);
+        }
       } else {
         logger.warn(
           {
@@ -217,17 +228,34 @@ export async function POST(
   const userMessage = buildUserMessage({ promptContext, userNotes, tipo });
 
   // 10. Stream. El wrapper se encarga del mapping events → SSE + errores.
+  // system[0] = prompt static por tipo (cache cross-informe).
+  // system[1] = bloque SRT por agentes (cache cuando mismo set de agentes; T-107).
+  // Cuando srtTablesBlock es '' (sin agentes con tabla cargada), no se agrega
+  // segundo bloque — el array queda solo con el prompt static.
+  const systemBlocks: Array<{
+    type: 'text';
+    text: string;
+    cache_control: { type: 'ephemeral' };
+  }> = [
+    {
+      type: 'text',
+      text: systemPrompt,
+      cache_control: { type: 'ephemeral' },
+    },
+  ];
+  if (srtTablesBlock) {
+    systemBlocks.push({
+      type: 'text',
+      text: srtTablesBlock,
+      cache_control: { type: 'ephemeral' },
+    });
+  }
+
   const stream = streamAnthropicMessage(
     {
       model: CLAUDE_MODEL,
       max_tokens: 8192,
-      system: [
-        {
-          type: 'text',
-          text: systemPrompt,
-          cache_control: { type: 'ephemeral' },
-        },
-      ],
+      system: systemBlocks,
       messages: [{ role: 'user', content: userMessage }],
     },
     {
@@ -246,6 +274,7 @@ export async function POST(
               model: info.model,
               stopReason: info.stopReason,
               hasMetadata,
+              srtBlocks: systemBlocks.length - 1, // T-107 · 0 sin tabla cargada, 1 con bloque SRT
               ...info.usage,
               ms: info.ms,
               bytes: info.bytesEmitted,
