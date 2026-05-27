@@ -327,3 +327,25 @@ Convención forward: si necesitás loggear PII para alerting interno, usar key N
 **Origen**: T-085. **Aplicable forward**: cualquier display de fecha.
 
 Política completa en [docs/technical/08-timezone.md](technical/08-timezone.md). Helper centralizado en [src/shared/lib/format-date.ts](../src/shared/lib/format-date.ts) — hardcodea `timeZone: 'America/Argentina/Buenos_Aires'` en cada `Intl.DateTimeFormat`, inmune al runtime TZ (UTC del container, local del browser). Dos familias separadas: `format*AR` para timestamptz UTC (`created_at`, `firmado_at`), `formatCivil*AR` para `date` civil YYYY-MM-DD (`fecha_vencimiento`, `fecha_ingreso`). Prohibido en código nuevo: `toLocaleDateString`, `Intl.DateTimeFormat` directo, `date-fns/format()` sobre timestamps. Excepción documentada: `event-form-helpers.ts` (roundtrip browser-local para el date picker).
+
+### TZ tests cross-day window flakiness
+
+**Origen**: T-105 (PR #147 fix-up post-merge #146).
+
+Tests que usan helpers tipo `isoDaysFromNow(n)` con `setUTCDate` rompen entre **00:00–03:00 UTC** porque el runtime bucketiza con `todayCivilIsoAR()` (T-085). El CI del PR puede pasar (horario UK day) y el de main fallar (cross-day window) — escenario observado en commits `bba439e..9b18bc0`. Síntoma típico: assertions del estilo `expected '2' to be '1'` en counts de buckets "hoy", o eventos con `fecha_vencimiento: isoDaysFromNow(0)` cayendo en bucket-siete.
+
+**Patrón canónico en tests**: helpers de fecha SIEMPRE anclados a `todayCivilIsoAR()` + civil offset día a día sin tocar UTC. Ejemplo:
+
+```ts
+function isoDaysFromNow(n: number): string {
+  const todayCivil = todayCivilIsoAR();
+  const [y, m, d] = todayCivil.split('-').map(Number) as [number, number, number];
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
+}
+```
+
+Reproducción local: clock real entre 00:00 y 03:00 UTC (= 21:00–00:00 AR día anterior), o `vi.useFakeTimers() + vi.setSystemTime(new Date('2026-05-27T00:30:00Z'))`. Validación cerrada cuando el patrón pre-fix falla y el post-fix pasa en el mismo runner.
+
+**Audit pendiente**: 5 integration tests con el mismo bug listados en issue [#148 (T-105-FU2)](https://github.com/LautiRoveda/consultora-demo/issues/148). No bloquean CI hoy (requieren `.env.local`) pero rompen smoke local en cross-day. Tech-debt clase B.
