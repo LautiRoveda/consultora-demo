@@ -11,7 +11,7 @@ import { env } from '@/env';
  *
  * PUBLIC_API_PREFIXES: prefijos donde TODAS las routes son públicas (webhooks
  *   con su propio secret check, cron con bearer, health, push subs públicas,
- *   test-error en dev, Sentry monitoring tunnel).
+ *   test-error en dev, Sentry monitoring tunnel, OG image dynamic crawlers).
  * PUBLIC_API_EXACT: paths exactos públicos por razones legacy. dispatch-reminder
  *   vive bajo /api/calendar/ porque se creó en T-026..T-037 antes de la
  *   convention /api/cron/. Refactorar la URL implica update pg_cron schedule
@@ -21,8 +21,14 @@ import { env } from '@/env';
  * Convención forward: API privada por default. Para hacer una route nueva
  * pública, sumar al PUBLIC_API_PREFIXES (si toda la familia es pública) o
  * a PUBLIC_API_EXACT (si es un caso aislado). Ver docs/lessons-learned.md.
+ *
+ * T-108 · /api/og público porque los crawlers de redes sociales (WhatsApp,
+ * Twitter, Facebook, Slack) fetchean la imagen OG sin sesión. Sin esto, los
+ * link previews de las 3 páginas (/, /precios, /features) saldrían rotos.
+ * El handler es read-only (genera imagen estática a partir de query params
+ * sanitizados) — no expone datos sensibles.
  */
-const PUBLIC_API_PREFIXES = /^\/api\/(health|webhooks|cron|push|test-error|monitoring)(\/|$)/;
+const PUBLIC_API_PREFIXES = /^\/api\/(health|webhooks|cron|push|test-error|monitoring|og)(\/|$)/;
 const PUBLIC_API_EXACT = new Set<string>(['/api/calendar/dispatch-reminder']);
 
 function isPublicApi(pathname: string): boolean {

@@ -111,11 +111,13 @@ export const envSchema = z.object({
     .default('mailto:noreply@mail.consultora-demo.test-ia.cloud'),
 
   // Precio del plan Pro en centavos ARS (T-070). String regex para evitar
-  // sorpresas de decimales/float. Ejemplo "3000000" = ARS 30.000 = USD 30 al
-  // FX al momento de cargar. Lautaro lo ajusta manualmente en EasyPanel cuando
-  // hay drift FX (USD oficial vs blue, no hay BCRA lookup automático en MVP —
-  // futuro T-070-FU1 si emerge necesidad). Server-only — usado por T-071 al
-  // crear preapproval en Mercado Pago Subscriptions API.
+  // sorpresas de decimales/float. Ejemplo "3000000" = ARS 30.000/mes (plan
+  // único MVP, T-108). Pagando anual hay 15% off → ARS 25.500/mes equivalente
+  // (descuento se aplica al crear el preapproval anual en MP, no se persiste
+  // acá). Lautaro lo ajusta manualmente en EasyPanel cuando hay drift
+  // inflacionario significativo (no hay índice automático en MVP — futuro
+  // T-070-FU1 si emerge necesidad). Server-only — usado por T-071 al crear
+  // preapproval en Mercado Pago Subscriptions API.
   ARS_PRICE_MONTHLY: z.string().regex(/^\d+$/, 'centavos ARS sin decimales (ej "3000000").'),
 
   // Mercado Pago Subscriptions API (T-071). Server-only — leak = atacante

@@ -91,7 +91,7 @@ afterAll(async () => {
 });
 
 describe('RPC create_consultora_and_owner: happy path', () => {
-  it('crea consultora con plan=trial + trial_hasta ~7d', async () => {
+  it('crea consultora con plan=trial + trial_hasta ~14d', async () => {
     const userId = await createAuthUser(`t012-test-trial-${runId}@example.com`);
     const { consultoraId, slug } = await callRpc(userId, `Test Trial ${runId}`);
 
@@ -106,9 +106,9 @@ describe('RPC create_consultora_and_owner: happy path', () => {
     expect(consultora?.name).toBe(`Test Trial ${runId}`);
     expect(consultora?.slug).toBe(slug);
 
-    // trial_hasta ~ now + 7d (toleramos ±5 minutos por latencia red/clock skew).
+    // T-108: trial_hasta ~ now + 14d (toleramos ±5 min por latencia red/clock skew).
     const trialEnd = new Date(consultora!.trial_hasta!).getTime();
-    const expected = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    const expected = Date.now() + 14 * 24 * 60 * 60 * 1000;
     expect(Math.abs(trialEnd - expected)).toBeLessThan(5 * 60 * 1000);
   });
 
