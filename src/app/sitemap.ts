@@ -12,6 +12,7 @@ import { env } from '@/env';
  * Incluido:
  * - `/` — landing pública.
  * - `/precios` — pricing page (T-108 CP2).
+ * - `/features` — features page (T-108 CP3).
  *
  * Excluido (presente en el sitio pero no apto para indexación):
  * - `/login` (page tiene `robots.index = false`).
@@ -34,6 +35,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     {
       url: `${base}/precios`,
+      lastModified,
+      changeFrequency: 'monthly',
+      priority: 0.9,
+    },
+    {
+      url: `${base}/features`,
       lastModified,
       changeFrequency: 'monthly',
       priority: 0.9,
