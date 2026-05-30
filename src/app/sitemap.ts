@@ -11,6 +11,7 @@ import { env } from '@/env';
  *
  * Incluido:
  * - `/` — landing pública.
+ * - `/precios` — pricing page (T-108 CP2).
  *
  * Excluido (presente en el sitio pero no apto para indexación):
  * - `/login` (page tiene `robots.index = false`).
@@ -22,7 +23,7 @@ import { env } from '@/env';
  */
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = env.NEXT_PUBLIC_SITE_URL;
-  const lastModified = new Date('2026-05-10');
+  const lastModified = new Date('2026-05-27');
 
   return [
     {
@@ -30,6 +31,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified,
       changeFrequency: 'monthly',
       priority: 1,
+    },
+    {
+      url: `${base}/precios`,
+      lastModified,
+      changeFrequency: 'monthly',
+      priority: 0.9,
     },
   ];
 }

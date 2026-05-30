@@ -14,7 +14,9 @@
  * wa.me docs: https://faq.whatsapp.com/5913398998672934
  */
 
-export const WHATSAPP_E164 = '5491100000000';
+// TODO(T-108-CP5): replace con número real pre-merge.
+// Lautaro lo pasa durante review point 5.
+export const WHATSAPP_E164 = '5491100000000' as const;
 
 export const WHATSAPP_DEFAULT_MESSAGE =
   'Hola, llegué desde la landing de ConsultoraDemo y me gustaría hacer una consulta antes de empezar el trial.';

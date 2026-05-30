@@ -1,6 +1,7 @@
 import { CheckIcon } from 'lucide-react';
 import Link from 'next/link';
 
+import { formatARS, formatARSMonthly } from '@/shared/lib/format-ars';
 import { TRIAL_DAYS } from '@/shared/lib/trial-days';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader } from '@/shared/ui/card';
@@ -14,16 +15,28 @@ import { Card, CardContent, CardHeader } from '@/shared/ui/card';
  *
  * Server Component (todo es estático). Features default cubren el plan único
  * MVP — el caller puede override si quiere mostrar un subconjunto.
+ *
+ * T-108 CP2: `priceCentavos` consume `formatARSMonthly` / `formatARS` para
+ * mantener el display sincronizado con `env.ARS_PRICE_MONTHLY` cuando el
+ * caller server-side lo pasa. Default `DEFAULT_PRICE_CENTAVOS = 3_000_000`
+ * (ARS 30.000/mes) para que la card siga renderizando OK en client/test/
+ * styleguide sin tener acceso al env. El precio anual se computa como
+ * `monthly * ANNUAL_DISCOUNT_RATIO` (15% off — decisión comercial ADR-0014).
  */
 
 export type PricingCardVariant = 'full' | 'mini';
 
 interface PricingCardProps {
   variant?: PricingCardVariant;
+  /** Precio mensual en centavos ARS. Default 3.000.000 = ARS 30.000/mes. */
+  priceCentavos?: number;
   features?: readonly string[];
   ctaLabel?: string;
   ctaHref?: string;
 }
+
+const DEFAULT_PRICE_CENTAVOS = 3_000_000;
+const ANNUAL_DISCOUNT_RATIO = 0.85;
 
 const DEFAULT_FEATURES = [
   'Informes técnicos ilimitados con IA que cita la Res SRT',
@@ -37,11 +50,14 @@ const DEFAULT_FEATURES = [
 
 export function PricingCard({
   variant = 'full',
+  priceCentavos = DEFAULT_PRICE_CENTAVOS,
   features = DEFAULT_FEATURES,
   ctaLabel = `Empezar ${TRIAL_DAYS} días gratis`,
   ctaHref = '/signup',
 }: PricingCardProps) {
   const isFull = variant === 'full';
+  const monthlyDisplay = formatARS(priceCentavos);
+  const annualDisplay = formatARSMonthly(Math.round(priceCentavos * ANNUAL_DISCOUNT_RATIO));
 
   return (
     <Card
@@ -60,12 +76,12 @@ export function PricingCard({
         <p className="text-muted-foreground text-sm font-medium">Plan Pro</p>
         <p className="mt-1">
           <span className={isFull ? 'text-5xl font-semibold' : 'text-3xl font-semibold'}>
-            ARS 30.000
+            {monthlyDisplay}
           </span>
           <span className="text-muted-foreground text-base font-normal"> / mes</span>
         </p>
         <p className="text-muted-foreground text-sm">
-          Pagando anual: <span className="text-foreground font-medium">ARS 25.500/mes</span>{' '}
+          Pagando anual: <span className="text-foreground font-medium">{annualDisplay}</span>{' '}
           <span className="text-severity-ok">(−15%)</span>
         </p>
         {isFull ? (
