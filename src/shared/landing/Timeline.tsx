@@ -26,8 +26,12 @@ interface TimelineProps {
 }
 
 export function Timeline({ variant, steps }: TimelineProps) {
+  // TODO(design-system): reconciliar token `severity-ok-foreground` para usar
+  // como text-color sobre `bg-severity-ok/15` (hoy el token es ~blanco, pensado
+  // para bg-severity-ok sólido). Fallback hardcoded a `text-emerald-900` para
+  // pasar contrast WCAG AA (T-108 CP4 Lighthouse drop a 93 detectó 2.67).
   const badgeTone =
-    variant === 'onboarding' ? 'bg-severity-ok/15 text-severity-ok' : 'bg-primary/10 text-primary';
+    variant === 'onboarding' ? 'bg-severity-ok/15 text-emerald-900' : 'bg-primary/10 text-primary';
 
   return (
     <div data-variant={variant} data-testid={`timeline-${variant}`} className="mx-auto max-w-5xl">

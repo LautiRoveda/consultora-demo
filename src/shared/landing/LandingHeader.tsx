@@ -18,8 +18,11 @@ export function LandingHeader() {
   return (
     <header className="bg-background/80 sticky top-0 z-40 border-b backdrop-blur-sm">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
-        <Link href="/" className="flex items-center gap-2" aria-label="ConsultoraDemo — inicio">
-          <span className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-md text-sm font-bold">
+        <Link href="/" className="flex items-center gap-2">
+          <span
+            className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-md text-sm font-bold"
+            aria-hidden="true"
+          >
             CD
           </span>
           <span className="text-sm font-semibold">ConsultoraDemo</span>

@@ -24,7 +24,7 @@ export function PillarCard({ icon: Icon, title, body, eyebrow }: PillarCardProps
     <Card className="border-primary/30 h-full transition-all hover:-translate-y-0.5 hover:shadow-md">
       <CardHeader>
         {eyebrow ? (
-          <span className="text-primary/40 text-xs font-bold tracking-wide">{eyebrow}</span>
+          <span className="text-primary/90 text-xs font-bold tracking-wide">{eyebrow}</span>
         ) : null}
         <span className="bg-primary/10 text-primary mt-1 flex size-10 items-center justify-center rounded-md">
           <Icon className="size-5" aria-hidden="true" />

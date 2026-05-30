@@ -82,7 +82,11 @@ export function PricingCard({
         </p>
         <p className="text-muted-foreground text-sm">
           Pagando anual: <span className="text-foreground font-medium">{annualDisplay}</span>{' '}
-          <span className="text-severity-ok">(−15%)</span>
+          {/* TODO(design-system): el token `severity-ok` actual no llega a
+              contrast WCAG AA 4.5:1 sobre fondo blanco (3.21 medido por
+              Lighthouse). Fallback a `text-emerald-700` (~5.4:1) hasta que
+              reconciliemos el token verde del design system. */}
+          <span className="text-emerald-700 font-semibold">(−15%)</span>
         </p>
         {isFull ? (
           <p className="text-muted-foreground mt-2 text-sm">
