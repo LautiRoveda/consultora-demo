@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 
 const SITE_NAME = 'ConsultoraDemo';
 const SITE_DESCRIPTION =
-  'IA argentina que escribe tus informes técnicos con citas SRT verificadas y avisa antes de cada vencimiento normativo. Para higienistas freelance — plan único ARS 30.000/mes, 14 días gratis sin tarjeta.';
+  'IA argentina que escribe informes HyS con citas SRT verificadas. Para higienistas freelance. ARS 30.000/mes, 14 días gratis sin tarjeta.';
 
 /**
  * Indexación global (T-010 + T-108 CP4): solo el deploy productivo real
@@ -46,7 +46,7 @@ const IS_PRODUCTION_DEPLOY =
 export const metadata: Metadata = {
   metadataBase: new URL(env.NEXT_PUBLIC_SITE_URL),
   title: {
-    default: `${SITE_NAME} · Informes HyS con IA + calendario de vencimientos`,
+    default: `${SITE_NAME} · IA para informes HyS argentinos`,
     template: `%s · ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
@@ -65,18 +65,30 @@ export const metadata: Metadata = {
     'Argentina',
   ],
   authors: [{ name: SITE_NAME }],
+  alternates: {
+    canonical: '/',
+  },
   openGraph: {
     type: 'website',
     locale: 'es_AR',
     url: env.NEXT_PUBLIC_SITE_URL,
     siteName: SITE_NAME,
-    title: `${SITE_NAME} · Informes HyS con IA + calendario de vencimientos`,
+    title: `${SITE_NAME} · IA para informes HyS argentinos`,
     description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: '/api/og',
+        width: 1200,
+        height: 630,
+        alt: 'ConsultoraDemo — IA argentina para informes HyS',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: `${SITE_NAME} · Informes HyS con IA + calendario de vencimientos`,
+    title: `${SITE_NAME} · IA para informes HyS argentinos`,
     description: SITE_DESCRIPTION,
+    images: ['/api/og'],
   },
   robots: IS_PRODUCTION_DEPLOY ? undefined : { index: false, follow: false },
 };

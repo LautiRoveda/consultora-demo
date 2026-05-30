@@ -5,7 +5,7 @@ import { Suspense } from 'react';
 import { LoginForm } from './LoginForm';
 
 export const metadata: Metadata = {
-  title: 'Iniciar sesión · ConsultoraDemo',
+  title: 'Iniciar sesión',
   description: 'Accedé a tu cuenta de ConsultoraDemo.',
   robots: { index: false, follow: false },
 };

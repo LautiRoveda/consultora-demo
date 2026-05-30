@@ -37,23 +37,23 @@ const OG_PARAMS = `?title=${encodeURIComponent(OG_TITLE)}&tagline=${encodeURICom
 
 export const metadata: Metadata = {
   title: 'Precios',
-  description: `Plan único ARS 30.000/mes con ${TRIAL_DAYS} días gratis sin tarjeta. Descuento 15% pagando anual. Sin trucos, sin cláusulas escondidas — hecho para higienistas freelance argentinos.`,
+  description: `Plan único ARS 30.000/mes con todo incluido. ${TRIAL_DAYS} días gratis sin tarjeta. Pricing público sin demos agendadas.`,
   alternates: { canonical: '/precios' },
   openGraph: {
     title: 'Precios · ConsultoraDemo',
-    description: `Plan único ARS 30.000/mes con ${TRIAL_DAYS} días gratis sin tarjeta. Descuento 15% pagando anual.`,
+    description: `Plan único ARS 30.000/mes. ${TRIAL_DAYS} días gratis sin tarjeta.`,
     url: '/precios',
     type: 'website',
     locale: 'es_AR',
     siteName: 'ConsultoraDemo',
     images: [
-      { url: `/api/og${OG_PARAMS}`, width: 1200, height: 630, alt: 'ConsultoraDemo · Precios' },
+      { url: `/api/og${OG_PARAMS}`, width: 1200, height: 630, alt: 'Precios · ConsultoraDemo' },
     ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Precios · ConsultoraDemo',
-    description: `Plan único ARS 30.000/mes con ${TRIAL_DAYS} días gratis sin tarjeta.`,
+    description: `Plan único ARS 30.000/mes. ${TRIAL_DAYS} días gratis sin tarjeta.`,
     images: [`/api/og${OG_PARAMS}`],
   },
 };
@@ -73,7 +73,7 @@ const PAIN_GAIN_ROWS: readonly PainGainRow[] = [
   },
   {
     pain: 'Buscás resoluciones SRT en Infoleg y armás citas a mano cada vez.',
-    gain: 'IA con Res 85/12 (ruido) y normas relacionadas ya cargadas — cita con número exacto y disclaimer de vigencia.',
+    gain: 'IA con Res 85/12 (ruido) y normas relacionadas ya cargadas — cita con número exacto y nota de vigencia.',
   },
   {
     pain: 'Cobrás $200.000 a $500.000 ARS por un solo protocolo de ruido bien hecho.',
@@ -136,7 +136,7 @@ export default function PreciosPage() {
           <section className="mx-auto max-w-5xl px-4 py-16 sm:py-24">
             <div className="mx-auto max-w-3xl text-center">
               <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
-                Pricing pensado para higienistas freelance argentinos
+                Precios pensados para higienistas freelance argentinos
               </h1>
               <p className="text-foreground/80 mx-auto mt-6 max-w-2xl text-lg sm:text-xl">
                 Sin trucos ni cláusulas escondidas. {TRIAL_DAYS} días gratis con todas las

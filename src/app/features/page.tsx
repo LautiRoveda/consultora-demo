@@ -44,23 +44,23 @@ const OG_PARAMS = `?title=${encodeURIComponent(OG_TITLE)}&tagline=${encodeURICom
 
 export const metadata: Metadata = {
   title: 'Features',
-  description: `IA argentina con tablas SRT verificadas, calendario multi-canal de vencimientos normativos, EPP con planilla Res 299/11 firmada y audit log inmutable. Conocé el detalle de cada función antes de empezar tu trial de ${TRIAL_DAYS} días.`,
+  description: `IA con normas SRT cargadas, calendario que avisa por 3 canales, EPP con firma del empleado y registro inmutable de cada cambio. Probá ${TRIAL_DAYS} días gratis sin tarjeta.`,
   alternates: { canonical: '/features' },
   openGraph: {
     title: 'Features · ConsultoraDemo',
-    description: `IA argentina que cita la Res SRT con número exacto. Calendario multi-canal. Audit log inmutable. ${TRIAL_DAYS} días gratis sin tarjeta.`,
+    description: `IA con normas SRT cargadas + calendario multi-canal + registro inmutable. ${TRIAL_DAYS} días gratis sin tarjeta.`,
     url: '/features',
     type: 'website',
     locale: 'es_AR',
     siteName: 'ConsultoraDemo',
     images: [
-      { url: `/api/og${OG_PARAMS}`, width: 1200, height: 630, alt: 'ConsultoraDemo · Features' },
+      { url: `/api/og${OG_PARAMS}`, width: 1200, height: 630, alt: 'Features · ConsultoraDemo' },
     ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Features · ConsultoraDemo',
-    description: `IA argentina que cita la Res SRT con número exacto. ${TRIAL_DAYS} días gratis sin tarjeta.`,
+    description: `IA con normas SRT cargadas. ${TRIAL_DAYS} días gratis sin tarjeta.`,
     images: [`/api/og${OG_PARAMS}`],
   },
 };
@@ -86,11 +86,11 @@ const FEATURES: readonly FeatureSection[] = [
     index: '01',
     icon: SparklesIcon,
     title: 'Generación de informes con IA streaming en vivo',
-    body: 'La IA escribe tu informe técnico en tiempo real con citas SRT verificadas. Mediciones, criterios y conclusiones aparecen token por token mientras la IA piensa.',
+    body: 'La IA escribe tu informe técnico en tiempo real con citas SRT verificadas. Ves el texto armándose en vivo — no esperás 30 segundos mirando un spinner.',
     bullets: [
-      'Streaming visible: ves el texto aparecer en pantalla, no esperás 30 segundos a un bloque.',
+      'En vivo: ves el texto aparecer en pantalla mientras se genera.',
       'Res SRT 85/12 (ruido) cargada con valores oficiales — la IA cita con número y vigencia.',
-      'Disclaimer de vigencia + URL Infoleg en cada cita. Vos editás y firmás antes de presentar.',
+      'Nota de vigencia + link al SRT en cada cita. Vos editás y firmás antes de presentar.',
     ],
     imageSrc: '/landing/demo-informe-ruido-preview.png',
     imageAlt: 'Preview del PDF de informe técnico de ruido generado con IA streaming',
@@ -100,11 +100,11 @@ const FEATURES: readonly FeatureSection[] = [
     index: '02',
     icon: HardHatIcon,
     title: 'EPP con planilla Res SRT 299/11 firmada',
-    body: 'Cargás las entregas de EPP por empleado en un wizard guiado. La app genera la planilla 299/11 oficial con firma del empleado y código de verificación al pie.',
+    body: 'Cargás las entregas de EPP por empleado paso a paso. La app genera la planilla 299/11 oficial con la firma del empleado.',
     bullets: [
-      'Wizard por empleado: seleccionás items del catálogo, cantidad, fecha de entrega.',
-      'Firma digital (signature pad mobile-friendly) o adjunto de planilla papel escaneada.',
-      'PDF con marca de tu consultora + datos del matriculado + código de verificación.',
+      'Paso a paso por empleado: seleccionás los items del catálogo, cantidad y fecha de entrega.',
+      'El empleado firma con el dedo en la pantalla, o adjuntás una planilla papel escaneada.',
+      'PDF con marca de tu consultora + datos del matriculado al pie.',
     ],
     imageSrc: '/landing/demo-planilla-epp-preview.png',
     imageAlt: 'Preview de planilla EPP Res SRT 299/11 con firma del empleado',
@@ -116,9 +116,9 @@ const FEATURES: readonly FeatureSection[] = [
     title: 'Calendario que avisa antes de cada vencimiento',
     body: 'Cada evento (protocolo anual, entrega EPP 6m, calibración, capacitación, examen médico) entra al calendario con la antelación que vos definís y por el canal que elegís.',
     bullets: [
-      'Multi-canal: email, Telegram bot y push web nativas. Activás los que querés por categoría.',
-      'Offsets configurables por tipo: 30 días para protocolos anuales, 5 días para EPP, etc.',
-      'Vista mensual + agenda por buckets ("vencen hoy", "esta semana", "este mes").',
+      '3 canales: email, Telegram y notificaciones del navegador. Activás los que querés por tipo de evento.',
+      'Anticipación configurable por tipo: 30 días para protocolos anuales, 5 días para EPP, etc.',
+      'Vista mensual + agenda agrupada por "vencen hoy", "esta semana" y "este mes".',
     ],
     imageSrc: '/landing/demo-informe-ergonomia-preview.png',
     imageAlt: 'Preview del calendario de vencimientos normativos',
@@ -127,12 +127,12 @@ const FEATURES: readonly FeatureSection[] = [
     id: 'audit-log',
     index: '04',
     icon: ShieldCheckIcon,
-    title: 'Audit log inmutable compatible con ISO 45001',
-    body: 'Cada cambio sobre datos del dominio (clientes, empleados, EPP, informes, calendario) queda registrado con timestamp, actor y diff antes/después. Útil para auditorías SRT y certificación.',
+    title: 'Registro inmutable de cada cambio',
+    body: 'Cada cambio en clientes, empleados, EPP, informes o calendario queda guardado con fecha, autor y el "antes y después". Útil para auditorías SRT o si tu cliente busca certificar ISO 45001.',
     bullets: [
-      'Trigger DB AFTER INSERT/UPDATE/DELETE — la app no puede saltearlo.',
-      'Diff guard: solo escribe filas si hubo cambio efectivo (no ruido).',
-      'Multi-tenant por consultora con RLS — cada cliente ve solo el suyo.',
+      'Inmutable: ni vos ni el equipo de ConsultoraDemo pueden borrar o editar el registro.',
+      'Inteligente: solo guarda cuando hubo un cambio real, no ruido de actualizaciones vacías.',
+      'Privado por cuenta: cada consultora ve solo su propio registro.',
     ],
     imageSrc: '/landing/demo-informe-ruido-preview.png',
     imageAlt: 'Preview de la tabla audit_log con timestamps y diffs',
@@ -141,12 +141,12 @@ const FEATURES: readonly FeatureSection[] = [
     id: 'protocolos-ar',
     index: '05',
     icon: FileTextIcon,
-    title: 'Templates de protocolos técnicos argentinos',
-    body: 'Ruido (Res 85/12), iluminación (Res 84/12), puesta a tierra, RGRL anual, carga de fuego y más. La IA arranca con el template + tu form estructurado y completa el resto.',
+    title: 'Plantillas de protocolos técnicos argentinos',
+    body: 'Ruido (Res 85/12), iluminación (Res 84/12), puesta a tierra, RGRL anual, carga de fuego y más. La IA arranca con la plantilla + tus datos y completa el resto.',
     bullets: [
-      'Forms estructurados con validación Zod — no podés generar un PDF con campos faltantes.',
-      'Plantillas alineadas con la normativa AR vigente — disclaimer de vigencia en cada output.',
-      'Branding de tu consultora: logo, datos del matriculado, número de matrícula al pie.',
+      'Formularios con validación: no podés generar un PDF con datos clave faltantes.',
+      'Plantillas alineadas con la normativa argentina vigente — nota de vigencia en cada informe.',
+      'Tu marca: logo, datos del matriculado y número de matrícula al pie del PDF.',
     ],
     imageSrc: '/landing/demo-planilla-epp-preview.png',
     imageAlt: 'Preview de PDF de protocolo técnico con branding del consultor',
@@ -154,12 +154,12 @@ const FEATURES: readonly FeatureSection[] = [
 ];
 
 const ROADMAP_ITEMS = [
-  'Res 84/12 (iluminación) al prompt IA con valores oficiales',
+  'Iluminación (Res 84/12): la IA cita con valores oficiales del SRT',
   'Chat IA contextual sobre tus datos (preguntá "¿cuándo vence X?")',
-  'Importación CSV de empleados y clientes',
-  'OCR de planillas papel → digitalización automática',
-  'WhatsApp Business API como canal de alertas',
-  'PWA offline para uso en obra sin señal',
+  'Importación masiva de empleados y clientes desde Excel/CSV',
+  'Leer planillas en papel desde una foto y digitalizarlas automáticamente',
+  'WhatsApp como canal de alertas y envío de informes',
+  'Versión offline para usar sin señal en obra',
 ] as const;
 
 function FeatureSplit({ feature, index }: { feature: FeatureSection; index: number }) {
@@ -246,8 +246,9 @@ export default function FeaturesPage() {
                 La IA argentina que cita la Resolución SRT con número exacto.
               </h1>
               <p className="text-foreground/80 mx-auto mt-6 max-w-2xl text-lg sm:text-xl">
-                ConsultoraDemo no es un wrapper genérico de ChatGPT. Es un sistema con las tablas
-                oficiales del SRT cargadas, multi-canal nativo y audit log inmutable.
+                ConsultoraDemo no es un asistente IA genérico. Es un sistema con las normas SRT
+                cargadas con número y vigencia, alertas por 3 canales y registro inmutable de cada
+                cambio.
               </p>
             </div>
 

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 
 export const metadata: Metadata = {
-  title: 'Revisá tu email · ConsultoraDemo',
+  title: 'Revisá tu email',
   description: 'Te enviamos un link para confirmar tu cuenta.',
   robots: { index: false, follow: false },
 };
