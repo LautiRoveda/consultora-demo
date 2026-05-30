@@ -10,7 +10,7 @@ Leé en orden: (1) `docs/discovery/` porqué · (2) `docs/technical/` cómo · (
 
 Consultor argentino de HyS atiende 5-20 clientes (PYMEs + industrias). Día 60-70% papelería + 30-40% visitas. Pierde clientes por descuido (vencimientos olvidados) y come multas por EPP fuera de plazo (Res SRT 299/11 obliga renovación 6m).
 
-ConsultoraDemo con IA: (1) **genera informe técnico** (ruido / iluminación / puesta a tierra / RGRL / carga de fuego) en 5 min vs 2-4 hs — form estructurado + Claude Sonnet 4.6 con domain intelligence HyS AR → output 80-90% que el matriculado firma con edits menores; (2) **avisa antes de cada vencimiento** (protocolo anual / EPP 6m / calibraciones / capacitaciones). Pricing USD 30/mes Pro, trial 7d, sin comercial.
+ConsultoraDemo con IA: (1) **genera informe técnico** (ruido / iluminación / puesta a tierra / RGRL / carga de fuego) en 5 min vs 2-4 hs — form estructurado + Claude Sonnet 4.6 con domain intelligence HyS AR → output 80-90% que el matriculado firma con edits menores; (2) **avisa antes de cada vencimiento** (protocolo anual / EPP 6m / calibraciones / capacitaciones). Pricing ARS 30.000/mes plan único (15% off anual), trial 14d sin tarjeta, sin comercial.
 
 ## Stack
 

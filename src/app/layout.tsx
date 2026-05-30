@@ -18,12 +18,35 @@ const geistMono = Geist_Mono({
 
 const SITE_NAME = 'ConsultoraDemo';
 const SITE_DESCRIPTION =
-  'El asistente argentino que escribe tus informes con IA y nunca te deja olvidar un vencimiento. Para consultores HyS por USD 30 al mes.';
+  'IA argentina que escribe tus informes técnicos con citas SRT verificadas y avisa antes de cada vencimiento normativo. Para higienistas freelance — plan único ARS 30.000/mes, 14 días gratis sin tarjeta.';
+
+/**
+ * Indexación global (T-010 + T-108 CP4): solo el deploy productivo real
+ * permite indexar.
+ *
+ * Post-CHORE-D + ADR-0007 migramos de Vercel a VPS Hostinger + EasyPanel.
+ * El guard original chequeaba `VERCEL_ENV === 'production'` — obsoleto:
+ * en EasyPanel `VERCEL_ENV` siempre está undefined → la página productiva
+ * nunca era indexable. T-108 CP2 reportó SEO 66 en Lighthouse local por
+ * este motivo.
+ *
+ * Guard nuevo: `NODE_ENV === 'production'` AND `NEXT_PUBLIC_SITE_URL`
+ * matchea el dominio productivo real. Builds locales (NODE_ENV !==
+ * production o NEXT_PUBLIC_SITE_URL apuntando a localhost/placeholder)
+ * quedan noindex por defecto.
+ *
+ * TODO: si en el futuro hay staging.consultora-demo.test-ia.cloud o
+ * similar, actualizar el chequeo de NEXT_PUBLIC_SITE_URL para excluirlos
+ * del index (lista explícita de dominios indexables).
+ */
+const IS_PRODUCTION_DEPLOY =
+  process.env.NODE_ENV === 'production' &&
+  env.NEXT_PUBLIC_SITE_URL === 'https://consultora-demo.test-ia.cloud';
 
 export const metadata: Metadata = {
   metadataBase: new URL(env.NEXT_PUBLIC_SITE_URL),
   title: {
-    default: `${SITE_NAME} · Generador de informes HyS con IA`,
+    default: `${SITE_NAME} · Informes HyS con IA + calendario de vencimientos`,
     template: `%s · ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
@@ -31,10 +54,14 @@ export const metadata: Metadata = {
     'higiene y seguridad laboral',
     'HyS',
     'consultor HyS',
+    'higienista freelance',
     'informes técnicos',
     'SRT',
-    'Resolución 299/11',
+    'Res SRT 85/12',
+    'Res SRT 299/11',
     'EPP',
+    'calendario vencimientos normativos',
+    'IA Argentina',
     'Argentina',
   ],
   authors: [{ name: SITE_NAME }],
@@ -43,25 +70,15 @@ export const metadata: Metadata = {
     locale: 'es_AR',
     url: env.NEXT_PUBLIC_SITE_URL,
     siteName: SITE_NAME,
-    title: `${SITE_NAME} · Generador de informes HyS con IA`,
+    title: `${SITE_NAME} · Informes HyS con IA + calendario de vencimientos`,
     description: SITE_DESCRIPTION,
   },
   twitter: {
     card: 'summary_large_image',
-    title: `${SITE_NAME} · Generador de informes HyS con IA`,
+    title: `${SITE_NAME} · Informes HyS con IA + calendario de vencimientos`,
     description: SITE_DESCRIPTION,
   },
-  /*
-   * Indexación global (T-010): solo el deploy de production permite indexar.
-   * Preview deploys de Vercel emiten `<meta name="robots" content="noindex,nofollow">`
-   * a nivel root layout para evitar que Google indexe URLs efímeras tipo
-   * `consultora-demo-git-<branch>-<scope>.vercel.app`.
-   *
-   * `VERCEL_ENV` lo inyecta Vercel automáticamente: 'production' | 'preview' |
-   * 'development'. En build local sin Vercel queda undefined → la rama
-   * `!== 'production'` aplica noindex (seguro por default).
-   */
-  robots: process.env.VERCEL_ENV === 'production' ? undefined : { index: false, follow: false },
+  robots: IS_PRODUCTION_DEPLOY ? undefined : { index: false, follow: false },
 };
 
 export default function RootLayout({

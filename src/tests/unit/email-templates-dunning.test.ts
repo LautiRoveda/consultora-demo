@@ -72,12 +72,17 @@ describe('_utils · escapeHtml', () => {
   });
 });
 
+// T-108: 3_000_000 centavos = ARS 30.000/mes (price display in dunning emails
+// post-bump USD→ARS, sincronizado con currency_id='ARS' del preapproval MP).
+const PRICE_CENTAVOS = 3_000_000;
+
 describe('renderTrialExpiresEmail', () => {
   it('9. daysLeft=3 -> subject "vence en 3 días"', () => {
     const { subject } = renderTrialExpiresEmail({
       consultoraName: 'Acme HyS',
       daysLeft: 3,
       billingUrl: BILLING_URL,
+      priceCentavos: PRICE_CENTAVOS,
     });
     expect(subject).toBe('[ConsultoraDemo] Tu trial vence en 3 días');
   });
@@ -87,6 +92,7 @@ describe('renderTrialExpiresEmail', () => {
       consultoraName: 'Acme HyS',
       daysLeft: 1,
       billingUrl: BILLING_URL,
+      priceCentavos: PRICE_CENTAVOS,
     });
     expect(subject).toBe('[ConsultoraDemo] Tu trial vence en 1 día');
   });
@@ -96,6 +102,7 @@ describe('renderTrialExpiresEmail', () => {
       consultoraName: 'Acme HyS',
       daysLeft: 1,
       billingUrl: BILLING_URL,
+      priceCentavos: PRICE_CENTAVOS,
     });
     expect(html).toContain('mañana');
     expect(html).toContain('#b91c1c');
@@ -106,6 +113,7 @@ describe('renderTrialExpiresEmail', () => {
       consultoraName: 'Acme <HyS>',
       daysLeft: 3,
       billingUrl: BILLING_URL,
+      priceCentavos: PRICE_CENTAVOS,
     });
     expect(html).toContain('Hola Acme &lt;HyS&gt;');
     expect(html).toContain(BILLING_URL);
@@ -117,11 +125,25 @@ describe('renderTrialExpiresEmail', () => {
       consultoraName: 'Acme HyS',
       daysLeft: 3,
       billingUrl: BILLING_URL,
+      priceCentavos: PRICE_CENTAVOS,
     });
     expect(text).toContain('Hola Acme HyS,');
     expect(text).toContain(BILLING_URL);
     expect(text).not.toContain('<table');
     expect(text).not.toContain('<a href');
+  });
+
+  it('13b (T-108). html y text muestran precio ARS y NO mencionan USD', () => {
+    const { html, text } = renderTrialExpiresEmail({
+      consultoraName: 'Acme HyS',
+      daysLeft: 3,
+      billingUrl: BILLING_URL,
+      priceCentavos: PRICE_CENTAVOS,
+    });
+    expect(html).toContain('ARS 30.000/mes');
+    expect(text).toContain('ARS 30.000/mes');
+    expect(html).not.toContain('USD');
+    expect(text).not.toContain('USD');
   });
 });
 
@@ -131,6 +153,7 @@ describe('renderTrialExpiredEmail', () => {
       consultoraName: 'Acme',
       billingUrl: BILLING_URL,
       retentionDate: '2026-06-30T14:00:00Z',
+      priceCentavos: PRICE_CENTAVOS,
     });
     expect(subject).toBe('[ConsultoraDemo] Tu trial ha expirado');
   });
@@ -140,6 +163,7 @@ describe('renderTrialExpiredEmail', () => {
       consultoraName: 'Acme',
       billingUrl: BILLING_URL,
       retentionDate: '2026-06-30T14:00:00Z',
+      priceCentavos: PRICE_CENTAVOS,
     });
     expect(html).toContain('30/06/2026');
   });
@@ -149,6 +173,7 @@ describe('renderTrialExpiredEmail', () => {
       consultoraName: 'Acme',
       billingUrl: BILLING_URL,
       retentionDate: null,
+      priceCentavos: PRICE_CENTAVOS,
     });
     expect(html).not.toContain('hasta el');
     expect(html).toContain('Tus datos quedan guardados');
@@ -159,9 +184,23 @@ describe('renderTrialExpiredEmail', () => {
       consultoraName: '<img src=x onerror=alert(1)>',
       billingUrl: BILLING_URL,
       retentionDate: null,
+      priceCentavos: PRICE_CENTAVOS,
     });
     expect(html).not.toContain('<img src=x');
     expect(html).toContain('&lt;img src=x');
+  });
+
+  it('17b (T-108). html y text muestran precio ARS y NO mencionan USD', () => {
+    const { html, text } = renderTrialExpiredEmail({
+      consultoraName: 'Acme',
+      billingUrl: BILLING_URL,
+      retentionDate: null,
+      priceCentavos: PRICE_CENTAVOS,
+    });
+    expect(html).toContain('ARS 30.000/mes');
+    expect(text).toContain('ARS 30.000/mes');
+    expect(html).not.toContain('USD');
+    expect(text).not.toContain('USD');
   });
 });
 
@@ -267,11 +306,13 @@ describe('all dunning templates · layout estructural', () => {
         consultoraName: 'X',
         daysLeft: 3,
         billingUrl: BILLING_URL,
+        priceCentavos: PRICE_CENTAVOS,
       }),
       renderTrialExpiredEmail({
         consultoraName: 'X',
         billingUrl: BILLING_URL,
         retentionDate: null,
+        priceCentavos: PRICE_CENTAVOS,
       }),
       renderPaymentFailedEmail({
         consultoraName: 'X',

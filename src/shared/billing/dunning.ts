@@ -199,18 +199,21 @@ function renderDunningEmail(
         consultoraName: consultora.name,
         daysLeft: 3,
         billingUrl: BILLING_URL,
+        priceCentavos: Number(env.ARS_PRICE_MONTHLY),
       });
     case 'trial_expires_in_1d':
       return renderTrialExpiresEmail({
         consultoraName: consultora.name,
         daysLeft: 1,
         billingUrl: BILLING_URL,
+        priceCentavos: Number(env.ARS_PRICE_MONTHLY),
       });
     case 'trial_expired':
       return renderTrialExpiredEmail({
         consultoraName: consultora.name,
         billingUrl: BILLING_URL,
         retentionDate: consultora.retencionDatosHasta ?? null,
+        priceCentavos: Number(env.ARS_PRICE_MONTHLY),
       });
     case 'payment_failed': {
       const p = payload as { monto_centavos: number; razon_falla: string | null };

@@ -1,5 +1,7 @@
 import type { RenderedEmail } from './_utils';
 
+import { formatARSMonthly } from '@/shared/lib/format-ars';
+
 import { escapeHtml, formatFechaCorta, renderDunningLayout } from './_utils';
 
 /**
@@ -7,18 +9,24 @@ import { escapeHtml, formatFechaCorta, renderDunningLayout } from './_utils';
  *
  * Disparado post-vencimiento por cron daily. Incluye fecha retencion datos
  * para tranquilizar al user que sus datos no se borran inmediatamente.
+ *
+ * T-108: el caller pasa `priceCentavos` (`Number(env.ARS_PRICE_MONTHLY)`)
+ * para reemplazar el "USD 30/mes" hardcoded por display ARS sincronizado con
+ * el cobro real en MP.
  */
 
 export type RenderTrialExpiredInput = {
   consultoraName: string;
   billingUrl: string;
   retentionDate: string | null;
+  priceCentavos: number;
 };
 
 export function renderTrialExpiredEmail(input: RenderTrialExpiredInput): RenderedEmail {
-  const { consultoraName, billingUrl, retentionDate } = input;
+  const { consultoraName, billingUrl, retentionDate, priceCentavos } = input;
   const safeName = escapeHtml(consultoraName);
   const safeRetention = formatFechaCorta(retentionDate);
+  const priceDisplay = formatARSMonthly(priceCentavos);
 
   const subject = '[ConsultoraDemo] Tu trial ha expirado';
   const preheader = 'Tu trial expiró — reactivá tu cuenta para retomar el acceso';
@@ -34,7 +42,7 @@ export function renderTrialExpiredEmail(input: RenderTrialExpiredInput): Rendere
               </p>
               ${retentionLine}
               <p style="margin: 0 0 16px 0;">
-                Activá tu suscripción Pro (USD 30/mes) y volvés a tener acceso inmediato.
+                Activá tu suscripción Pro (${priceDisplay}) y volvés a tener acceso inmediato.
               </p>`;
 
   const html = renderDunningLayout({
@@ -56,7 +64,7 @@ export function renderTrialExpiredEmail(input: RenderTrialExpiredInput): Rendere
     '',
     retentionTextLine,
     '',
-    'Activá tu suscripción Pro (USD 30/mes) y volvés a tener acceso inmediato:',
+    `Activá tu suscripción Pro (${priceDisplay}) y volvés a tener acceso inmediato:`,
     billingUrl,
     '',
     '---',

@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { TRIAL_DAYS } from '@/shared/lib/trial-days';
+
 import { SignupForm } from './SignupForm';
 
 export const metadata: Metadata = {
   title: 'Crear cuenta · ConsultoraDemo',
-  description: 'Empezá tu prueba de 7 días gratis en ConsultoraDemo.',
+  description: `Empezá tu prueba de ${TRIAL_DAYS} días gratis en ConsultoraDemo.`,
   robots: { index: false, follow: false },
 };
 
