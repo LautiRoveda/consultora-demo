@@ -40,7 +40,7 @@ test('/login footer link "Crear cuenta" navega a /signup', async ({ page }) => {
   await page.goto('/login');
   await page.getByRole('link', { name: 'Crear cuenta' }).click();
   await expect(page).toHaveURL(/\/signup$/);
-  await expect(page.getByText('Empezá tu prueba de 7 días gratis')).toBeVisible();
+  await expect(page.getByText('Empezá tu prueba de 14 días gratis')).toBeVisible();
 });
 
 test('/login?confirmed=1 muestra banner "Cuenta confirmada"', async ({ page }) => {
