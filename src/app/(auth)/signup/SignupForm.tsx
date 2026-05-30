@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
+import { TRIAL_DAYS } from '@/shared/lib/trial-days';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/shared/ui/form';
@@ -63,7 +64,7 @@ export function SignupForm() {
       <CardHeader>
         <CardTitle className="text-2xl">Crear cuenta</CardTitle>
         <p className="text-muted-foreground text-sm">
-          Empezá tu prueba de 7 días gratis. Sin tarjeta de crédito.
+          Empezá tu prueba de {TRIAL_DAYS} días gratis. Sin tarjeta de crédito.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
