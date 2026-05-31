@@ -191,7 +191,16 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm exec playwright install-deps chromium
 
+      # T-111 F2 (PAUSA TEMPORAL): el E2E corre Playwright contra la app buildeada
+      # con los secrets de prod (env del job, arriba), asi que CADA run crea
+      # consultoras de test en la DB prod-linked (~546 nuevas entre dos recounts
+      # del cleanup). El cleanup F2 va a borrar ~14.5k consultoras de test; si el
+      # E2E sigue corriendo re-genera test data y revierte el cleanup. Se pausa
+      # hasta: (a) cleanup F2 ejecutado y (b) ticket T-112 que aisla el E2E contra
+      # un Supabase efimero (como F1 #158 hizo con los integration). Re-habilitar =
+      # quitar este `if: false`.
       - name: E2E tests
+        if: false
         run: pnpm test:e2e
 
       - name: Upload Playwright report
