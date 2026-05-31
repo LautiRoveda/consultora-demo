@@ -1,6 +1,6 @@
 # Sprint 4 — Clientes / Empleados / EPP / Pagos / Checklists
 
-**Status:** 🚧 EN CURSO (7 tickets completos · **módulo Clientes ✅**)
+**Status:** 🚧 EN CURSO (9 tickets completos · **módulo Clientes ✅** · **módulo Empleados ✅**)
 
 | Ticket | Status | Descripción |
 |--------|--------|-------------|
@@ -11,7 +11,8 @@
 | T-051 | ✅ | Cierre módulo Clientes (E2E + cross-tenant + runbook + lessons) |
 | T-052 | ✅ | Migration tabla `empleados` |
 | T-053 | ✅ | Server actions CRUD + queries Empleados |
-| T-054 | ⏳ | UI Empleados (próximo) |
+| T-054 | ✅ | UI Empleados (list + form + detail + sidebar live) |
+| T-055 | ✅ | Tab Empleados en `/clientes/[id]` |
 
 ## T-047 ✅ Migration tabla clientes
 
