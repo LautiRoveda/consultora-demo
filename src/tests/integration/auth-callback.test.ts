@@ -22,6 +22,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 vi.mock('next/headers', () => ({
+  headers: () => Promise.resolve(new Headers({ 'x-forwarded-for': '127.0.0.1' })),
   cookies: () =>
     Promise.resolve({
       getAll: () => [],

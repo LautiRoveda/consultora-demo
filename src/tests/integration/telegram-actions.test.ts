@@ -39,6 +39,7 @@ vi.mock('@/shared/telegram/bot-client', () => ({
 // sesión real, después cacheamos las cookies por email para reuso.
 const cookieStore: Array<{ name: string; value: string }> = [];
 vi.mock('next/headers', () => ({
+  headers: () => Promise.resolve(new Headers({ 'x-forwarded-for': '127.0.0.1' })),
   cookies: () =>
     Promise.resolve({
       getAll: () => cookieStore.map((c) => ({ name: c.name, value: c.value })),
