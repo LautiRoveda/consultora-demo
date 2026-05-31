@@ -2,6 +2,10 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { getClienteById } from '@/app/(app)/clientes/queries';
+import {
+  getEntregasByEmpleado,
+  getPlanificacionesActivasByEmpleado,
+} from '@/app/(app)/epp/entregas/queries';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { createClient } from '@/shared/supabase/server';
 import { Badge } from '@/shared/ui/badge';
@@ -10,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { formatCivilDateEs, formatDateEs, formatDni, isArchived } from '../labels';
 import { getEmpleadoById } from '../queries';
 import { EmpleadoActionsButtons } from './EmpleadoActionsButtons';
+import { EntregasEppCard } from './EntregasEppCard';
 import { listPuestosAsignados, listPuestosDisponiblesParaAsignar } from './puestos/queries';
 import { PuestosCard } from './PuestosCard';
 import { SugerenciaEppCard } from './SugerenciaEppCard';
@@ -47,6 +52,13 @@ export default async function EmpleadoDetallePage({ params }: { params: Promise<
         listPuestosDisponiblesParaAsignar(supabase, empleado.id, consultora.id),
       ])
     : [[], []];
+
+  // T-109 · Timeline EPP + próximos vencimientos. RLS-scoped: solo necesitan
+  // empleado.id (las policies del tenant filtran), no consultora.
+  const [entregasEpp, planificacionesEpp] = await Promise.all([
+    getEntregasByEmpleado(supabase, empleado.id),
+    getPlanificacionesActivasByEmpleado(supabase, empleado.id),
+  ]);
 
   const hasContacto = !!(empleado.email || empleado.telefono);
   const hasLaboral = !!(empleado.puesto || empleado.fecha_ingreso || empleado.fecha_nacimiento);
@@ -148,6 +160,8 @@ export default async function EmpleadoDetallePage({ params }: { params: Promise<
         empleadoId={empleado.id}
         tienePuestos={puestosAsignados.some((p) => p.archived_at === null)}
       />
+
+      <EntregasEppCard entregas={entregasEpp} planificaciones={planificacionesEpp} />
     </div>
   );
 }
