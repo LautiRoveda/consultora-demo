@@ -54,6 +54,14 @@ El check `decrypted_secret = 'REPLACE_ME_POST_DEPLOY'` (exact match Y mayúscula
 
 ## Tests integration
 
+### Suite de integración + E2E escribían a prod → contaminación de 14k consultoras
+
+**Origen**: T-111. **Aplicada en**: F1 (#158) integration aislado; T-112 pendiente (E2E).
+
+Hasta T-110 `pnpm test:integration` corría contra el Postgres prod-linked compartido (`source .env.local && vitest --project integration`) y el step `E2E tests` de `ci.yml` corre Playwright contra la app buildeada con secrets de prod. Cada run creaba consultoras + `auth.users` de test en prod → se acumularon **14.484 consultoras de test + 5.811 `auth.users @example`** antes de detectarlo. F1 (#158) aisló integration con un Supabase local efímero (`scripts/test-integration-local.mjs`: `supabase start` + `db reset` + keys locales inyectadas, cero cambios a los tests). **E2E sigue pegándole a prod → T-112** lo replica.
+
+**Moralejas**: (1) ningún test contra prod-linked — stack efímero por capa de la pirámide. (2) Si ya hay contaminación, el cleanup one-shot debe: (a) **frenar TODAS las fuentes primero** (se pausó el step E2E con `if: false`, #161) o el borrado se revierte solo con el siguiente run de CI; (b) identificar lo protegido por **EXCLUSIÓN** (consultora con ≥1 member email ≠ `@example.com`), no por patrón frágil; (c) `DO` transaccional + `disable trigger user` (owner, no superuser) + borrado topológico (Kahn dinámico sobre `pg_constraint`) con FK ACTIVAS. `session_replication_role='replica'` NO va en Supabase (`postgres` no es superuser → 42501) y el cascade tampoco sirve (FK RESTRICT intra-dominio + el trigger inmutable de `audit_log` bloquea el SET NULL/UPDATE que el cascade dispara). (3) Para `auth.users`: el `delete ... where email ilike '%@example.com'` plano falla por el mismo motivo (SET NULL sobre `audit_log.actor_user_id` lo rebota el trigger inmutable) → mismo molde. (4) Backup en Free (sin PITR ni backup automático): dump JSON acotado de los registros protegidos + schema en git; un `pg_dump` completo sin Docker/`pg_dump` nativo no era viable y solo habría respaldado la basura a borrar.
+
 ### Setup secuencial vs Promise.all
 
 **Origen**: T-047. **Aplicada en**: T-048, T-052, T-053.
