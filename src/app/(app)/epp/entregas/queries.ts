@@ -69,6 +69,34 @@ export type PlanificacionWithEvent = PlanificacionRow & {
   calendar_event_fecha_vencimiento: string | null;
 };
 
+// T-109 · Timeline de entregas EPP de un empleado (ficha /empleados/[id]).
+export type EntregaTimelineItemDetail = {
+  id: string;
+  cantidad: number;
+  motivo_entrega: EntregaItemRow['motivo_entrega'];
+  numero_serie: string | null;
+  item_nombre: string;
+  categoria_nombre: string;
+};
+
+export type EntregaTimelineEntry = {
+  id: string;
+  fecha_entrega: string;
+  firmado_at: string | null;
+  observaciones: string | null;
+  items: EntregaTimelineItemDetail[];
+};
+
+// T-109 · Próximos vencimientos EPP de un empleado (planificaciones activas).
+export type PlanificacionActivaEmpleado = {
+  id: string;
+  item_id: string;
+  item_nombre: string;
+  fecha_proxima_entrega: string;
+  frecuencia_meses: number;
+  calendar_event_id: string | null;
+};
+
 type ListOptions = {
   empleadoId?: string;
   clienteId?: string;
@@ -433,6 +461,138 @@ export async function listItemsForEntregaWizard(supabase: SupabaseClient<Databas
       marca_default: r.marca_default,
       modelo_default: r.modelo_default,
       categoria_nombre: r.categoria?.nombre ?? '—',
+    };
+  });
+}
+
+type EntregasByEmpleadoOptions = {
+  limit?: number;
+  offset?: number;
+  includeUnsigned?: boolean;
+};
+
+const DEFAULT_TIMELINE_LIMIT = 20;
+
+/**
+ * T-109 · Timeline cronológica de entregas EPP de UN empleado para la sección
+ * "Entregas EPP" de la ficha /empleados/[id].
+ *
+ * Un solo select anidado (epp_entregas -> epp_entrega_items -> epp_items ->
+ * epp_categorias) evita N+1: traemos cada entrega con sus items y el
+ * nombre + categoría de cada item en un único round-trip.
+ *
+ * RLS-aware: NO recibimos `consultora_id`; las policies del tenant filtran. Un
+ * `empleadoId` de otro tenant devuelve [] (ninguna fila visible) — defensa
+ * cross-tenant sin chequeo extra. Aprovecha el índice
+ * idx_epp_entregas_empleado_fecha (empleado_id, fecha_entrega desc).
+ *
+ * Default firmadas-only (firmado_at not null): el timeline muestra evidencia
+ * legal cerrada (Res SRT 299/11), no drafts. `includeUnsigned` para preview.
+ * Paginada via `range`; default 20 por página (la ficha rara vez necesita más).
+ */
+export async function getEntregasByEmpleado(
+  supabase: SupabaseClient<Database>,
+  empleadoId: string,
+  options: EntregasByEmpleadoOptions = {},
+): Promise<EntregaTimelineEntry[]> {
+  const limit = options.limit ?? DEFAULT_TIMELINE_LIMIT;
+  const offset = options.offset ?? 0;
+
+  let query = supabase
+    .from('epp_entregas')
+    .select(
+      'id, fecha_entrega, firmado_at, observaciones, ' +
+        'items:epp_entrega_items(id, cantidad, motivo_entrega, numero_serie, created_at, ' +
+        'item:epp_items!inner(nombre, categoria:epp_categorias!inner(nombre)))',
+    )
+    .eq('empleado_id', empleadoId)
+    .order('fecha_entrega', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (!options.includeUnsigned) query = query.not('firmado_at', 'is', null);
+
+  const { data } = await query;
+  if (!data) return [];
+
+  return data.map((row) => {
+    const r = row as unknown as {
+      id: string;
+      fecha_entrega: string;
+      firmado_at: string | null;
+      observaciones: string | null;
+      items: Array<{
+        id: string;
+        cantidad: number;
+        motivo_entrega: EntregaItemRow['motivo_entrega'];
+        numero_serie: string | null;
+        created_at: string;
+        item: { nombre: string; categoria: { nombre: string } | null } | null;
+      }> | null;
+    };
+    // El embed no garantiza orden de los items dentro de la entrega; los
+    // ordenamos por created_at asc (orden de carga en el wizard) para un
+    // render estable. Costo trivial: pocos items por entrega.
+    const items: EntregaTimelineItemDetail[] = (r.items ?? [])
+      .slice()
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map((it) => ({
+        id: it.id,
+        cantidad: it.cantidad,
+        motivo_entrega: it.motivo_entrega,
+        numero_serie: it.numero_serie,
+        item_nombre: it.item?.nombre ?? '—',
+        categoria_nombre: it.item?.categoria?.nombre ?? '—',
+      }));
+    return {
+      id: r.id,
+      fecha_entrega: r.fecha_entrega,
+      firmado_at: r.firmado_at,
+      observaciones: r.observaciones,
+      items,
+    };
+  });
+}
+
+/**
+ * T-109 · Planificaciones EPP activas de UN empleado (próximos vencimientos)
+ * para la ficha /empleados/[id]. Orden asc por fecha_proxima_entrega (lo más
+ * próximo a vencer primero).
+ *
+ * RLS-aware (cross-tenant -> []). `estado='activa'` descarta cumplidas y
+ * canceladas. Aprovecha idx_epp_planificaciones_empleado (empleado_id, estado).
+ */
+export async function getPlanificacionesActivasByEmpleado(
+  supabase: SupabaseClient<Database>,
+  empleadoId: string,
+): Promise<PlanificacionActivaEmpleado[]> {
+  const { data } = await supabase
+    .from('epp_planificaciones')
+    .select(
+      'id, item_id, fecha_proxima_entrega, frecuencia_meses, calendar_event_id, ' +
+        'item:epp_items!inner(nombre)',
+    )
+    .eq('empleado_id', empleadoId)
+    .eq('estado', 'activa')
+    .order('fecha_proxima_entrega', { ascending: true });
+
+  if (!data) return [];
+
+  return data.map((row) => {
+    const r = row as unknown as {
+      id: string;
+      item_id: string;
+      fecha_proxima_entrega: string;
+      frecuencia_meses: number;
+      calendar_event_id: string | null;
+      item: { nombre: string } | null;
+    };
+    return {
+      id: r.id,
+      item_id: r.item_id,
+      item_nombre: r.item?.nombre ?? '—',
+      fecha_proxima_entrega: r.fecha_proxima_entrega,
+      frecuencia_meses: r.frecuencia_meses,
+      calendar_event_id: r.calendar_event_id,
     };
   });
 }
