@@ -1,6 +1,6 @@
 # Sprint 5 — EPP (Elementos de Protección Personal)
 
-**Status:** ✅ CERRADO (7/7 tickets merged)
+**Status:** ✅ CERRADO (7/7 tickets merged) · follow-up **T-109** ✅ (trazabilidad EPP per-empleado + resumen semanal)
 
 | Ticket | Status | Descripción |
 |--------|--------|-------------|
@@ -11,6 +11,11 @@
 | T-104 | ✅ | Planilla Res SRT 299/11 PDF + firma digital canvas |
 | T-105 | ✅ | Eventos calendario auto-EPP + EventViewPanel "Vinculado con" (empleado/item/entrega) |
 | T-106 | ✅ | Padrón empleado + IA sugerencia EPP por puesto |
+| T-109 | ✅ | Follow-up post-cierre — trazabilidad EPP per-empleado: timeline en ficha + próximos vencimientos + cron resumen semanal EPP por email |
+
+### T-109 · Trazabilidad EPP per-empleado + resumen semanal (follow-up)
+
+Cerró el gap pedido en el feedback del higienista (turnos 14/17/19/21): vista cronológica de qué EPP se entregó a cada empleado. Tres piezas sobre el schema EPP existente: (1) **timeline de entregas** dentro de `/empleados/[id]` (`EntregasEppCard`, server component) + próximos vencimientos desde `epp_planificaciones`; (2) query `getEntregasByEmpleado` RLS-aware con embed anidado (sin N+1); (3) **cron semanal** (lunes 09:00 ART) que emailea al owner un resumen EPP — patrón _digest_ con tabla dedicada `notification_digest_log` (idempotencia por periodo ISO) + email-only respetando `notification_channel_prefs`. Decisión en [ADR-0009](../adr/0009-digest-notification-pattern.md). Deploy + smoke del cron: [t-109-weekly-summary-smoke.md](../operations/t-109-weekly-summary-smoke.md). PRs: #155 (query+tests), #156 (UI), #157 (cron+alerta).
 
 ## Motivación del sprint
 

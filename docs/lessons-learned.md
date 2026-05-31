@@ -62,6 +62,16 @@ Una migración puede estar mergeada a `main` hace días pero NUNCA aplicada a la
 
 **Moraleja 2 — el smoke debe verificar el EFECTO REAL, no el "success" del CLI**: que `db push` reporte `Finished` (o que el PR mergeó) NO prueba que el cambio esté vivo. Verificar el efecto concreto en la DB: para funciones `select prosrc from pg_proc where proname='<fn>'` y confirmar el cambio (ej. `interval '14 days'` presente, `'7 days'` ausente); para tablas, query del schema. Es exactamente lo que habría cazado el drift de T-108 días antes.
 
+### Smoke de crons: cadena pg_cron→pg_net→route + secret-sync Vault↔EasyPanel
+
+**Origen**: T-109 (cron resumen semanal EPP). **Aplicable a**: todo cron nuevo (dunning T-074, reminders T-031).
+
+Un cron en este stack es una cadena de cuatro saltos: `pg_cron` (schedule) → `process_*()` (lee `cron_dispatch_secret` + `cron_dispatch_base_url` del Vault) → `pg_net` (POST async) → route Next (valida `X-Internal-Cron-Secret` contra `env.INTERNAL_CRON_SECRET`). El smoke real verifica la cadena ENTERA, no un curl al route: (1) `vault.decrypted_secrets` ≠ placeholder y largo 64; (2) `select process_*()` manual; (3) `net._http_response` último = 200; (4) opcional fila en la log table.
+
+**El secret vive DOS veces y deben ser idénticos**: `cron_dispatch_secret` (Vault, lo manda la función como header) y `INTERNAL_CRON_SECRET` (EasyPanel env, lo valida el route). Si rotás uno solo → **401** y el cron falla en silencio (pg_net no propaga el error a la vista). Sync = copiar el valor del Vault a EasyPanel + redeploy.
+
+**0 emails con status 200 = éxito** cuando no hay actividad: el route hace skip silencioso si la consultora no tiene nada accionable (no inserta en la log table). El smoke valida el DISPARO (200), no el envío. Runbook completo: `docs/operations/t-109-weekly-summary-smoke.md`.
+
 ## Tests integration
 
 ### Suite de integración + E2E escribían a prod → contaminación de 14k consultoras
