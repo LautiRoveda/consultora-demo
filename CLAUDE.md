@@ -46,10 +46,10 @@ Roadmap por fases en [`docs/technical/10-roadmap.md`](docs/technical/10-roadmap.
 | 1 ✅ | T-011..T-018 auth + tenancy | [sprint-1.md](docs/sprints/sprint-1.md) |
 | 2 ✅ | T-019..T-025 informes | [sprint-2.md](docs/sprints/sprint-2.md) |
 | 3 ✅ | T-026..T-037 + T-034 calendario + notificaciones | [sprint-3.md](docs/sprints/sprint-3.md) |
-| 4 🚧 | T-047..T-053 clientes + empleados (módulo Clientes ✅) | [sprint-4.md](docs/sprints/sprint-4.md) |
+| 4 🚧 | T-047..T-055 clientes + empleados (Clientes ✅ + Empleados ✅) | [sprint-4.md](docs/sprints/sprint-4.md) |
 | Op | Transversales (T-079 email templates, T-052-FU1/FU2 VPS runbook + monitor, …) | [operativo.md](docs/sprints/operativo.md) |
 
-**Próximo ticket**: pendiente definición orquestador post-T-107. Reordenamiento roadmap 12 semanas en curso. Próximo candidato: T-108 (landing pública + /precios + /features, antes "F1" del audit).
+**Próximo ticket**: T-109 · trazabilidad EPP per-empleado + alerta canal preferido (audit A1). Reordenamiento roadmap 12 semanas en curso.
 
 ## RLS / multi-tenancy
 

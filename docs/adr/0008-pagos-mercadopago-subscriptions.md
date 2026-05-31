@@ -1,9 +1,10 @@
 # ADR-0008 · Pagos vía Mercado Pago Subscriptions API + precio fijo ARS env var
 
 **Fecha:** 2026-05-21
-**Estado:** Aceptada
+**Estado:** Superseded por ADR-0014 (trial duration 7d → 14d)
 **Decisor:** Lautaro
 **Consultados:** Claude Code (planning + implementation T-070)
+**Superseded por:** [ADR-0014](0014-landing-pricing-ars-plan-unico.md) — trial 7d → 14d.
 
 ## Contexto
 
