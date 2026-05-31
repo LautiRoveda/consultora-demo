@@ -16,33 +16,30 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Supabase keys vienen de GitHub Secrets (configuradas en T-018) — son
-    # necesarias para que los tests E2E con sesión real (`auth-flows.spec.ts`)
-    # creen users via admin.createUser + bypass de email rate limit.
-    # Sentry sigue con placeholders: `enabled: NODE_ENV === 'production'` en
-    # cada sentry.*.config.ts hace que no envíen nada a Sentry desde CI.
-    # SITE_URL apunta a localhost:3000 (ver inline T-022.5-FU4 más abajo).
-    # SENTRY_AUTH_TOKEN (source maps en Vercel) se gestiona desde Vercel, no acá.
+    # T-112: el job `ci` ya NO corre E2E (se mudaron al job `e2e-tests` aislado),
+    # así que NO necesita secrets de prod. Solo buildea + verifica el bundle, y eso
+    # solo requiere que Zod (env.ts) valide: NEXT_PUBLIC_SUPABASE_URL una URL bien
+    # formada, las keys un string no vacío (min 1). Por eso TODAS las env son
+    # placeholders, CERO `${{ secrets.* }}`: superficie mínima de secrets + los fork
+    # PRs y Dependabot pueden correr `ci` sin acceso a secrets. El build no escribe a
+    # ninguna DB ni pega a Anthropic (no hay test live acá; el step "Verify
+    # service_role" busca un literal en el bundle, es independiente del valor).
+    # Sentry: `enabled: NODE_ENV === 'production'` en sentry.*.config.ts → no envía
+    # nada desde CI. SENTRY_AUTH_TOKEN (source maps) se gestiona en Vercel, no acá.
     env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci_placeholder_anon_key_ci_build_only_no_db
+      SUPABASE_SERVICE_ROLE_KEY: ci_placeholder_srvrole_key_server_only_no_db_aa
       NEXT_PUBLIC_SENTRY_DSN: https://placeholder@o0.ingest.sentry.io/0
       SENTRY_ORG: placeholder-org
       SENTRY_PROJECT: placeholder-project
-      # T-022.5-FU4: el callback handler (/auth/callback) ahora lee
-      # NEXT_PUBLIC_SITE_URL como base del redirect post-auth (ver
-      # src/app/auth/callback/route.ts). En CI el server Next corre en
-      # localhost:3000 vía playwright webServer (next start), así que el
-      # placeholder no-resolvible anterior (https://placeholder.example.com)
-      # rompía el E2E recovery flow con net::ERR_NAME_NOT_RESOLVED.
-      # Sitemap/robots usan este mismo env pero no se exercitan en E2E.
+      # NEXT_PUBLIC_SITE_URL: lo usan robots.ts/sitemap.ts y el callback handler
+      # para armar URLs absolutas. localhost:3000 es un placeholder válido para el
+      # build de CI (Zod pide una URL bien formada); el valor real vive en EasyPanel.
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
-      # T-020: env.ts valida ANTHROPIC_API_KEY al cargar (es required). El
-      # build de Next la necesita aunque ningun test live pegue a la API —
-      # los integration tests mockean el SDK (vi.mock) y los E2E NO disparan
-      # "Generar con IA" para evitar costo en CI.
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # T-020/T-112: env.ts valida ANTHROPIC_API_KEY al cargar (required). El build
+      # la necesita pero NO le pega a la API (no hay test live en `ci`). Placeholder.
+      ANTHROPIC_API_KEY: ci_placeholder_anthropic_ci_build_only_no_api_call
       # T-031: env.ts valida RESEND_API_KEY + RESEND_FROM_ADDRESS +
       # INTERNAL_CRON_SECRET. Placeholders alcanzan en CI: los integration
       # tests mockean Resend SDK (vi.mock @/shared/notifications/resend) y
