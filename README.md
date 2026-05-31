@@ -11,6 +11,16 @@ pnpm dev
 
 App en `http://localhost:3000`. Prototipo Fase 0 (referencia visual histórica) en `http://localhost:3000/prototipo/`.
 
+## Tests
+
+```bash
+pnpm test              # unit + component
+pnpm test:integration  # integration contra un Supabase local efímero (requiere Docker)
+pnpm test:e2e          # end-to-end (Playwright)
+```
+
+`pnpm test:integration` levanta un stack Supabase local (`supabase start` + `db reset`) y **nunca toca prod**. Para debug puntual contra el proyecto remoto: `pnpm test:integration:remote` (requiere `set -a && source .env.local && set +a`).
+
 ## Documentación
 
 - [`CLAUDE.md`](./CLAUDE.md) — índice maestro y contexto para agentes IA.
