@@ -21,6 +21,7 @@
     "test:integration:remote": "vitest run --project integration",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test --project=chromium",
+    "test:e2e:local": "node scripts/test-e2e-local.mjs",
     "test:e2e:ui": "playwright test --project=chromium --ui",
     "test:e2e:all-browsers": "playwright test",
     "db:start": "supabase start",

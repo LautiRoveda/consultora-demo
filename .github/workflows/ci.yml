@@ -174,51 +174,6 @@ jobs:
           fi
           echo "✅ Bundle del cliente limpio."
 
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-
-      - name: Install Playwright browsers (Chromium only)
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install chromium --with-deps
-
-      - name: Install Playwright system deps (browsers may be cached)
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
-
-      # T-111 F2 (PAUSA TEMPORAL): el E2E corre Playwright contra la app buildeada
-      # con los secrets de prod (env del job, arriba), asi que CADA run crea
-      # consultoras de test en la DB prod-linked (~546 nuevas entre dos recounts
-      # del cleanup). El cleanup F2 va a borrar ~14.5k consultoras de test; si el
-      # E2E sigue corriendo re-genera test data y revierte el cleanup. Se pausa
-      # hasta: (a) cleanup F2 ejecutado y (b) ticket T-112 que aisla el E2E contra
-      # un Supabase efimero (como F1 #158 hizo con los integration). Re-habilitar =
-      # quitar este `if: false`.
-      - name: E2E tests
-        if: false
-        run: pnpm test:e2e
-
-      - name: Upload Playwright report
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 7
-
-      - name: Upload Playwright test results (videos/screenshots)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-test-results
-          path: test-results/
-          retention-days: 7
-
   # T-111 F1: smoke de integration tests contra un Supabase LOCAL efímero (Docker
   # del runner). CERO secrets de prod — todas las env son placeholders para que
   # env.ts (Zod) valide al import; los servicios externos se mockean y el stack
@@ -281,6 +236,175 @@ jobs:
       # Falla el job si la suite falla (el script propaga el exit code).
       - name: Integration tests (Supabase local efímero)
         run: pnpm test:integration
+
+  # T-112: E2E (Playwright) contra un Supabase LOCAL efímero (Docker del runner),
+  # espejo del job integration-tests (F1). CERO secrets de prod — todas las env son
+  # placeholders que pasan la validación Zod de env.ts; las 3 keys de Supabase salen
+  # del stack LOCAL (scripts/test-e2e-local.mjs vía `supabase status -o env`), NO de
+  # secrets. El orquestador NO usa --linked: imposible tocar la DB de prod. Los
+  # servicios externos no se pegan de verdad en los specs (AI mockeada con
+  # page.route, push con addInitScript, Telegram/Resend/MP solo tocan DB/UI).
+  # NOTA: arranca NO-required en branch protection hasta probar estabilidad (≥1
+  # corrida verde). Marcarlo required es un cambio de settings del repo, no de acá.
+  e2e-tests:
+    name: E2E (Supabase local)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SENTRY_DSN: https://placeholder@o0.ingest.sentry.io/0
+      SENTRY_ORG: placeholder-org
+      SENTRY_PROJECT: placeholder-project
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      # AI mockeada con page.route en los specs E2E (no pega a Anthropic), igual
+      # que integration. Placeholder alcanza para que Zod (env.ts) valide.
+      ANTHROPIC_API_KEY: ci_placeholder_anthropic_e2e_mocked_page_route_aaaa
+      RESEND_API_KEY: re_placeholder_ci_does_not_call_resend
+      RESEND_FROM_ADDRESS: placeholder-ci@example.com
+      INTERNAL_CRON_SECRET: ci_placeholder_secret_32_chars_minimum_aaaaaa
+      TELEGRAM_BOT_TOKEN: ci_placeholder_telegram_bot_token_40_chars_aaa
+      TELEGRAM_BOT_USERNAME: consultorademo_ci_bot
+      TELEGRAM_WEBHOOK_SECRET: ci_placeholder_telegram_webhook_secret_32_chars
+      VAPID_PRIVATE_KEY: ci_placeholder_vapid_private_key_44_chars_b64url_aaa
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ci_placeholder_vapid_public_key_88_chars_b64url_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      VAPID_SUBJECT: mailto:ci-placeholder@example.com
+      ARS_PRICE_MONTHLY: '3000000'
+      MP_ACCESS_TOKEN: ci_placeholder_mercadopago_token_40_chars_minimum_aaaa
+      MP_WEBHOOK_SECRET: ci_placeholder_mercadopago_webhook_secret_32_chars
+      # 'false' = gate de trial ENFORCED. billing-gate.spec valida el gate
+      # end-to-end (banner trial vencido + create gated). Igual que integration.
+      BILLING_GATE_DISABLED: 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Cache .next con key PROPIA (`nextjs-e2e-`), NO la del job `ci`. El build de
+      # `ci` hornea otra NEXT_PUBLIC_SUPABASE_URL y la webpack cache puede reusar
+      # módulos con esa URL ya inlineada (footgun conocido de NEXT_PUBLIC + cache
+      # persistente). Compartir la key arriesgaría que el build E2E hornee la URL de
+      # `ci` (prod) en vez de 127.0.0.1:54321. Key aislada → el build E2E siempre
+      # hornea la URL local; el gate de abajo lo verifica igual como red de seguridad.
+      - name: Cache Next.js build (E2E, key aislada)
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**/*.{ts,tsx,js,jsx}') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright browsers (Chromium only)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install chromium --with-deps
+
+      - name: Install Playwright system deps (browsers may be cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      # Apuntá puppeteer-core (render de PDF server-side, src/shared/pdf/browser-pool.ts)
+      # al Chromium que Playwright ya instaló. browser-pool.ts resuelve el binario con
+      # `process.env.CHROMIUM_PATH ?? '/usr/bin/chromium-browser'`, y ubuntu-latest NO
+      # garantiza ese fallback (playwright install deja el binario en ~/.cache/ms-playwright,
+      # no en /usr/bin). Seteamos CHROMIUM_PATH a nivel job (GITHUB_ENV) → lo hereda el
+      # `next start` del webServer de Playwright. Sin esto los specs de PDF tiran 500.
+      - name: Resolver CHROMIUM_PATH para puppeteer-core (PDF server-side)
+        run: |
+          CHROMIUM_PATH="$(node -e "process.stdout.write(require('@playwright/test').chromium.executablePath())")"
+          test -x "$CHROMIUM_PATH" || { echo "::error::No se resolvió un Chromium ejecutable: $CHROMIUM_PATH"; exit 1; }
+          echo "CHROMIUM_PATH=$CHROMIUM_PATH" >> "$GITHUB_ENV"
+          echo "CHROMIUM_PATH=$CHROMIUM_PATH"
+
+      # `pnpm test:e2e:local` = scripts/test-e2e-local.mjs:
+      #   supabase start (Docker local) -> db reset -> status -o env -> playwright.
+      # El webServer (CI) buildea+corre la app heredando las 3 keys LOCALES, así que el
+      # build SERVIDO (.next/server) queda horneado apuntando a 127.0.0.1:54321 (lo
+      # verifica el gate de abajo). NUNCA usa --linked → imposible tocar prod. Falla el
+      # job si la suite falla (el script propaga el exit code).
+      - name: E2E tests (Supabase local efímero)
+        run: pnpm test:e2e:local
+
+      # GATE DURO (T-112): probamos que el build SERVIDO quedó horneado apuntando al
+      # Supabase LOCAL y NO a prod. Verificado empíricamente (no es obvio):
+      #  - NEXT_PUBLIC_SUPABASE_URL NO llega a .next/static. El browser client
+      #    (src/shared/supabase/client.ts) es dead code (cero imports); toda la app usa
+      #    el server client, así que la URL se inlina en .next/server (lo que sirve
+      #    `next start`), no en el bundle del cliente. Por eso grepeamos .next/server.
+      #  - Solo .js, NO .js.map: los source maps incluyen el código fuente, y un
+      #    comentario en (print)/layout.tsx menciona el project-ref de prod → sin excluir
+      #    los maps el negativo daría falso positivo.
+      #  - Negativo (garantía real anti-contaminación): el project-ref de PROD
+      #    (blijipnixnikaguojjee — público, ya está en ese comentario) NO debe aparecer en
+      #    ningún .js servido. Un patrón genérico *.supabase.co NO sirve: el SDK @supabase
+      #    trae URLs de ejemplo (example/realtime/xyzcompany.supabase.co) horneadas.
+      #  - Positivo: la URL local (:54321) SÍ está en un .js servido.
+      # Corre con `always()` porque "tests verdes" NO prueba aislamiento (un build con prod
+      # podría correr los E2E contra prod y pasar igual). Si no hubo build, skip benigno
+      # (el step E2E ya pintó el job rojo; no hay bundle que inspeccionar).
+      - name: Gate horneado — el build servido apunta al Supabase LOCAL
+        if: always()
+        run: |
+          if [ ! -d .next/server ]; then
+            echo "::warning::.next/server no existe (el build no se completó); el step E2E ya falló. Skip del gate."
+            exit 0
+          fi
+          if grep -rqF --include='*.js' 'blijipnixnikaguojjee' .next/server; then
+            echo "::error::El build servido contiene el project-ref de PROD — NO se aisló, correría contra prod."
+            grep -rlF --include='*.js' 'blijipnixnikaguojjee' .next/server | head -5
+            exit 1
+          fi
+          if ! grep -rqE --include='*.js' '(127\.0\.0\.1|localhost):54321' .next/server; then
+            echo "::error::El build servido NO contiene la URL del Supabase local (:54321) — el horneado falló o no se aisló."
+            exit 1
+          fi
+          echo "✅ Aislamiento OK: build servido apunta al Supabase local (:54321), sin el project-ref de prod."
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload Playwright test results (videos/screenshots)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 7
 
   # NOTA T-022.5: el deploy a VPS Hostinger se dispara **manualmente** desde
   # EasyPanel UI (Service consultora-demo → botón "Implementar") tras cada
