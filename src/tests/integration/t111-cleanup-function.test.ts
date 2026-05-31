@@ -28,8 +28,10 @@ const admin = createSbClient<Database>(url, serviceKey, {
 });
 
 // La función no está en Database['Functions'] (vive solo en la migración F2).
+// `.bind(admin)` preserva el `this` del método: extraer `admin.rpc` suelto rompe
+// con "Cannot read properties of undefined (reading 'rest')".
 type CleanupRow = { tabla: string; filas_borradas: number };
-const rpcCleanup = admin.rpc as unknown as (
+const rpcCleanup = admin.rpc.bind(admin) as unknown as (
   fn: 'admin_cleanup_test_consultoras',
   args: { p_ids: string[] },
 ) => PromiseLike<{ data: CleanupRow[] | null; error: { message: string } | null }>;
