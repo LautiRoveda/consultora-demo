@@ -23,3 +23,5 @@ Documentado el trigger secundario del incident T-052 (EasyPanel deploy via webho
   - O si la verbose del Insert pattern bloquea velocidad de desarrollo.
 
   **Decisión**: mantener convención explícita (TypeScript la enforce). Cleanup cross-modules en bloque, no parche puntual. Convención inicial documentada en T-100 (`docs/sprints/sprint-5.md` → Convenciones cerradas).
+
+- **T-DEVEX (Suite integración no confiable contra prod-linked shared DB)**: la suite `pnpm test:integration` corriendo all-at-once contra el Postgres remoto compartido da fallas no determinísticas (run main clean 160 fallas / branch T-109 126, mismos módulos: telegram/push/billing/clientes/informes/rls/calendar/epp) — RLS-claim collisions + fechas epoch por concurrencia. Ortogonal a T-109 (detectado en su PR1, no causado por él). **Evaluar DB efímera por run o ejecución serializada.** NO diseñar ahora.
