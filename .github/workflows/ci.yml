@@ -210,6 +210,69 @@ jobs:
           path: test-results/
           retention-days: 7
 
+  # T-111 F1: smoke de integration tests contra un Supabase LOCAL efímero (Docker
+  # del runner). CERO secrets de prod — todas las env son placeholders para que
+  # env.ts (Zod) valide al import; los servicios externos se mockean y el stack
+  # Supabase es local. NUNCA toca la prod-linked DB (el script no usa --linked).
+  integration-tests:
+    name: Integration (Supabase local)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SENTRY_DSN: https://placeholder@o0.ingest.sentry.io/0
+      SENTRY_ORG: placeholder-org
+      SENTRY_PROJECT: placeholder-project
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      ANTHROPIC_API_KEY: ci_placeholder_anthropic_integration_mocks_sdk_aaaa
+      RESEND_API_KEY: re_placeholder_ci_does_not_call_resend
+      RESEND_FROM_ADDRESS: placeholder-ci@example.com
+      INTERNAL_CRON_SECRET: ci_placeholder_secret_32_chars_minimum_aaaaaa
+      TELEGRAM_BOT_TOKEN: ci_placeholder_telegram_bot_token_40_chars_aaa
+      TELEGRAM_BOT_USERNAME: consultorademo_ci_bot
+      TELEGRAM_WEBHOOK_SECRET: ci_placeholder_telegram_webhook_secret_32_chars
+      VAPID_PRIVATE_KEY: ci_placeholder_vapid_private_key_44_chars_b64url_aaa
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ci_placeholder_vapid_public_key_88_chars_b64url_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      VAPID_SUBJECT: mailto:ci-placeholder@example.com
+      ARS_PRICE_MONTHLY: '3000000'
+      MP_ACCESS_TOKEN: ci_placeholder_mercadopago_token_40_chars_minimum_aaaa
+      MP_WEBHOOK_SECRET: ci_placeholder_mercadopago_webhook_secret_32_chars
+      BILLING_GATE_DISABLED: 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `pnpm test:integration` = scripts/test-integration-local.mjs:
+      #   supabase start (Docker local) -> db reset -> status -o env -> vitest.
+      # El supabase CLI viene del devDep (pnpm exec), misma versión que local.
+      # Falla el job si la suite falla (el script propaga el exit code).
+      - name: Integration tests (Supabase local efímero)
+        run: pnpm test:integration
+
   # NOTA T-022.5: el deploy a VPS Hostinger se dispara **manualmente** desde
   # EasyPanel UI (Service consultora-demo → botón "Implementar") tras cada
   # merge a `main`. EasyPanel v2.30.0 Self-Hosted no expone Auto Deploy ni
