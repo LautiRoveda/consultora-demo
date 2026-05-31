@@ -17,7 +17,7 @@
 export const WHATSAPP_E164 = '5493515635613' as const;
 
 export const WHATSAPP_DEFAULT_MESSAGE =
-  'Hola, llegué desde la landing de ConsultoraDemo y me gustaría hacer una consulta antes de empezar el trial.';
+  'Hola, llegué desde la landing de ConsultoraDemo y me gustaría hacer una consulta antes de empezar la prueba.';
 
 /**
  * Devuelve el href `https://wa.me/<E164>?text=<encoded>` listo para `<a href>`.

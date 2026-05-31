@@ -43,7 +43,7 @@ const DEFAULT_FEATURES = [
   'EPP con planilla Res 299/11 firmada y entregada',
   'Calendario de vencimientos multi-canal (email + Telegram + push)',
   'Empleados y clientes ilimitados',
-  'Audit log inmutable ISO 45001',
+  'Registro inmutable de cada cambio (útil para ISO 45001)',
   'PDFs con tu logo y datos profesionales',
   'Soporte por WhatsApp con respuesta en horas',
 ] as const;

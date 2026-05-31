@@ -7,7 +7,7 @@ import { createClient } from '@/shared/supabase/server';
 import { UpdatePasswordForm } from './UpdatePasswordForm';
 
 export const metadata: Metadata = {
-  title: 'Cambiar contraseña · ConsultoraDemo',
+  title: 'Cambiar contraseña',
   description: 'Definí una nueva contraseña para tu cuenta.',
   robots: { index: false, follow: false },
 };

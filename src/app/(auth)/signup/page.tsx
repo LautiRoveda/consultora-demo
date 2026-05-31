@@ -6,7 +6,7 @@ import { TRIAL_DAYS } from '@/shared/lib/trial-days';
 import { SignupForm } from './SignupForm';
 
 export const metadata: Metadata = {
-  title: 'Crear cuenta · ConsultoraDemo',
+  title: 'Crear cuenta',
   description: `Empezá tu prueba de ${TRIAL_DAYS} días gratis en ConsultoraDemo.`,
   robots: { index: false, follow: false },
 };

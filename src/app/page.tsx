@@ -79,7 +79,7 @@ const SINCON_ROWS: readonly PainGainRow[] = [
   },
   {
     pain: 'Si llega una inspección SRT, juntás Excel y mails del último año a las apuradas.',
-    gain: 'Audit log inmutable con timestamp y diff antes/después de cada cambio. Queryable server-side para auditoría.',
+    gain: 'Cada cambio queda registrado con fecha y autor. Listo si te toca una auditoría SRT.',
   },
   {
     pain: 'Las alternativas suelen pedir demo agendada con un comercial antes de mostrar el precio.',
@@ -99,31 +99,31 @@ const PILLARS: readonly Pillar[] = [
     icon: SparklesIcon,
     eyebrow: '01',
     title: 'IA que cita la normativa',
-    body: 'La IA tiene cargadas las tablas oficiales del SRT con número de norma y vigencia. Cada cita lleva número, vigencia y link al SRT. Sin inventar números cuando hay tabla cargada.',
+    body: 'Las normas SRT con número, vigencia y link oficial están cargadas. La IA cita desde ahí — sin inventar resoluciones.',
   },
   {
     icon: BellRingIcon,
     eyebrow: '02',
     title: 'Cero multas por olvido',
-    body: 'Cada protocolo anual, entrega EPP 6m, calibración, capacitación y examen médico entra al calendario. Te avisa antes por el canal que elijas.',
+    body: 'Protocolos anuales, entregas de EPP cada 6 meses, calibraciones, capacitaciones y exámenes médicos al calendario. Te avisamos antes por email, Telegram o push.',
   },
   {
     icon: HardHatIcon,
     eyebrow: '03',
     title: 'Res 299/11 con firma',
-    body: 'Cargás las entregas de EPP por empleado, firmás digital en canvas y exportás PDF Res 299/11 listo para presentar.',
+    body: 'El empleado firma con el dedo en la pantalla. Generás la planilla 299/11 en PDF lista para presentar a la ART.',
   },
   {
     icon: ShieldCheckIcon,
     eyebrow: '04',
     title: 'Auditable desde el día uno',
-    body: 'Audit log inmutable por consultora — quién cambió qué y cuándo. Útil para auditorías ISO 45001 (cumple §7.5.3 sobre control de información documentada) y SRT, sin configuración extra.',
+    body: 'Cada cambio en tus informes y entregas queda registrado con fecha y autor. Listo si te toca una auditoría SRT o si tu cliente quiere certificar ISO 45001.',
   },
   {
     icon: BanknoteIcon,
     eyebrow: '05',
     title: 'Pricing transparente en ARS',
-    body: `Plan único ARS 30.000/mes, sin tier escondido ni comercial intermediario. Empezás ${TRIAL_DAYS} días gratis sin tarjeta y cancelás en 1 click.`,
+    body: `Un solo plan, ARS 30.000/mes con todo incluido. ${TRIAL_DAYS} días gratis sin tarjeta y cancelás cuando quieras.`,
   },
 ];
 
@@ -142,7 +142,7 @@ const DOCUMENTOS: readonly DocumentoCard[] = [
   {
     title: 'Informe técnico de ruido',
     subtitle:
-      'Res SRT 85/12 + Decreto 351/79 Anexo V. PDF firmado con citas exactas, link al SRT y disclaimer de vigencia al pie.',
+      'Res SRT 85/12 + Decreto 351/79 Anexo V. PDF con citas exactas, link al SRT y nota de vigencia al pie.',
     imgSrc: '/landing/demo-informe-ruido-preview.png',
     imgAlt: 'Vista previa del PDF de informe técnico de ruido',
     pdfHref: '/landing/demo-informe-ruido.pdf',
@@ -150,7 +150,7 @@ const DOCUMENTOS: readonly DocumentoCard[] = [
   {
     title: 'Planilla EPP Res 299/11',
     subtitle:
-      'Entrega firmada del empleado en canvas. Una hoja oficial Res 299/11, sin trámite ni papel suelto en biblioratos.',
+      'El empleado firma con el dedo en la pantalla. Una hoja oficial Res 299/11, sin papel suelto en biblioratos.',
     imgSrc: '/landing/demo-planilla-epp-preview.png',
     imgAlt: 'Vista previa de planilla EPP Res SRT 299/11 firmada',
     pdfHref: '/landing/demo-planilla-epp.pdf',
@@ -158,7 +158,7 @@ const DOCUMENTOS: readonly DocumentoCard[] = [
   {
     title: 'Informe de ergonomía',
     subtitle:
-      'Análisis de puestos con criterios Res SRT 886/15. Recomendaciones priorizadas y disclaimer de vigencia al pie.',
+      'Análisis de puestos con criterios Res SRT 886/15. Recomendaciones priorizadas y nota de vigencia al pie.',
     imgSrc: '/landing/demo-informe-ergonomia-preview.png',
     imgAlt: 'Vista previa del PDF de informe técnico de ergonomía',
   },
@@ -173,12 +173,12 @@ const SEMANA_STEPS: readonly TimelineStep[] = [
   {
     badge: 'Martes',
     title: 'Cargás los datos en el panel',
-    body: 'Subís fotos al cliente, completás el form estructurado del informe. El catálogo de empleados ya está cargado.',
+    body: 'Subís las fotos, completás los datos del informe. El catálogo de empleados ya lo cargaste antes.',
   },
   {
     badge: 'Miércoles',
     title: 'IA arma el draft del informe',
-    body: 'Ves el texto aparecer en streaming. Editás, ajustás, firmás. PDF con tu logo y matrícula listo en minutos.',
+    body: 'Ves el informe armándose en vivo. Editás, ajustás, firmás. PDF con tu logo y matrícula listo en minutos.',
   },
   {
     badge: 'Jueves',
@@ -191,7 +191,7 @@ const ONBOARDING_STEPS: readonly TimelineStep[] = [
   {
     badge: '30 seg',
     title: 'Creás la cuenta',
-    body: `Email + contraseña. Sin tarjeta de crédito. Trial de ${TRIAL_DAYS} días arrancando.`,
+    body: `Email + contraseña. Sin tarjeta. Tu prueba de ${TRIAL_DAYS} días arranca al instante.`,
   },
   {
     badge: '2 min',
@@ -206,7 +206,7 @@ const ONBOARDING_STEPS: readonly TimelineStep[] = [
   {
     badge: '10 min',
     title: 'Generás tu primer informe técnico',
-    body: 'Elegís el tipo (ruido, RGRL, ergonomía...), completás el form, la IA arma el draft. Editás y exportás PDF firmable.',
+    body: 'Elegís el tipo (ruido, RGRL, ergonomía...), completás los datos, la IA arma el borrador. Editás y exportás el PDF para firmar.',
   },
 ];
 
@@ -229,7 +229,7 @@ const PERFILES: readonly PerfilICP[] = [
     title: 'Matriculado que firma sus propios informes',
     body: 'Tenés matrícula vigente y firmás cada documento que entregás. Necesitás cumplir SRT al pie de la letra y tener trazabilidad si alguna vez te toca una inspección o un reclamo.',
     bullets: [
-      'Querés un audit log que respalde tu firma profesional con timestamps reales.',
+      'Querés un registro con fecha y hora real de cada cambio que respalde tu firma profesional.',
       'Citas SRT con número y vigencia verificada en fuente primaria del SRT.',
     ],
   },
@@ -268,7 +268,7 @@ const TRANSPARENCIA: readonly TransparenciaCard[] = [
   {
     eyebrow: 'Privacidad por defecto',
     title: 'Tus datos están bajo Ley 25.326',
-    body: 'Datos en infraestructura sudamericana (Supabase sa-east-1, São Paulo). Sujetos a Ley 25.326 AR. RLS multi-tenant: nadie ve datos de otra consultora. Retención post-cancelación según Ley 25.326.',
+    body: 'Tus datos están alojados en Sudamérica y bajo la Ley 25.326 argentina. Cada consultora ve solo sus propios datos. Si cancelás, los conservamos según lo que indica la ley.',
   },
 ];
 
@@ -283,7 +283,7 @@ const FAQ_PRODUCT: readonly FAQItem[] = [
   },
   {
     q: '¿Cuál es la diferencia con usar ChatGPT genérico para los informes?',
-    a: 'ConsultoraDemo tiene las tablas oficiales SRT cargadas en código con número de norma y vigencia. La IA del producto cita normativa únicamente desde esas tablas — sin inventar números fuera de fuente verificada. Sumá calendario multi-canal, audit log inmutable, EPP con firma digital en canvas y branding tuyo en los PDFs.',
+    a: 'ConsultoraDemo tiene las normas SRT cargadas con número y vigencia. La IA cita desde ahí, sin inventar resoluciones. Además sumás calendario que avisa por email/Telegram/push, registro de cada cambio para auditorías, EPP con firma del empleado en pantalla y tu logo en los PDFs.',
   },
   {
     q: '¿Puedo importar mi base de empleados desde Excel?',
@@ -291,19 +291,19 @@ const FAQ_PRODUCT: readonly FAQItem[] = [
   },
   {
     q: '¿Qué pasa si la IA inventa una cita normativa?',
-    a: 'La IA no puede citar resoluciones SRT fuera de las tablas cargadas en código. Si no hay tabla para el agente del relevamiento, usa cita genérica "Resolución SRT vigente sobre [tema]" para que vos completes con criterio profesional. Disclaimer obligatorio al pie.',
+    a: 'La IA solo cita normas que están cargadas con número y vigencia verificada. Si todavía no cargamos la del agente que estás relevando, deja la cita genérica para que vos la completes. Siempre va una nota al pie con la fecha de verificación.',
   },
   {
     q: '¿Cómo funcionan las notificaciones multi-canal?',
-    a: 'Por evento del calendario configurás qué canales reciben alerta: email, Telegram bot o push web. Los offsets en días son customizables por tipo. Podés silenciar un canal por días específicos sin perder los avisos de los otros.',
+    a: 'En cada evento del calendario elegís cómo te avisamos: email, Telegram o notificación del navegador. Decidís con cuántos días de anticipación querés el aviso. Y podés silenciar un canal sin perder los otros.',
   },
   {
     q: '¿Quién más ve mis datos?',
-    a: 'Nadie de otras consultoras. Multi-tenancy con Row Level Security a nivel base de datos — cada consultora ve solo sus datos. El acceso del equipo de ConsultoraDemo a datos productivos es para tareas de soporte y operación; no compartimos ni revendemos datos a terceros.',
+    a: 'Nadie de otras consultoras. Cada cuenta ve solo sus propios datos por separación a nivel de base de datos. El equipo de ConsultoraDemo accede solo para tareas de soporte y operación. No compartimos ni vendemos datos a terceros.',
   },
   {
     q: '¿Hay backup automático de mis datos?',
-    a: 'Sí. Postgres tiene backups automáticos diarios con retención de 7 días vía Supabase. El Storage de attachments (logos, firmas, adjuntos de informes) se respalda manualmente cada mes. Si pasa algo crítico, restauramos desde el último snapshot disponible y te comunicamos el plazo estimado de recuperación.',
+    a: 'Sí. Hacemos backups diarios automáticos de la base con retención de 7 días. Los archivos (logos, firmas, adjuntos) los respaldamos cada mes. Si pasa algo crítico, restauramos desde el último backup disponible y te avisamos cuánto puede tardar.',
   },
   {
     q: '¿Puedo personalizar los PDFs con mi logo y número de matrícula?',
@@ -413,11 +413,11 @@ export default function HomePage() {
         >
           <div className="mx-auto max-w-3xl text-center">
             <h2 id="documentos-title" className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              Documentos reales, no maquetas de marketing
+              Documentos reales, no capturas trucadas
             </h2>
             <p className="text-muted-foreground mx-auto mt-4 max-w-2xl text-base sm:text-lg">
-              Mirá ejemplos de los PDFs que la app genera. Todos llevan tu branding, tu firma de
-              matriculado y citas SRT con vigencia verificada.
+              Mirá ejemplos de los PDFs que la app genera. Todos con tu logo, tu firma de
+              matriculado y citas SRT al día.
             </p>
           </div>
           <div className="mx-auto mt-12 grid max-w-5xl gap-6 md:grid-cols-3">
@@ -549,9 +549,8 @@ export default function HomePage() {
               Normativa argentina cubierta
             </h2>
             <p className="text-muted-foreground mx-auto mt-4 max-w-2xl text-base sm:text-lg">
-              Resoluciones SRT, decretos reglamentarios y leyes marco. Las tablas oficiales se
-              versionan en código — cuando la SRT actualiza una norma, la incorporamos con quote
-              textual de fuente primaria.
+              Resoluciones SRT, decretos reglamentarios y leyes marco. Cuando la SRT actualiza una
+              norma, la incorporamos textual desde la fuente oficial.
             </p>
           </div>
           <ul className="mx-auto mt-10 grid max-w-3xl gap-x-6 gap-y-3 sm:grid-cols-2">
@@ -602,8 +601,8 @@ export default function HomePage() {
               Plan único, pricing en ARS
             </h2>
             <p className="text-muted-foreground mx-auto mt-4 max-w-2xl text-base sm:text-lg">
-              Sin tier escondido ni comparación de columnas. Un solo plan que cubre todo lo que hace
-              ConsultoraDemo, con {TRIAL_DAYS} días gratis sin tarjeta para probarlo.
+              Un solo plan, sin sorpresas ni columnas para comparar. Cubre todo lo que hace
+              ConsultoraDemo, con {TRIAL_DAYS} días gratis sin tarjeta.
             </p>
           </div>
           <div className="mt-12">
@@ -657,7 +656,7 @@ export default function HomePage() {
             </li>
             <li className="flex items-center gap-1.5">
               <CheckIcon className="text-severity-ok size-4 shrink-0" aria-hidden="true" />
-              Audit log + RLS multi-tenant
+              Cada cambio queda registrado
             </li>
             <li className="flex items-center gap-1.5">
               <CheckIcon className="text-severity-ok size-4 shrink-0" aria-hidden="true" />
