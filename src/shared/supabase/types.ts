@@ -1069,6 +1069,47 @@ export type Database = {
         };
         Relationships: [];
       };
+      notification_digest_log: {
+        Row: {
+          channel: string;
+          consultora_id: string;
+          created_at: string;
+          id: string;
+          periodo_iso: string;
+          resend_email_id: string | null;
+          sent_at: string;
+          tipo: string;
+        };
+        Insert: {
+          channel: string;
+          consultora_id: string;
+          created_at?: string;
+          id?: string;
+          periodo_iso: string;
+          resend_email_id?: string | null;
+          sent_at?: string;
+          tipo: string;
+        };
+        Update: {
+          channel?: string;
+          consultora_id?: string;
+          created_at?: string;
+          id?: string;
+          periodo_iso?: string;
+          resend_email_id?: string | null;
+          sent_at?: string;
+          tipo?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'notification_digest_log_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       notification_log: {
         Row: {
           channel: string;
@@ -1332,6 +1373,8 @@ export type Database = {
         Returns: boolean;
       };
       my_consultora_ids: { Args: never; Returns: string[] };
+      process_dunning_recovery: { Args: never; Returns: undefined };
+      process_epp_weekly_summary: { Args: never; Returns: undefined };
       process_pending_billing_dunning: { Args: never; Returns: undefined };
       process_pending_reminders: {
         Args: never;

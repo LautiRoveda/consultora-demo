@@ -35,6 +35,7 @@ const REDACT_KEYS = new Set([
   'ip',
   'email',
   'recipientEmail',
+  'ownerEmail',
   'payer_email',
   'authorization',
   'password',

@@ -50,7 +50,17 @@ AUD-001 (`20260524000002_audit_followup.sql`) agregó `billing_notifications_log
 
 **Origen**: T-034 smoke pre-Lautaro. **Aplicable a**: próximas migrations que toquen `process_pending_reminders()` helper.
 
-El check `decrypted_secret = 'REPLACE_ME_POST_DEPLOY'` (exact match Y mayúscula) NO captura variantes con typo (ej `REPLACE_ME_POST_DEPLOy` con `y` minúscula). Síntoma: cron dispara POSTs pero `net._http_response` muestra `error_msg='Couldn't connect to server'` / `status_code=401` porque el secret de Vault no matchea ni con placeholder check ni con `INTERNAL_CRON_SECRET` de EasyPanel. Fix recomendado: regex `decrypted_secret like 'REPLACE_ME%'` o `length(decrypted_secret) != 64` como check más robusto. Documentado en `docs/operations/cron-secret-rotation.md` + `docs/operations/push-setup.md`.
+El check `decrypted_secret = 'REPLACE_ME_POST_DEPLOY'` (exact match Y mayúscula) NO captura variantes con typo (ej `REPLACE_ME_POST_DEPLOy` con `y` minúscula). Síntoma: cron dispara POSTs pero `net._http_response` muestra `error_msg='Couldn't connect to server'` / `status_code=401` porque el secret de Vault no matchea ni con placeholder check ni con `INTERNAL_CRON_SECRET` de EasyPanel. Fix recomendado: regex `decrypted_secret like 'REPLACE_ME%'` o `length(decrypted_secret) != 64` como check más robusto. Documentado en `docs/operations/cron-secret-rotation.md` + `docs/operations/push-setup.md`. Aplicado en T-109 (`process_epp_weekly_summary`): `v_secret is null or v_secret like 'REPLACE_ME%' or length(v_secret) != 64`.
+
+### Migración mergeada ≠ aplicada en DB (drift merge → deploy)
+
+**Origen**: T-109 (drift de T-108 detectado en `supabase db push --dry-run` pre-aplicación).
+
+Una migración puede estar mergeada a `main` hace días pero NUNCA aplicada a la DB: **merge ≠ deploy de migración**. T-108 (trial 7d → 14d) se mergeó pero no se pusheó → los signups recibían 7d en vez de los 14d que promete la landing, en silencio. Lo cazó un `supabase db push --dry-run` corrido antes de aplicar T-109, que listó T-108 como pendiente.
+
+**Moraleja 1 — verificar `db push` post-merge de migrations**: tras mergear una migración, confirmar que se aplicó a la DB. Un `db push --dry-run` post-merge funciona como check de drift: si lista migraciones que creías aplicadas, hay gap proceso merge→deploy.
+
+**Moraleja 2 — el smoke debe verificar el EFECTO REAL, no el "success" del CLI**: que `db push` reporte `Finished` (o que el PR mergeó) NO prueba que el cambio esté vivo. Verificar el efecto concreto en la DB: para funciones `select prosrc from pg_proc where proname='<fn>'` y confirmar el cambio (ej. `interval '14 days'` presente, `'7 days'` ausente); para tablas, query del schema. Es exactamente lo que habría cazado el drift de T-108 días antes.
 
 ## Tests integration
 
