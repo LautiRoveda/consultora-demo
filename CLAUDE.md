@@ -47,9 +47,10 @@ Roadmap por fases en [`docs/technical/10-roadmap.md`](docs/technical/10-roadmap.
 | 2 ✅ | T-019..T-025 informes | [sprint-2.md](docs/sprints/sprint-2.md) |
 | 3 ✅ | T-026..T-037 + T-034 calendario + notificaciones | [sprint-3.md](docs/sprints/sprint-3.md) |
 | 4 🚧 | T-047..T-055 clientes + empleados (Clientes ✅ + Empleados ✅) | [sprint-4.md](docs/sprints/sprint-4.md) |
-| Op | Transversales (T-079 email templates, T-052-FU1/FU2 VPS runbook + monitor, …) | [operativo.md](docs/sprints/operativo.md) |
+| 5 ✅ | T-100..T-106 EPP + T-109 trazabilidad EPP per-empleado + resumen semanal | [sprint-5.md](docs/sprints/sprint-5.md) |
+| Op | Transversales (T-079 email templates, T-052-FU1/FU2 VPS runbook + monitor, T-111 aislamiento tests + cleanup prod, …) | [operativo.md](docs/sprints/operativo.md) |
 
-**Próximo ticket**: T-109 · trazabilidad EPP per-empleado + alerta canal preferido (audit A1). Reordenamiento roadmap 12 semanas en curso.
+**Próximo ticket**: reordenamiento roadmap 12 semanas en curso. Backlog DEVEX: T-112 (aislar E2E de prod) + F1.2 (estabilizar billing-gate en la suite aislada).
 
 ## RLS / multi-tenancy
 
