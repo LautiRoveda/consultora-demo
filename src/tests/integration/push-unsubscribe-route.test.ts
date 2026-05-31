@@ -23,6 +23,7 @@ vi.mock('server-only', () => ({}));
 
 const cookieStore: Array<{ name: string; value: string }> = [];
 vi.mock('next/headers', () => ({
+  headers: () => Promise.resolve(new Headers({ 'x-forwarded-for': '127.0.0.1' })),
   cookies: () =>
     Promise.resolve({
       getAll: () => cookieStore.map((c) => ({ name: c.name, value: c.value })),
