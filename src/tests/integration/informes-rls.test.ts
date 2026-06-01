@@ -393,6 +393,7 @@ describe('T-019 audit triggers: informes → audit_log', () => {
       tipo: 'rgrl',
       titulo,
       status: 'draft',
+      cliente_id: null,
       contenido_size: 0,
       contenido_preview: null,
     });
@@ -424,6 +425,7 @@ describe('T-019 audit triggers: informes → audit_log', () => {
       tipo: 'otros',
       titulo: 'Antes update',
       status: 'draft',
+      cliente_id: null,
       contenido_size: 0,
       contenido_preview: null,
     });
@@ -431,6 +433,7 @@ describe('T-019 audit triggers: informes → audit_log', () => {
       tipo: 'otros',
       titulo: 'Despues update',
       status: 'draft',
+      cliente_id: null,
       contenido_size: 0,
       contenido_preview: null,
     });
@@ -490,6 +493,7 @@ describe('T-019 audit triggers: informes → audit_log', () => {
       tipo: 'accidente',
       titulo: 'Para borrar',
       status: 'draft',
+      cliente_id: null,
       contenido_size: 0,
       contenido_preview: null,
     });

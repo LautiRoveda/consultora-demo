@@ -67,6 +67,7 @@ type ConsultoraFixture = {
 
 const fixtures: {
   withOwner?: ConsultoraFixture;
+  idem?: ConsultoraFixture;
   noOwner?: { id: string };
 } = {};
 
@@ -94,6 +95,10 @@ async function createConsultoraWithOwner(prefix: string): Promise<ConsultoraFixt
 
 beforeAll(async () => {
   fixtures.withOwner = await createConsultoraWithOwner('owner');
+  // Consultora propia para el test de idempotencia (test 4): billing_notifications_log
+  // es append-only (AUD-001) → no se puede borrar con DELETE la fila que deja el test 3,
+  // así que test 4 arranca de una consultora sin fila trial_expires_in_3d previa.
+  fixtures.idem = await createConsultoraWithOwner('idem');
 
   const slugNoOwner = `t074-no-owner-${runId}`;
   const { data: cNoOwner } = await admin
@@ -112,6 +117,11 @@ afterAll(async () => {
       .eq('consultora_id', fixtures.withOwner.id);
     await admin.from('consultoras').delete().eq('id', fixtures.withOwner.id);
     await admin.auth.admin.deleteUser(fixtures.withOwner.ownerId).catch(() => {});
+  }
+  if (fixtures.idem) {
+    // billing_notifications_log es append-only (AUD-001): el cascade-delete de la
+    // consultora queda bloqueado → la fila queda orphan (la DB efímera la resetea por run).
+    await admin.auth.admin.deleteUser(fixtures.idem.ownerId).catch(() => {});
   }
   if (fixtures.noOwner) {
     await admin.from('billing_notifications_log').delete().eq('consultora_id', fixtures.noOwner.id);
@@ -180,13 +190,9 @@ describe('sendTrialExpiresIn · idempotency end-to-end', () => {
   });
 
   it('4. idempotency: 2x mismo (consultora, daysLeft=3) -> 1 sola fila log + 1 sola llamada Resend', async () => {
-    const f = fixtures.withOwner!;
-    // Cleanup previo (de test 3)
-    await admin
-      .from('billing_notifications_log')
-      .delete()
-      .eq('consultora_id', f.id)
-      .eq('tipo', 'trial_expires_in_3d');
+    // Consultora propia: billing_notifications_log es append-only (AUD-001) → no se
+    // puede borrar con DELETE la fila del test 3, así que arrancamos de una limpia.
+    const f = fixtures.idem!;
 
     const r1 = await sendTrialExpiresIn(admin, { id: f.id, name: f.name }, f.email, 3);
     expect(r1.sent).toBe(true);
@@ -227,7 +233,7 @@ describe('sendTrialExpired · end-to-end', () => {
     const f = fixtures.withOwner!;
     const r = await sendTrialExpired(
       admin,
-      { id: f.id, name: f.name, retencionDatosHasta: '2026-06-30T00:00:00Z' },
+      { id: f.id, name: f.name, retencionDatosHasta: '2026-06-30T12:00:00Z' },
       f.email,
     );
     expect(r.sent).toBe(true);

@@ -157,7 +157,9 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await admin.from('billing_notifications_log').delete().eq('consultora_id', cId);
+  // billing_notifications_log es append-only (AUD-001): el DELETE lanza excepción y las
+  // filas no se borran. Por eso cada test scopea sus queries por ref_id único
+  // (paymentId / mpSubId) en vez de contar todas las filas de la consultora.
   await admin.from('facturas').delete().eq('suscripcion_id', subId);
   await admin.from('suscripciones').delete().eq('id', subId);
 });
@@ -224,10 +226,14 @@ describe('webhook MP · dunning hook payment_failed', () => {
 
     expect(mockEmailsSend).not.toHaveBeenCalled();
 
+    // Scope por ref_id: el log es append-only (AUD-001) y puede traer filas de otros
+    // tests; verificamos que ESTE pago no generó dunning.
     const { data: logs } = await admin
       .from('billing_notifications_log')
       .select('id')
-      .eq('consultora_id', cId);
+      .eq('consultora_id', cId)
+      .eq('tipo', 'payment_failed')
+      .eq('ref_id', paymentId);
     expect(logs).toHaveLength(0);
   });
 
@@ -264,7 +270,8 @@ describe('webhook MP · dunning hook payment_failed', () => {
       .from('billing_notifications_log')
       .select('id, ref_id')
       .eq('consultora_id', cId)
-      .eq('tipo', 'payment_failed');
+      .eq('tipo', 'payment_failed')
+      .eq('ref_id', paymentId);
     expect(logs).toHaveLength(1);
     expect(logs![0]!.ref_id).toBe(paymentId);
   });
@@ -322,10 +329,14 @@ describe('webhook MP · dunning hook subscription_cancelled', () => {
     expect(res.status).toBe(200);
 
     expect(mockEmailsSend).not.toHaveBeenCalled();
+    // Scope por ref_id: el log es append-only (AUD-001) y puede traer filas de otros
+    // tests; verificamos que ESTE preapproval no generó dunning.
     const { data: logs } = await admin
       .from('billing_notifications_log')
       .select('id')
-      .eq('consultora_id', cId);
+      .eq('consultora_id', cId)
+      .eq('tipo', 'subscription_cancelled')
+      .eq('ref_id', mpSubId);
     expect(logs).toHaveLength(0);
   });
 });
