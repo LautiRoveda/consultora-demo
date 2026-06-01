@@ -18,7 +18,8 @@ Working agreement + estado vivo para el **chat nuevo del orquestador**. Entre **
 
 - **PR #179** — `docs/handoff-orquestador.md` (este doc). Abierto, gated, **esperando OK de merge**. Es el único PR abierto.
 - **FU5 NO está en vuelo: está mergeado** (`6ed89e4`, #178). No re-abrir.
-- **Próximo** (según `CLAUDE.md`): reordenamiento del roadmap a 12 semanas. Backlog DEVEX vivo: **T-112** (aislar E2E de prod — hoy PAUSADO con `if: false` en `ci.yml`, ver operativo.md) + estabilización de la suite aislada. Confirmar prioridad con el owner antes de arrancar.
+- **Backlog técnico/DEVEX: esencialmente vacío.** Cerrados en esta etapa: T-109, T-111 (F1+F2+F2b), **T-112** (E2E ya corren aislados contra Supabase local — el job `E2E (Supabase local)` es required check; se removió el `if: false`), F1.2/F1.3, T-113a/T-113b/T-113d, Dependabot, T-082-FU + FU5.
+- **Próximo recomendado:** volver al **roadmap de producto** — confirmar la prioridad comercial con el owner antes de arrancar. El único trabajo en cola son los **DORMIDOS** (tabla abajo) + follow-ups opcionales; no hay deuda técnica abierta que bloquee.
 
 ## El flujo gated (no negociable)
 
