@@ -1,9 +1,10 @@
 /**
  * T-082 · Backup manual de Storage buckets Supabase.
  *
- * Descarga TODOS los archivos de los 2 buckets productivos a una carpeta
- * local timestamped. Pensado para correrse mensualmente como parte del
- * runbook docs/operations/disaster-recovery.md § 3.
+ * Descarga TODOS los archivos de los 3 buckets productivos (consultora-logos,
+ * informe-attachments, epp-firmas) a una carpeta local timestamped. Pensado
+ * para correrse mensualmente como parte del runbook
+ * docs/operations/disaster-recovery.md § 3.
  *
  * Uso: pnpm backup:storage
  *
