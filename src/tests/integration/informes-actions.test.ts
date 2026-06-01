@@ -17,6 +17,8 @@ import type { Database } from '@/shared/supabase/types';
 import { createClient as createSbClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { createTestConsultora } from './helpers/consultora';
+
 const cookieStore: Array<{ name: string; value: string }> = [];
 
 vi.mock('server-only', () => ({}));
@@ -64,12 +66,8 @@ let consultoraId: string;
 
 beforeAll(async () => {
   // Crear consultora + user + membership + claim consultora_id en JWT.
-  const { data: c } = await admin
-    .from('consultoras')
-    .insert({ name: 'T019 Action Consultora', slug })
-    .select('id')
-    .single();
-  consultoraId = c!.id;
+  const c = await createTestConsultora(admin, { name: 'T019 Action Consultora', slug });
+  consultoraId = c.id;
 
   const { data: u } = await admin.auth.admin.createUser({
     email,
