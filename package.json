@@ -18,7 +18,7 @@
     "test:unit": "vitest run --project unit",
     "test:component": "vitest run --project component",
     "test:integration": "node scripts/test-integration-local.mjs",
-    "test:integration:remote": "vitest run --project integration",
+    "test:integration:remote": "vitest run --project integration --no-file-parallelism",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test --project=chromium",
     "test:e2e:local": "node scripts/test-e2e-local.mjs",
