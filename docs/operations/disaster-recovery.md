@@ -1,9 +1,9 @@
 # Disaster Recovery · backup + procedimiento restore
 
-**Ticket:** T-082 (sándwich seguridad 3/4).
+**Ticket:** T-082 (sándwich seguridad 3/4) · re-validado en T-082-FU (post T-106/T-108/T-109/T-111).
 **Cuándo correr el runbook completo:** ante incidente real (data perdida / VPS caído / account hijack).
-**Tiempo estimado restore:** 5 min (Escenario A) → 4 horas (B) → 6 horas (C).
-**Prerequisitos:** cuenta Supabase activa + acceso EasyPanel + `.env.local` con secrets reales + último backup Storage descargado.
+**Tiempo estimado restore:** 10-30 min (Escenario A) → 4 horas (B) → 6 horas (C).
+**Prerequisitos:** cuenta Supabase activa + acceso EasyPanel + `.env.local` con secrets reales (incl. `SUPABASE_DB_URL`) + último dump DB (`pnpm backup:db`) + último backup Storage descargado.
 
 ---
 
@@ -13,44 +13,58 @@ Qué se backupea automáticamente y qué requiere acción manual:
 
 | Componente | Backup automático | Frecuencia | Retención | Acción manual requerida |
 |---|---|---|---|---|
-| **DB Postgres** (Supabase) | ✅ Sí | Diario | 7 días (Free Tier) | Ninguna — verificar visible en dashboard mensualmente |
-| **Storage buckets** (`consultora-logos`, `informe-attachments`) | ❌ NO | — | — | `pnpm backup:storage` mensual + subir a Drive |
-| **Secrets EasyPanel** (~25 env vars) | ❌ NO | — | — | Export manual al rotar + password manager personal |
+| **DB Postgres** (Supabase) | ❌ **NO** (Free no incluye backups ni PITR — ver §2) | — | — | `pnpm backup:db` (pg_dump) mensual + subir a Drive |
+| **Storage buckets** (`consultora-logos`, `informe-attachments`, `epp-firmas`) | ❌ NO | — | — | `pnpm backup:storage` mensual + subir a Drive |
+| **Secrets EasyPanel** (~30 env vars) | ❌ NO | — | — | Export manual al rotar + password manager personal |
 | **Vault Supabase** (`cron_dispatch_secret`, `cron_dispatch_base_url`) | ❌ NO | — | — | Copy/paste manual al rotar (cada 6 meses, lesson T-031) |
 | **Configuración EasyPanel** (service spec, env vars set) | ❌ NO | — | — | Documentado en ADR-0007 + screenshots periódicos |
 | **Código fuente** | ✅ Sí (GitHub) | Cada push | Permanente | Ninguna |
 
-**Critical gap actual:** Storage NO se backupea en ningún tier de Supabase. Si la cuenta se compromete o un bucket se borra accidentalmente con service-role, los logos + adjuntos de informes (incluyendo firmas en imágenes) se pierden. Por eso §3 es no-negociable mensual.
+**Critical gap actual (DOBLE):** en Free Tier **ni la DB ni el Storage se backupean automáticamente**.
+
+- **DB**: Supabase Free NO tiene backups automáticos, NO tiene PITR y NO ofrece restore desde el dashboard (la sección _Backups_ aparece vacía — confirmado en T-111 F2). El **único** respaldo de la DB es el dump manual de §2 (`pnpm backup:db`). Sin correrlo, un incidente = pérdida total de data.
+- **Storage**: si un bucket se borra con service-role o la cuenta se compromete, los logos + adjuntos de informes + **las firmas legales de entregas EPP (Res SRT 299/11, bucket `epp-firmas`)** se pierden. Por eso §3 es no-negociable mensual.
 
 ---
 
-## §2. Backup automático Supabase (DB)
+## §2. Backup manual de la DB (Free Tier)
 
-### Verificar que está activo
+> ⚠️ **Supabase Free NO tiene backups automáticos de la DB.** No hay snapshots diarios, no hay PITR y el dashboard **no** ofrece "Restore" (esa opción es Pro+; en Free la sección _Backups_ aparece vacía). Confirmado en T-111 F2 (`docs/sprints/operativo.md`). **El único respaldo de la DB es el dump manual de abajo.** En un incidente, lo que no esté en el último dump se pierde.
 
-1. Dashboard Supabase → proyecto `consultora-demo` → **Database** → **Backups**.
-2. Debe listar 7 backups (uno por día) con timestamp + tamaño.
-3. Si la lista está vacía o desactualizada: el proyecto está pausado o hay un issue de billing — revisar status en `https://status.supabase.com`.
+### Qué NO tenés en Free (no lo busques en el dashboard)
 
-### Límites del Free Tier
-
-- **Retention**: 7 días (después se sobrescriben).
+- **Backups automáticos diarios**: NO existen.
 - **PITR (Point-In-Time Recovery)**: NO disponible.
-- **Manual download**: NO disponible (solo restore in-place desde dashboard).
-- **Frecuencia**: 1 vez por día (~03:00 UTC, ventana no garantizada).
+- **Restore desde dashboard** (`Database → Backups → Restore`): NO disponible — la sección no lista nada que restaurar.
+
+### Backup manual con `pnpm backup:db`
+
+**Frecuencia recomendada:** primer lunes de cada mes, junto a `backup:storage` (ver §10).
+
+```bash
+# Desde el repo local con SUPABASE_DB_URL en .env.local (connection string del
+# dashboard: Project Settings → Database → Connection string → URI):
+pnpm backup:db
+```
+
+Genera un dump SQL completo (schema + data) en `backups/db/<YYYY-MM-DD-HHmmss>.sql` vía `supabase db dump`. Subir el `.sql` a Drive igual que el backup de Storage (§3).
+
+> Nota: el motivo de T-111 para descartar `pg_dump` ("respaldaba 14k consultoras de test") **ya no aplica** — post-cleanup la DB tiene ~5 consultoras reales, así que un dump full es chico y rápido (segundos).
+
+El schema vive además en git (`supabase/migrations/`), así que un restore puede reconstruir el schema desde las migraciones + cargar solo la data del dump si hiciera falta (ver §5).
 
 ### Cuándo upgradear a Pro ($25/mo)
 
-Triggers para considerar el upgrade:
+Free alcanza hoy (Lautaro solo + pocos users test), pero el backup manual depende de no olvidarlo. Considerar Pro cuando:
 
-1. **Primer cliente pagando** — el SLA implícito sube; 7d retention es poco si un incidente se descubre con delay.
-2. **100+ users productivos** — volumen de data perdida en un incidente cubre el costo del upgrade x10.
-3. **Regulatory compliance** — cuando un cliente exija data retention > 14d.
+1. **Primer cliente pagando** — el SLA implícito sube; un dump mensual manual es frágil ante un incidente entre dumps.
+2. **100+ users productivos** — el volumen de data perdida entre dumps cubre el costo del upgrade x10.
+3. **Regulatory compliance** — cuando un cliente exija retention/PITR.
 
-Beneficios Pro:
-- **14 días retention** (vs 7).
-- **PITR**: restore a CUALQUIER momento dentro de los últimos 7 días (vs solo a snapshots diarios).
-- **Daily manual backups descargables** (DB dump en SQL).
+Beneficios Pro (lo que Free NO tiene — detalle completo en §9):
+- **Backups automáticos diarios** + 14 días de retention.
+- **PITR**: restore a CUALQUIER momento dentro de los últimos 7 días.
+- **Daily backups descargables** (DB dump en SQL desde el dashboard).
 - **Soporte 24h prioritario**.
 
 ---
@@ -82,7 +96,12 @@ Output esperado:
    [1/18] informe-attachments/abc.../def.../foto.jpg (487.3 KB)
    ...
 
-✅ Backup completo: 21 archivos, 12.45 MB total.
+📦 Bucket: epp-firmas
+   7 archivos encontrados.
+   [1/7] epp-firmas/abc.../entrega-1.png (42.1 KB)
+   ...
+
+✅ Backup completo: 28 archivos, 12.78 MB total.
    Carpeta: /path/to/backups/storage/2026-06-01-091500
 
 📤 Próximo paso: subir el folder a Google Drive / disco externo / backup remoto.
@@ -128,25 +147,34 @@ Borrar los intermedios después de los 6 meses si Drive se llena.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | No (público) | Si se regenera JWT secret en Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | **CRÍTICO** | Cada 12 meses o tras leak |
 | `ANTHROPIC_API_KEY` | **CRÍTICO** | Cada 12 meses o tras leak |
+| `ANTHROPIC_EPP_SUGGEST_MODEL` | Bajo (no secreto) | Si cambiás el modelo del sugeridor EPP (default Haiku 4.5, T-106) |
 | `RESEND_API_KEY` | Alto | Cada 12 meses o tras leak |
 | `RESEND_FROM_ADDRESS` | Bajo | Si cambia dominio email |
 | `RESEND_REPLY_TO_ADDRESS` | Bajo | Si cambia política reply-to |
 | `TELEGRAM_BOT_TOKEN` | **CRÍTICO** | Cada 12 meses o tras leak |
 | `TELEGRAM_BOT_USERNAME` | Bajo | Nunca, salvo rename bot |
 | `TELEGRAM_WEBHOOK_SECRET` | Alto | Cada 12 meses |
-| `INTERNAL_CRON_SECRET` | **CRÍTICO** | Cada 6 meses (lesson T-031 — debe matchear Vault) |
+| `INTERNAL_CRON_SECRET` | **CRÍTICO** | Cada 6 meses (lesson T-031 — debe matchear Vault; lo reusa el cron de resumen semanal T-109) |
 | `VAPID_PRIVATE_KEY` | **CRÍTICO** | NUNCA (invalida todas las subs push existentes) |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Bajo (público) | Junto con private key si rotás |
 | `VAPID_SUBJECT` | Bajo | Si cambia email contacto |
+| `MP_ACCESS_TOKEN` | **CRÍTICO** | Cada 12 meses o tras leak (token Mercado Pago Subscriptions, T-071) |
+| `MP_WEBHOOK_SECRET` | Alto | Cada 12 meses (HMAC del webhook MP `/api/webhooks/mercadopago`) |
+| `ARS_PRICE_MONTHLY` | Bajo (no secreto) | Cuando ajustás el precio del plan (centavos ARS, T-070/T-108) |
+| `BILLING_GATE_DISABLED` | Bajo (no secreto) | **Debe ser `false` en prod** — un `true` deja la app sin trial gate (T-073) |
 | `UPSTASH_REDIS_REST_URL` | Alto | Si cambia proyecto Upstash |
 | `UPSTASH_REDIS_REST_TOKEN` | Alto | Cada 12 meses |
-| `SENTRY_AUTH_TOKEN` | Alto | Cada 12 meses |
-| `SENTRY_DSN` (público) | Bajo | Nunca, salvo nuevo proyecto Sentry |
+| `SENTRY_AUTH_TOKEN` | Alto | Cada 12 meses (build-time, upload de source maps) |
+| `SENTRY_ORG` | Bajo | Casi nunca (org slug Sentry; build-time) |
+| `SENTRY_PROJECT` | Bajo | Casi nunca (project slug Sentry; build-time) |
+| `NEXT_PUBLIC_SENTRY_DSN` (público) | Bajo | Nunca, salvo nuevo proyecto Sentry |
 
 **Vault Supabase** (`Project → Vault`):
 
 - `cron_dispatch_secret` (= debe matchear `INTERNAL_CRON_SECRET` de EasyPanel)
 - `cron_dispatch_base_url` (= `https://consultora-demo.test-ia.cloud`)
+
+> **Fuente de verdad de env vars:** `src/env.ts` (schema Zod, valida al boot). Al agregar una env var nueva ahí, sumala también a esta tabla. T-109 (resumen semanal) NO agregó secret nuevo: reusa `INTERNAL_CRON_SECRET`. Quedan fuera de esta tabla las de infra/build que no son secrets ni config de negocio: `NODE_ENV`, `PORT`, `INTERNAL_BASE_URL`, `LOG_LEVEL`, `CHROMIUM_PATH`, `GIT_SHA`.
 
 ### Procedimiento de backup manual
 
@@ -166,37 +194,72 @@ Razón del backup del viejo valor: si el rollback es necesario en las próximas 
 
 **Cuándo aplicar:** un user borró por accidente data importante (un informe firmado, una consultora entera), o detectaste corrupción en una tabla específica.
 
-**Tiempo estimado:** 5-15 min.
+**Tiempo estimado:** 10-30 min (restore full) → +30-60 min (restore selectivo).
 
-**Precondición:** el incidente ocurrió hace **< 7 días** (Free Tier retention).
+**Precondición:** tenés un **dump manual reciente** (`pnpm backup:db`, §2). ⚠️ En Free **no hay restore por dashboard ni PITR** — el restore te lleva al estado del **último dump**, no a un punto arbitrario. Lo creado entre el último dump y el incidente se pierde.
 
-### Pasos
+### Restore full (DB entera al estado del dump)
 
 1. **No tocar nada en producción** hasta confirmar el plan. Comunicar el incidente: "investigando, restore en curso".
-2. Dashboard Supabase → proyecto `consultora-demo` → **Database** → **Backups**.
-3. Identificar el último backup ANTES del incidente (cada backup tiene timestamp UTC).
-4. Click "Restore" en el backup elegido.
-5. **WARNING**: el restore es **destructivo** — sobreescribe la DB actual completa. Toda la data posterior al backup se pierde.
-6. Confirmar restore. Tarda ~5-10 min (depende del tamaño).
-7. Smoke test post-restore:
+2. Identificar el último dump pre-incidente en `backups/db/` (o bajarlo de Drive). El timestamp del nombre es la hora de corte.
+3. **WARNING**: cargar un dump completo es **destructivo** — reescribe la DB. Toda la data posterior al dump se pierde.
+4. Cargar el dump con `psql` apuntando a la connection string productiva:
+   ```bash
+   psql "$SUPABASE_DB_URL" -f backups/db/<YYYY-MM-DD-HHmmss>.sql
+   ```
+   (Si la DB quedó en estado inconsistente, primero resetear el schema — `pnpm db:reset` contra la instancia destino — o cargar solo la data; ver Troubleshooting.)
+5. Smoke test post-restore:
    - Login en producción.
    - Verificar que la data perdida volvió.
    - Verificar que features críticas funcionan (crear informe, generar PDF, vincular cliente).
-8. **Storage NO se restaura** — verificar §6 si el incidente afectó imágenes/PDFs adjuntos.
-9. Comunicar el cierre: "restore completo, data al estado YYYY-MM-DD HH:MM UTC, X horas de data perdidas".
+6. **Storage NO se restaura con esto** — ver §6 si el incidente afectó imágenes / PDFs / firmas EPP.
+7. Comunicar el cierre: "restore completo, data al estado YYYY-MM-DD HH:MM UTC (último dump), X horas de data perdidas".
 
-### Si necesitás granularidad mayor
+### Restore selectivo (recuperar rows puntuales sin reescribir la DB)
 
-Free Tier no permite restore selectivo de tablas/rows. Workaround:
+Cuando el restore full es overkill (ej: recuperar 1 informe borrado sin perder el resto de la data posterior):
 
-1. Provisionar un proyecto Supabase nuevo (Free Tier soporta hasta 2 proyectos por org).
-2. Restaurar el backup ahí (no en producción).
-3. Conectar con admin client al proyecto temporal.
-4. Exportar las rows específicas que necesitás recuperar.
-5. INSERT manual en producción.
-6. Borrar el proyecto temporal.
+1. Levantar una **instancia temporal** con el dump: Supabase local (`pnpm db:start` + cargar el `.sql`) o un proyecto Supabase nuevo (Free permite hasta 2 por org).
+2. Conectar con admin client a la instancia temporal y **exportar las rows específicas** que necesitás recuperar.
+3. **Aplicar las rows en producción.** Re-insertar filas perdidas en tablas normales es directo; pero si tocás tablas **append-only** (`audit_log`, `notification_log`, `billing_notifications_log`) con un `DELETE`/`UPDATE`, el trigger de inmutabilidad lo bloquea → ver **§5.1**.
+4. Borrar la instancia temporal.
 
 Tiempo extra: +30-60 min.
+
+### §5.1 Restore selectivo sobre tablas append-only (triggers de inmutabilidad)
+
+Tres tablas son **append-only por trigger** (`BEFORE UPDATE/DELETE` → `RAISE EXCEPTION`). El INSERT de filas recuperadas está permitido; lo que se bloquea es **borrar o modificar** rows (ej: limpiar entradas corruptas, o un cleanup masivo tipo T-111). El error tiene la forma `audit_log es inmutable: DELETE no permitido`:
+
+| Tabla | Triggers | Qué bloquea |
+|---|---|---|
+| `audit_log` | `audit_log_no_update` / `_no_delete` | UPDATE **y** DELETE (todo) |
+| `notification_log` | `notification_log_no_update` / `_no_delete` | UPDATE **y** DELETE (todo) |
+| `billing_notifications_log` | `billing_notifications_log_no_update` / `_no_delete` | DELETE siempre; UPDATE solo permite la transición `resend_email_id` NULL→non-NULL |
+
+**Procedimiento** (mismo molde validado en T-111 F2/F2b): deshabilitar los triggers de usuario dentro de un bloque transaccional, hacer el `DELETE`/`UPDATE` del restore, re-habilitarlos — **todo en la misma transacción** para que ninguna ventana quede sin la protección de inmutabilidad:
+
+```sql
+do $$
+begin
+  alter table public.audit_log                 disable trigger user;
+  alter table public.notification_log          disable trigger user;
+  alter table public.billing_notifications_log disable trigger user;
+
+  -- ... DELETE / UPDATE selectivo del restore acá ...
+
+  alter table public.audit_log                 enable trigger user;
+  alter table public.notification_log          enable trigger user;
+  alter table public.billing_notifications_log enable trigger user;
+end $$;
+```
+
+**Gotchas (aprendidos en T-111):**
+
+- **`session_replication_role = 'replica'` NO sirve en Supabase.** El rol `postgres` no es superuser → tira `42501 insufficient privilege`. Hay que usar `ALTER TABLE ... DISABLE TRIGGER USER` explícito, tabla por tabla.
+- **`disable trigger user`** apaga solo los triggers de usuario; los internos de FK (`RI_ConstraintTrigger`) siguen activos, así que las foreign keys mantienen la integridad referencial durante el restore.
+- **`billing_notifications_log` no es 100% inmutable**: su trigger permite el UPDATE `resend_email_id` NULL→non-NULL (claim→confirmed). Para un restore que toque otras columnas igual hay que deshabilitarlo.
+- **`notification_digest_log` (T-109) NO tiene trigger** — es append-only solo por un UNIQUE constraint (idempotencia del resumen semanal). No necesita `disable trigger`, pero un re-insert puede chocar la UNIQUE key; usar `on conflict do nothing` o limpiar la fila previa.
+- Para borrados masivos hijo→padre (cleanup tipo T-111 F2, no restore puntual): además del `disable trigger user`, respetar el **orden topológico de las FK** (las FK intra-dominio son `RESTRICT`; el cascade no alcanza).
 
 ---
 
@@ -266,7 +329,7 @@ Si `consultora-demo.test-ia.cloud` no es recuperable (registrar expirado, hijack
 
 **Tiempo estimado:** 4-6 horas.
 
-**Precondición:** soporte Supabase responde rápido + tenés DB dump manual reciente (no garantizado en Free Tier).
+**Precondición:** soporte Supabase responde rápido + tenés un **DB dump manual reciente** (`pnpm backup:db`, §2 — en Free es tu ÚNICO respaldo de la DB).
 
 ### Pasos
 
@@ -290,8 +353,8 @@ Si `consultora-demo.test-ia.cloud` no es recuperable (registrar expirado, hijack
    - Mantener el service viejo down (apagar en EasyPanel) para evitar trafico al proyecto comprometido.
 
 3. **Una vez Supabase aprovisiona proyecto nuevo:**
-   - Restaurar DB desde backup automático (el último pre-incidente).
-   - Si NO hay backup utilizable (Free Tier solo tiene 7 días, atacante puede haber esperado más): pérdida total de data — onboarding manual desde cero con users existentes.
+   - Restaurar la DB desde tu último **dump manual** (`pnpm backup:db`), cargándolo con `psql` al proyecto nuevo (ver §5).
+   - Si NO hay dump utilizable (nunca corriste `backup:db`, o el último es viejo): pérdida total de data — onboarding manual desde cero con users existentes. (En Free no hay backup del lado de Supabase que soporte pueda restaurar.)
 
 4. **Reconfigurar el ecosistema:**
    - Generar nuevo `SUPABASE_SERVICE_ROLE_KEY` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` del proyecto nuevo.
@@ -334,20 +397,21 @@ Si `consultora-demo.test-ia.cloud` no es recuperable (registrar expirado, hijack
 
 ### Checklist
 
-1. **Verificar backup automático Supabase visible** (5 min):
-   - Dashboard → Backups → lista no vacía + último < 24h.
+1. **Verificar que tenés un dump de DB reciente** (5 min):
+   - Correr `pnpm backup:db` y verificar que el `.sql` no esté vacío (debe tener `CREATE TABLE` / `COPY` / `INSERT`).
+   - (En Free no hay backup del lado de Supabase que verificar — el dump manual ES el backup.)
 
 2. **Correr backup Storage manual** (10 min):
    - `pnpm backup:storage`.
-   - Verificar output sin errores + tamaño coherente con el mes anterior.
+   - Verificar output sin errores + tamaño coherente con el mes anterior (3 buckets).
 
-3. **Smoke restore en proyecto de prueba** (60-90 min, opcional Free Tier):
-   - Provisionar proyecto Supabase nuevo temporal (Free Tier permite hasta 2 por org).
-   - Restaurar el backup más reciente.
+3. **Smoke restore en instancia de prueba** (60-90 min):
+   - Levantar Supabase local (`pnpm db:start`) o un proyecto Supabase nuevo temporal (Free permite hasta 2 por org).
+   - Cargar el último dump: `psql "<conn-temporal>" -f backups/db/<…>.sql`.
    - Verificar que las tablas críticas tienen data (`consultoras`, `informes`, `calendar_events`).
-   - Apuntar un branch local del repo al proyecto temporal (`.env.local.test`).
+   - Apuntar un branch local del repo a la instancia temporal (`.env.local.test`).
    - Login + leer un informe + verificar PDF.
-   - Borrar el proyecto temporal post-test.
+   - Borrar la instancia temporal post-test.
 
 4. **Smoke download Storage** (15 min):
    - Descargar un archivo del último dump (`tar -xzf backup-storage-YYYY-MM.tar.gz`).
@@ -356,9 +420,9 @@ Si `consultora-demo.test-ia.cloud` no es recuperable (registrar expirado, hijack
 5. **Registrar el test** en `docs/operations/dr-test-log.md` (crear si no existe):
    ```markdown
    ## 2026-09-15 — Test DR Q3
-   - Backup automático Supabase: ✅ visible, último 2026-09-14 03:12 UTC.
-   - Backup Storage manual: ✅ 24 archivos, 18.3 MB.
-   - Restore smoke en proyecto temporal: ✅ data íntegra.
+   - Backup DB manual (`pnpm backup:db`): ✅ dump 1.2 MB, CREATE TABLE + COPY presentes.
+   - Backup Storage manual (`pnpm backup:storage`): ✅ 24 archivos, 18.3 MB (3 buckets).
+   - Restore smoke en instancia temporal: ✅ data íntegra.
    - Issues detectados: ninguno.
    ```
 
@@ -380,8 +444,8 @@ Si `consultora-demo.test-ia.cloud` no es recuperable (registrar expirado, hijack
 
 **Beneficios concretos Pro $25/mo:**
 
-- **DB backups**: 14 días retention (vs 7) + PITR a cualquier momento en 7d.
-- **Daily backups descargables** en SQL dump (rescate independiente del dashboard).
+- **DB backups**: backups automáticos diarios + 14 días de retention + PITR a cualquier momento en 7d. **En Free no existe ninguno de los tres** — hoy el único respaldo de DB es `pnpm backup:db` manual (§2).
+- **Daily backups descargables** en SQL dump desde el dashboard (rescate sin depender del script manual).
 - **Storage**: 100 GB incluidos (vs 1 GB).
 - **DB compute**: 0.5 vCPU + 1 GB RAM (vs Shared compute Free).
 - **Support**: 24h prioritario vs community-only.
@@ -394,12 +458,12 @@ Si `consultora-demo.test-ia.cloud` no es recuperable (registrar expirado, hijack
 **Frecuencia:** primer lunes del mes.
 
 ```
-[ ] 1. Dashboard Supabase → Backups → verificar lista no vacía + último < 48h.
-[ ] 2. Correr `pnpm backup:storage` desde repo local.
-[ ] 3. Verificar output: sin errores + tamaño total coherente con mes anterior.
-[ ] 4. Comprimir el folder: tar -czf backup-storage-YYYY-MM-DD.tar.gz backups/storage/YYYY-MM-DD-HHMMSS/
-[ ] 5. Subir el .tar.gz a Google Drive personal → carpeta consultora-demo/backups-storage/.
-[ ] 6. Borrar el folder local (`rm -rf backups/storage/YYYY-MM-DD-HHMMSS`) — el repo .gitignore lo cubre pero no acumular disk space.
+[ ] 1. Correr `pnpm backup:db` desde repo local (Free NO tiene backup automático — este dump es el ÚNICO respaldo de la DB).
+[ ] 2. Correr `pnpm backup:storage` desde repo local (3 buckets).
+[ ] 3. Verificar output de ambos: sin errores + tamaños coherentes con el mes anterior.
+[ ] 4. Comprimir los folders: tar -czf backup-YYYY-MM-DD.tar.gz backups/db/YYYY-MM-DD-HHMMSS.sql backups/storage/YYYY-MM-DD-HHMMSS/
+[ ] 5. Subir el .tar.gz a Google Drive personal → carpeta consultora-demo/backups/.
+[ ] 6. Borrar los folders locales (`rm -rf backups/`) — el repo .gitignore lo cubre pero no acumular disk space.
 [ ] 7. Revisar Sentry últimas 30 días por errores recurrentes que podrían indicar data corruption silenciosa.
 [ ] 8. Si es marzo/julio/noviembre: agendar el test cuatrimestral (ver §8).
 ```
@@ -413,8 +477,9 @@ Si `consultora-demo.test-ia.cloud` no es recuperable (registrar expirado, hijack
 | `pnpm backup:storage` falla con `permission denied for bucket X` | `SUPABASE_SERVICE_ROLE_KEY` rotada y `.env.local` no actualizado | Copiar service-role key del dashboard Supabase a `.env.local`, retry |
 | Script descarga 0 archivos | Buckets vacíos en producción O service-role key apunta a proyecto wrong | Verificar `NEXT_PUBLIC_SUPABASE_URL` en `.env.local` matchea el productivo |
 | `pnpm backup:storage` cuelga indefinidamente | Network timeout o rate limit Supabase | Reintentar en off-peak hours (madrugada Argentina = mediodía UTC) |
-| Dashboard Supabase no muestra backups | Proyecto pausado por inactividad (Free Tier > 7d) | Acceder al dashboard al menos 1x/semana, o upgradear a Pro |
-| Backup restore fails con `relation already exists` | DB en estado inconsistente post-incidente | Contactar soporte Supabase — solo ellos pueden hacer restore desde su side |
+| `pnpm backup:db` falla por `SUPABASE_DB_URL` faltante | No está la connection string en `.env.local` | Copiar la URI de Project Settings → Database → Connection string a `.env.local` |
+| Buscás backups en el dashboard Supabase y no hay ninguno | **Esperado en Free** — Free no tiene backups automáticos | El único backup de DB es `pnpm backup:db` (§2); no hay nada que restaurar desde el dashboard |
+| Restore con `psql` falla con `relation already exists` | Cargás un dump full sobre un schema existente | Resetear el schema de la instancia destino antes (`pnpm db:reset`), o cargar solo la data; ver §5 |
 | `tar` falla con `file too large` | Total > 8GB (límite tar BSD default) | Usar `tar` GNU (`gtar` en macOS) o split en múltiples archivos |
 | Drive personal lleno | Acumulación > 6 meses | Borrar backups intermedios (mantener solo 6 últimos mensuales + 1 anual) |
 

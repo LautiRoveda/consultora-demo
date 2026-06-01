@@ -17,6 +17,8 @@ import { mkdir, writeFile } from 'fs/promises';
 import { dirname, join } from 'path';
 import { createClient } from '@supabase/supabase-js';
 
+import { STORAGE_BUCKETS } from '../src/shared/storage/types';
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -26,7 +28,9 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
   process.exit(1);
 }
 
-const BUCKETS = ['consultora-logos', 'informe-attachments'] as const;
+// Fuente única de verdad: src/shared/storage/types.ts. NO hardcodear la lista acá
+// (un bucket olvidado = pérdida de datos silenciosa — pasó con epp-firmas, T-082-FU).
+const BUCKETS = STORAGE_BUCKETS;
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
