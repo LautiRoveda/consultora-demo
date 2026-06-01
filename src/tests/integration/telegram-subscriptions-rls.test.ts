@@ -92,19 +92,15 @@ afterAll(async () => {
   ]);
 });
 
-// Cleanup robusto entre tests: borra cualquier row residual de
-// telegram_subscriptions Y los audit_log derivados de userA/userB.
-// Es necesario porque user_id es UNIQUE — un INSERT fallido con `.single()`
-// devuelve `data: null` y el `created!.id` tira `Cannot read properties of null`,
-// pero el INSERT real podría haber creado el row si el assert previo falló
-// (transaction rollback parcial vs flush DB cache).
+// Cleanup robusto entre tests: borra cualquier row residual de telegram_subscriptions de
+// userA/userB. Es necesario porque user_id es UNIQUE — un INSERT fallido con `.single()`
+// devuelve `data: null` y el `created!.id` tira `Cannot read properties of null`, pero el
+// INSERT real podría haber creado el row si el assert previo falló (transaction rollback
+// parcial vs flush DB cache).
+// audit_log es append-only/inmutable: no se limpia; las queries scopean por entity_id +
+// action, así que las filas residuales son invisibles (ver T-113b).
 beforeEach(async () => {
   await admin.from('telegram_subscriptions').delete().in('user_id', [userAId, userBId]);
-  await admin
-    .from('audit_log')
-    .delete()
-    .eq('entity_type', 'telegram_subscription')
-    .in('actor_user_id', [userAId, userBId]);
 });
 
 describe('telegram_subscriptions RLS', () => {
@@ -293,7 +289,6 @@ describe('telegram_subscriptions audit trigger', () => {
     expect(JSON.stringify(row.after_data)).not.toContain(code('A1'));
 
     await admin.from('telegram_subscriptions').delete().eq('id', inserted!.id);
-    await admin.from('audit_log').delete().eq('entity_id', inserted!.id);
   });
 
   it('10. UPDATE diff guard: cambio en linked_at SI escribe audit row', async () => {
@@ -302,9 +297,6 @@ describe('telegram_subscriptions audit trigger', () => {
       .insert({ user_id: userAId, link_code: code('A2') })
       .select('id')
       .single();
-
-    // Limpiar audit row del INSERT para que el test cuente solo el UPDATE.
-    await admin.from('audit_log').delete().eq('entity_id', created!.id);
 
     const linkedAt = new Date().toISOString();
     await admin
@@ -329,7 +321,6 @@ describe('telegram_subscriptions audit trigger', () => {
     expect(JSON.stringify(row.after_data)).not.toContain('12345');
 
     await admin.from('telegram_subscriptions').delete().eq('id', created!.id);
-    await admin.from('audit_log').delete().eq('entity_id', created!.id);
   });
 
   it('11. UPDATE diff guard: cambio solo en link_code NO escribe audit row', async () => {
@@ -338,8 +329,6 @@ describe('telegram_subscriptions audit trigger', () => {
       .insert({ user_id: userAId, link_code: code('A3') })
       .select('id')
       .single();
-
-    await admin.from('audit_log').delete().eq('entity_id', created!.id);
 
     // UPDATE solo el link_code (regenerar código sin cambiar linked_at etc).
     await admin
@@ -367,8 +356,6 @@ describe('telegram_subscriptions audit trigger', () => {
       .select('id')
       .single();
 
-    await admin.from('audit_log').delete().eq('entity_id', created!.id);
-
     await admin.from('telegram_subscriptions').update({ blocked_count: 1 }).eq('id', created!.id);
 
     const { data: auditRows } = await admin
@@ -382,7 +369,6 @@ describe('telegram_subscriptions audit trigger', () => {
     expect(auditRows![0]!.after_data).toMatchObject({ blocked_count: 1 });
 
     await admin.from('telegram_subscriptions').delete().eq('id', created!.id);
-    await admin.from('audit_log').delete().eq('entity_id', created!.id);
   });
 
   it('13. CASCADE delete: auth.users delete borra telegram_subscriptions', async () => {

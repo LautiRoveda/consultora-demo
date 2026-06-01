@@ -276,11 +276,6 @@ afterAll(async () => {
     .in('consultora_id', [cAId, cBId])
     .then(() => {});
   await admin
-    .from('audit_log')
-    .delete()
-    .in('consultora_id', [cAId, cBId])
-    .then(() => {});
-  await admin
     .from('consultora_members')
     .delete()
     .in('consultora_id', [cAId, cBId])

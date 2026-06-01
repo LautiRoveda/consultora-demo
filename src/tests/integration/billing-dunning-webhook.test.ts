@@ -122,7 +122,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await admin.from('billing_notifications_log').delete().eq('consultora_id', cId);
+  // billing_notifications_log es append-only/inmutable (AUD-001/CHORE-C): no se limpia.
+  // Las queries del test scopean por ref_id (F1.3), así que las filas residuales no
+  // interfieren; la DB efímera las resetea por run. Ver T-113b.
   await admin.from('consultoras').delete().eq('id', cId);
   await admin.auth.admin.deleteUser(ownerId).catch(() => {});
 });

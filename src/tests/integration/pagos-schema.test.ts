@@ -133,9 +133,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // Orden FK estricto: facturas -> suscripciones -> audit_log refs -> members + consultoras
-  // (consultoras tiene ON DELETE CASCADE para members/suscripciones/facturas pero audit_log
-  // referencia consultora_id con ON DELETE RESTRICT — borramos los audit rows primero).
+  // Orden FK: facturas -> suscripciones -> members + consultoras.
+  // audit_log NO se limpia: es append-only/inmutable (trigger _no_delete, T-011). Además
+  // referencia consultora_id con ON DELETE RESTRICT, así que el delete de consultoras puede
+  // quedar bloqueado por las filas de audit (no-op tolerado: la DB efímera resetea por run).
+  // Ver T-113b.
   await admin
     .from('facturas')
     .delete()
@@ -143,11 +145,6 @@ afterAll(async () => {
     .then(() => {});
   await admin
     .from('suscripciones')
-    .delete()
-    .in('consultora_id', [cAId, cBId])
-    .then(() => {});
-  await admin
-    .from('audit_log')
     .delete()
     .in('consultora_id', [cAId, cBId])
     .then(() => {});
