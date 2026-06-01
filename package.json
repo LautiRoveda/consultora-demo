@@ -39,6 +39,7 @@
     "dev:measure-srt-tokens": "tsx --env-file=.env.local scripts/dev-measure-srt-tokens.ts",
     "backup:storage": "tsx --env-file=.env.local scripts/backup-storage.ts",
     "backup:db": "tsx --env-file=.env.local scripts/backup-db.ts",
+    "verify:dr-config": "vitest run --project unit src/tests/unit/dr-config-coverage.test.ts",
     "prepare": "husky"
   },
   "dependencies": {
