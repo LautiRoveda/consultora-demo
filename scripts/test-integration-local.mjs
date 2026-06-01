@@ -60,10 +60,23 @@ if (!apiUrl || !anon || !service) {
 }
 
 // 4. vitest contra el stack LOCAL (nunca prod). args extra se pasan a vitest.
-console.log(`[t111] vitest --project integration contra ${apiUrl}`);
+// T-113d: --no-file-parallelism serializa los files de integration (cada uno en su
+// fork fresco). Mata la clase de flakes por pollution cross-file — tests que procesan
+// datos GLOBALMENTE (process_pending_reminders, dunning, createSubscriptionAction race)
+// corriendo en paralelo contra la misma DB se pisaban. Costo (~+45s) oculto bajo E2E
+// (camino crítico del CI). NO afecta unit/component (otros scripts, siguen en paralelo).
+console.log(`[t111] vitest --project integration (--no-file-parallelism) contra ${apiUrl}`);
 const r = spawnSync(
   'pnpm',
-  ['exec', 'vitest', 'run', '--project', 'integration', ...process.argv.slice(2)],
+  [
+    'exec',
+    'vitest',
+    'run',
+    '--project',
+    'integration',
+    '--no-file-parallelism',
+    ...process.argv.slice(2),
+  ],
   {
     stdio: 'inherit',
     shell: IS_WIN,
