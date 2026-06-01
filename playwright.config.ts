@@ -39,8 +39,10 @@ export default defineConfig({
     command: isCI ? 'pnpm build && pnpm start' : 'pnpm dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !isCI,
-    // En CI: 3 min para que el build de Next 16 termine + start. Local sigue
-    // con 2 min porque dev arranca instantaneo.
-    timeout: isCI ? 180_000 : 120_000,
+    // En CI: 5 min para que el build de Next 16 termine + start. T-112: el job
+    // aislado `e2e-tests` estrena una key de cache .next propia, asi que la
+    // primera corrida buildea en frio; 3 min quedaban justos. Local sigue con
+    // 2 min porque dev arranca instantaneo.
+    timeout: isCI ? 300_000 : 120_000,
   },
 });
