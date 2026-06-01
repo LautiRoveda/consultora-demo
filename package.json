@@ -38,6 +38,7 @@
     "dev:smoke-jwt-claim": "tsx --env-file=.env.local scripts/dev-smoke-jwt-claim.ts",
     "dev:measure-srt-tokens": "tsx --env-file=.env.local scripts/dev-measure-srt-tokens.ts",
     "backup:storage": "tsx --env-file=.env.local scripts/backup-storage.ts",
+    "backup:db": "tsx --env-file=.env.local scripts/backup-db.ts",
     "prepare": "husky"
   },
   "dependencies": {

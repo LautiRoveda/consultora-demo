@@ -38,6 +38,18 @@ export const BUCKET_INFORME_ATTACHMENTS = 'informe-attachments' as const;
 export const BUCKET_CONSULTORA_LOGOS = 'consultora-logos' as const;
 export const BUCKET_EPP_FIRMAS = 'epp-firmas' as const;
 
+// Lista canónica de buckets de Storage. FUENTE ÚNICA DE VERDAD para el backup
+// (scripts/backup-storage.ts itera sobre esto, no hardcodea su propia lista) y
+// para el test anti-drift (src/tests/unit/storage-buckets-coverage.test.ts) que
+// la compara contra las migraciones. Agregar acá CUALQUIER bucket nuevo creado
+// en supabase/migrations — si no, el backup mensual lo ignora y el test rompe.
+export const STORAGE_BUCKETS = [
+  BUCKET_CONSULTORA_LOGOS,
+  BUCKET_INFORME_ATTACHMENTS,
+  BUCKET_EPP_FIRMAS,
+] as const;
+export type StorageBucket = (typeof STORAGE_BUCKETS)[number];
+
 // T-102 · Cap PNG firma capturada en canvas. Estimado real ~30-200 KB; 1 MB
 // es margen amplio. Replicado en migration 20260524000001 file_size_limit.
 export const MAX_EPP_FIRMA_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB
