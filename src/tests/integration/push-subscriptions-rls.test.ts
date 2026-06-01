@@ -86,14 +86,11 @@ afterAll(async () => {
   ]);
 });
 
-// Cleanup robusto: borra subs y audit_log derivados de userA/userB.
+// Cleanup robusto: borra subs de userA/userB. audit_log es append-only/inmutable: no se
+// limpia; las queries scopean por entity_id + action, así que las filas residuales son
+// invisibles (ver T-113b).
 beforeEach(async () => {
   await admin.from('push_subscriptions').delete().in('user_id', [userAId, userBId]);
-  await admin
-    .from('audit_log')
-    .delete()
-    .eq('entity_type', 'push_subscription')
-    .in('actor_user_id', [userAId, userBId]);
 });
 
 describe('push_subscriptions RLS', () => {
@@ -343,9 +340,6 @@ describe('push_subscriptions audit trigger', () => {
       })
       .select('id')
       .single();
-
-    // Limpiar audit del INSERT.
-    await admin.from('audit_log').delete().eq('entity_id', created!.id);
 
     await admin.from('push_subscriptions').delete().eq('id', created!.id);
 

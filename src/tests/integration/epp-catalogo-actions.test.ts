@@ -172,11 +172,6 @@ afterAll(async () => {
     .in('consultora_id', [cAId, cBId])
     .then(() => {});
   await admin
-    .from('audit_log')
-    .delete()
-    .in('consultora_id', [cAId, cBId])
-    .then(() => {});
-  await admin
     .from('consultora_members')
     .delete()
     .in('consultora_id', [cAId, cBId])
@@ -667,7 +662,6 @@ describe('seedDefaultCatalogAction', () => {
     await admin.from('epp_items').delete().eq('consultora_id', cSId);
     await admin.from('epp_categorias').delete().eq('consultora_id', cSId);
     await admin.from('puestos').delete().eq('consultora_id', cSId);
-    await admin.from('audit_log').delete().eq('consultora_id', cSId);
     await admin.from('consultora_members').delete().eq('consultora_id', cSId);
     await admin.from('consultoras').delete().eq('id', cSId);
     await admin.auth.admin.deleteUser(userId).catch(() => {});

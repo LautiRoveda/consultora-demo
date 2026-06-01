@@ -329,7 +329,6 @@ afterAll(async () => {
   await admin.from('puestos').delete().in('consultora_id', [cAId, cBId]);
   await admin.from('empleados').delete().in('consultora_id', [cAId, cBId]);
   await admin.from('clientes').delete().in('consultora_id', [cAId, cBId]);
-  await admin.from('audit_log').delete().in('consultora_id', [cAId, cBId, cEmptyId]);
   await admin.from('consultora_members').delete().in('consultora_id', [cAId, cBId, cEmptyId]);
   await admin.from('consultoras').delete().in('id', [cAId, cBId, cEmptyId]);
   await admin.auth.admin.deleteUser(ownerAId).catch(() => {});

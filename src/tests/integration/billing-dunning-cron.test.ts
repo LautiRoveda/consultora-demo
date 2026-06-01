@@ -110,21 +110,18 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // billing_notifications_log es append-only/inmutable (AUD-001/CHORE-C): NO se puede
+  // borrar (trigger _no_delete). Por eso no lo limpiamos; además su FK a consultora_id
+  // bloquea el cascade-delete de la consultora → las filas quedan orphan (la DB efímera
+  // las resetea por run). Ver T-113b.
   if (fixtures.withOwner) {
-    await admin
-      .from('billing_notifications_log')
-      .delete()
-      .eq('consultora_id', fixtures.withOwner.id);
     await admin.from('consultoras').delete().eq('id', fixtures.withOwner.id);
     await admin.auth.admin.deleteUser(fixtures.withOwner.ownerId).catch(() => {});
   }
   if (fixtures.idem) {
-    // billing_notifications_log es append-only (AUD-001): el cascade-delete de la
-    // consultora queda bloqueado → la fila queda orphan (la DB efímera la resetea por run).
     await admin.auth.admin.deleteUser(fixtures.idem.ownerId).catch(() => {});
   }
   if (fixtures.noOwner) {
-    await admin.from('billing_notifications_log').delete().eq('consultora_id', fixtures.noOwner.id);
     await admin.from('consultoras').delete().eq('id', fixtures.noOwner.id);
   }
 });

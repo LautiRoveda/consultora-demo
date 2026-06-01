@@ -189,7 +189,6 @@ afterAll(async () => {
   await admin.from('epp_categorias').delete().in('consultora_id', ids);
   await admin.from('empleados').delete().in('consultora_id', ids);
   await admin.from('clientes').delete().in('consultora_id', ids);
-  await admin.from('audit_log').delete().in('consultora_id', ids);
   await admin.from('consultora_members').delete().in('consultora_id', ids);
   await admin.from('consultoras').delete().in('id', ids);
   await admin.auth.admin.deleteUser(A?.ownerId).catch(() => {});
