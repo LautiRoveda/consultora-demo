@@ -102,7 +102,7 @@ jobs:
       # no se ejercita end-to-end.
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       # IMPORTANTE: pnpm va ANTES que setup-node. setup-node@v5 detecta el
       # packageManager field de package.json e intenta hacer caching automático
@@ -200,7 +200,7 @@ jobs:
       BILLING_GATE_DISABLED: 'false'
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -272,7 +272,7 @@ jobs:
       BILLING_GATE_DISABLED: 'false'
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
