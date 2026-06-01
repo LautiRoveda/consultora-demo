@@ -20,6 +20,8 @@ import { createClient as createSbClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestConsultora } from './helpers/consultora';
+
 const cookieStore: Array<{ name: string; value: string }> = [];
 
 vi.mock('server-only', () => ({}));
@@ -95,12 +97,8 @@ function makeCuit(prefix: string, base: string, check: string): string {
 }
 
 beforeAll(async () => {
-  cAId = (
-    await admin.from('consultoras').insert({ name: 'T106S-A', slug: slugA }).select('id').single()
-  ).data!.id;
-  cBId = (
-    await admin.from('consultoras').insert({ name: 'T106S-B', slug: slugB }).select('id').single()
-  ).data!.id;
+  cAId = (await createTestConsultora(admin, { name: 'T106S-A', slug: slugA })).id;
+  cBId = (await createTestConsultora(admin, { name: 'T106S-B', slug: slugB })).id;
 
   ownerAId = (
     await admin.auth.admin.createUser({ email: emailOwnerA, password, email_confirm: true })

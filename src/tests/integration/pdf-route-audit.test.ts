@@ -17,6 +17,8 @@ import { createClient as createSbClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestConsultora } from './helpers/consultora';
+
 const cookieStore: Array<{ name: string; value: string }> = [];
 
 vi.mock('server-only', () => ({}));
@@ -104,12 +106,8 @@ let informeOkId: string;
 let informeFailId: string;
 
 beforeAll(async () => {
-  const { data: c } = await admin
-    .from('consultoras')
-    .insert({ name: 'T023 audit', slug })
-    .select('id')
-    .single();
-  consultoraId = c!.id;
+  const c = await createTestConsultora(admin, { name: 'T023 audit', slug });
+  consultoraId = c.id;
 
   const { data: u } = await admin.auth.admin.createUser({
     email: emailOwner,

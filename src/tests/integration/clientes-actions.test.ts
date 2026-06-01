@@ -23,6 +23,8 @@ import type { Database } from '@/shared/supabase/types';
 import { createClient as createSbClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestConsultora } from './helpers/consultora';
+
 const cookieStore: Array<{ name: string; value: string }> = [];
 
 vi.mock('server-only', () => ({}));
@@ -90,21 +92,11 @@ let noConsulId: string;
 
 beforeAll(async () => {
   // Setup SECUENCIAL — lesson T-047 (Promise.all flaky sa-east-1).
-  const { data: cA, error: errCA } = await admin
-    .from('consultoras')
-    .insert({ name: 'T048A', slug: slugA })
-    .select('id')
-    .single();
-  expect(errCA).toBeNull();
-  cAId = cA!.id;
+  const cA = await createTestConsultora(admin, { name: 'T048A', slug: slugA });
+  cAId = cA.id;
 
-  const { data: cB, error: errCB } = await admin
-    .from('consultoras')
-    .insert({ name: 'T048B', slug: slugB })
-    .select('id')
-    .single();
-  expect(errCB).toBeNull();
-  cBId = cB!.id;
+  const cB = await createTestConsultora(admin, { name: 'T048B', slug: slugB });
+  cBId = cB.id;
 
   const { data: uOA, error: errUOA } = await admin.auth.admin.createUser({
     email: emailOwnerA,

@@ -21,6 +21,8 @@ import type { Database } from '@/shared/supabase/types';
 import { createClient as createSbClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestConsultora } from './helpers/consultora';
+
 const cookieStore: Array<{ name: string; value: string }> = [];
 
 vi.mock('server-only', () => ({}));
@@ -111,19 +113,14 @@ async function createDraftInforme(args: {
 
 beforeAll(async () => {
   // Consultora principal cA con su owner + un member non-owner.
-  const { data: cA } = await admin
-    .from('consultoras')
-    .insert({ name: 'T036 Publish Consultora', slug })
-    .select('id')
-    .single();
-  consultoraId = cA!.id;
+  const cA = await createTestConsultora(admin, { name: 'T036 Publish Consultora', slug });
+  consultoraId = cA.id;
 
-  const { data: cB } = await admin
-    .from('consultoras')
-    .insert({ name: 'T036 Publish Other Consultora', slug: slugOther })
-    .select('id')
-    .single();
-  consultoraOtherId = cB!.id;
+  const cB = await createTestConsultora(admin, {
+    name: 'T036 Publish Other Consultora',
+    slug: slugOther,
+  });
+  consultoraOtherId = cB.id;
 
   const ownerRes = await admin.auth.admin.createUser({
     email: ownerEmail,

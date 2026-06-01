@@ -20,6 +20,8 @@ import type { Database } from '@/shared/supabase/types';
 import { createClient as createSbClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestConsultora } from './helpers/consultora';
+
 const cookieStore: Array<{ name: string; value: string }> = [];
 
 vi.mock('server-only', () => ({}));
@@ -99,12 +101,12 @@ function pastDateIso(daysAgo: number): string {
 }
 
 beforeAll(async () => {
-  const [{ data: cA }, { data: cB }] = await Promise.all([
-    admin.from('consultoras').insert({ name: 'T028A', slug: slugA }).select('id').single(),
-    admin.from('consultoras').insert({ name: 'T028B', slug: slugB }).select('id').single(),
+  const [cA, cB] = await Promise.all([
+    createTestConsultora(admin, { name: 'T028A', slug: slugA }),
+    createTestConsultora(admin, { name: 'T028B', slug: slugB }),
   ]);
-  cAId = cA!.id;
-  cBId = cB!.id;
+  cAId = cA.id;
+  cBId = cB.id;
 
   const [{ data: uOA }, { data: uMA }, { data: uOB }, { data: uNc }] = await Promise.all([
     admin.auth.admin.createUser({ email: emailOwnerA, password, email_confirm: true }),

@@ -25,6 +25,8 @@ import { createClient as createSbClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestConsultora } from './helpers/consultora';
+
 const cookieStore: Array<{ name: string; value: string }> = [];
 
 vi.mock('server-only', () => ({}));
@@ -91,12 +93,12 @@ let informeOwnerAInCa: string;
 let informeOwnerBInCb: string;
 
 beforeAll(async () => {
-  const [{ data: cA }, { data: cB }] = await Promise.all([
-    admin.from('consultoras').insert({ name: 'T025A cA', slug: slugA }).select('id').single(),
-    admin.from('consultoras').insert({ name: 'T025A cB', slug: slugB }).select('id').single(),
+  const [cA, cB] = await Promise.all([
+    createTestConsultora(admin, { name: 'T025A cA', slug: slugA }),
+    createTestConsultora(admin, { name: 'T025A cB', slug: slugB }),
   ]);
-  cAId = cA!.id;
-  cBId = cB!.id;
+  cAId = cA.id;
+  cBId = cB.id;
 
   const [{ data: uOA }, { data: uMA }, { data: uOB }, { data: uNc }] = await Promise.all([
     admin.auth.admin.createUser({ email: emailOwnerA, password, email_confirm: true }),

@@ -28,6 +28,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 import { parseSseStream } from '@/shared/ai/sse-client';
 
+import { createTestConsultora } from './helpers/consultora';
+
 const cookieStore: Array<{ name: string; value: string }> = [];
 
 vi.mock('server-only', () => ({}));
@@ -166,12 +168,8 @@ const rgrlFixture: RgrlMetadata = {
 };
 
 beforeAll(async () => {
-  const { data: cA } = await admin
-    .from('consultoras')
-    .insert({ name: 'T025F cA', slug: slugA })
-    .select('id')
-    .single();
-  cAId = cA!.id;
+  const cA = await createTestConsultora(admin, { name: 'T025F cA', slug: slugA });
+  cAId = cA.id;
 
   const { data: uOA } = await admin.auth.admin.createUser({
     email: emailOwnerA,
