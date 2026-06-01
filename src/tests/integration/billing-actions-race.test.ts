@@ -4,10 +4,18 @@
  * Cobertura:
  *  1. 2 calls Promise.all simultáneas (mismo user, misma consultora):
  *     - Solo 1 INSERT exitoso en `suscripciones` (UNIQUE PARTIAL bloquea al loser).
- *     - El loser cancela su preapproval huérfano en MP (best-effort cleanup).
  *     - Ambos clients reciben el MISMO initPoint (el del winner).
- *     - createPreapprovalMock llamado 2× (la cancel del loser fue post-INSERT,
- *       no podíamos saber pre-INSERT cuál ganaba el race).
+ *     - Cero huérfanos en MP: todo preapproval creado que NO sea el del winner
+ *       queda cancelado, y el del winner nunca se cancela.
+ *
+ * T-113a · El nº exacto de llamadas a MP NO es determinístico — depende del
+ * interleaving de las 2 calls concurrentes:
+ *   - true-concurrent: ambas pasan el pre-check (getActiveSubscription) → 2×
+ *     createPreapproval → el loser pega 23505 en el INSERT y cancela su huérfano.
+ *   - serializado: la 2ª call ve la sub del winner en el pre-check → devuelve
+ *     DUPLICATE_SUBSCRIPTION_PENDING sin pegarle a MP (1× create, 0 cancel).
+ * Por eso asserteamos el ESTADO FINAL + el invariante `cancel == create-1`, no
+ * conteos fijos (antes flapeaba con `createPreapprovalMock.toHaveBeenCalledTimes(2)`).
  *
  * Setup minimal — sub única por test (limpieza en beforeEach).
  * Mocks idénticos a billing-actions.test.ts para no divergir patrones.
@@ -189,15 +197,18 @@ describe('CHORE-D · I1 · createSubscriptionAction race condition', () => {
     // El dup devuelve el initPoint del winner (mismo string).
     expect(dupRes.initPoint).toBe(okRes.initPoint);
 
-    // MP createPreapproval llamado 2× (uno por call — la cancel ocurre POST-INSERT).
-    expect(createPreapprovalMock).toHaveBeenCalledTimes(2);
+    // T-113a · El nº de llamadas a MP depende del interleaving (ver header), así que
+    // asserteamos el invariante determinístico en vez de conteos fijos: todo preapproval
+    // creado que NO sea el del winner queda cancelado (cero huérfanos en MP), y el del
+    // winner NUNCA se cancela.
+    const createCount = createPreapprovalMock.mock.calls.length;
+    expect(createCount).toBeGreaterThanOrEqual(1);
+    expect(createCount).toBeLessThanOrEqual(2);
+    expect(cancelPreapprovalMock).toHaveBeenCalledTimes(createCount - 1);
 
-    // MP cancelPreapproval llamado 1× — el loser limpia su huérfano.
-    // El argumento debe ser el mpSubscriptionId del LOSER (no el del winner).
-    expect(cancelPreapprovalMock).toHaveBeenCalledTimes(1);
-    const cancelledId = cancelPreapprovalMock.mock.calls[0]?.[0] as string;
-    expect(cancelledId).not.toBe(okRes.mpSubscriptionId);
-    expect(cancelledId).toMatch(/^mp_preapproval_race_/);
+    const cancelledIds = cancelPreapprovalMock.mock.calls.map((c) => c[0] as string);
+    expect(cancelledIds).not.toContain(okRes.mpSubscriptionId);
+    for (const id of cancelledIds) expect(id).toMatch(/^mp_preapproval_race_/);
 
     // DB: solo 1 fila en suscripciones para consultoraA en estado pendiente.
     const { data: subs, error: subsErr } = await admin
@@ -211,14 +222,5 @@ describe('CHORE-D · I1 · createSubscriptionAction race condition', () => {
     expect(onlySub?.estado).toBe('pendiente_autorizacion');
     expect(onlySub?.mp_subscription_id).toBe(okRes.mpSubscriptionId);
     expect(onlySub?.init_point).toBe(okRes.initPoint);
-
-    // Log explícito del race detected.
-    expect(
-      loggerInfoMock.mock.calls.some(
-        ([, msg]) =>
-          typeof msg === 'string' &&
-          msg.includes('I1 race detected, devolviendo initPoint del ganador'),
-      ),
-    ).toBe(true);
   });
 });
