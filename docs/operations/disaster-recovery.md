@@ -145,6 +145,7 @@ Borrar los intermedios después de los 6 meses si Drive se llena.
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | No (público) | Nunca, salvo migración proyecto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | No (público) | Si se regenera JWT secret en Supabase |
+| `NEXT_PUBLIC_SITE_URL` | No (público) | Si cambia el dominio público del sitio (robots/sitemap, T-009) |
 | `SUPABASE_SERVICE_ROLE_KEY` | **CRÍTICO** | Cada 12 meses o tras leak |
 | `ANTHROPIC_API_KEY` | **CRÍTICO** | Cada 12 meses o tras leak |
 | `ANTHROPIC_EPP_SUGGEST_MODEL` | Bajo (no secreto) | Si cambiás el modelo del sugeridor EPP (default Haiku 4.5, T-106) |
@@ -515,4 +516,4 @@ El test de restore real es heavy (provisionar proyecto temporal + smoke validati
 - **T-082-FU2** `feature` (medium priority): integrar backup remoto a Backblaze B2 (~$0.005/GB/mes) o S3-compat. Disparador: 1er cliente pagando + volumen Storage > 1GB.
 - **T-082-FU3** `feature` (low priority): provisionar proyecto Supabase staging para test cuatrimestral de restore real. Disparador: upgrade a Supabase Pro (Free Tier permite hasta 2 proyectos pero stress real requiere uno dedicado).
 - **T-082-FU4** `feature` (low priority): script de export selectivo (tabla por tabla) para restore granular sin sobrescribir DB completa. Disparador: 1er incidente donde el restore in-place sea overkill.
-- **T-082-FU5** `feature` (low priority): doc-as-code para evitar drift entre `disaster-recovery.md` y la realidad — script `pnpm verify:dr-config` que valida que `.gitignore` cubre `backups/`, `package.json` tiene `backup:storage`, env vars match Vault, etc.
+- **T-082-FU5** ✅ `feature`: doc-as-code anti-drift — test-meta `src/tests/unit/dr-config-coverage.test.ts` (alias `pnpm verify:dr-config`) que valida contra el repo que `.gitignore` cubre `/backups/`, `package.json` tiene `backup:db`/`backup:storage`, los scripts referencian sus env vars correctas, los buckets de §1/§3 matchean `STORAGE_BUCKETS`, y la tabla §4 ↔ las keys de `src/env.ts` (bidireccional, con allowlist documentada de excepciones build-time/dev-only). Corre en CI vía la unit suite — rompe si el runbook se desincroniza.
