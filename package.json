@@ -43,7 +43,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
     "@hookform/resolvers": "^5.2.2",
-    "@sentry/nextjs": "^10.52.0",
+    "@sentry/nextjs": "^10.55.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "@upstash/ratelimit": "2.0.8",
