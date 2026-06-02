@@ -1,11 +1,6 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: '14.5';
-  };
   graphql_public: {
     Tables: {
       [_ in never]: never;
@@ -977,6 +972,13 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
+            foreignKeyName: 'incidentes_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'incidentes_vigentes';
+            referencedColumns: ['id'];
+          },
+          {
             foreignKeyName: 'incidentes_empleado_id_fkey';
             columns: ['empleado_id'];
             isOneToOne: false;
@@ -1468,6 +1470,46 @@ export type Database = {
           lugar_especifico: string | null;
           tipo: Database['public']['Enums']['tipo_incidente'] | null;
         };
+        Insert: {
+          accion_inmediata?: string | null;
+          anulacion?: boolean | null;
+          causa_raiz?: string | null;
+          cliente_id?: string | null;
+          consultora_id?: string | null;
+          corrige_id?: string | null;
+          created_at?: string | null;
+          created_by?: string | null;
+          descripcion?: string | null;
+          dias_perdidos?: number | null;
+          empleado_id?: string | null;
+          fecha?: string | null;
+          gravedad?: Database['public']['Enums']['gravedad_incidente'] | null;
+          hora?: string | null;
+          id?: string | null;
+          informe_id?: string | null;
+          lugar_especifico?: string | null;
+          tipo?: Database['public']['Enums']['tipo_incidente'] | null;
+        };
+        Update: {
+          accion_inmediata?: string | null;
+          anulacion?: boolean | null;
+          causa_raiz?: string | null;
+          cliente_id?: string | null;
+          consultora_id?: string | null;
+          corrige_id?: string | null;
+          created_at?: string | null;
+          created_by?: string | null;
+          descripcion?: string | null;
+          dias_perdidos?: number | null;
+          empleado_id?: string | null;
+          fecha?: string | null;
+          gravedad?: Database['public']['Enums']['gravedad_incidente'] | null;
+          hora?: string | null;
+          id?: string | null;
+          informe_id?: string | null;
+          lugar_especifico?: string | null;
+          tipo?: Database['public']['Enums']['tipo_incidente'] | null;
+        };
         Relationships: [
           {
             foreignKeyName: 'incidentes_cliente_id_fkey';
@@ -1488,6 +1530,13 @@ export type Database = {
             columns: ['corrige_id'];
             isOneToOne: false;
             referencedRelation: 'incidentes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'incidentes_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'incidentes_vigentes';
             referencedColumns: ['id'];
           },
           {
@@ -1704,6 +1753,7 @@ export const Constants = {
         'cancelada',
         'expirada',
       ],
+      gravedad_incidente: ['leve', 'grave', 'mortal'],
       motivo_entrega_epp: [
         'inicial',
         'renovacion',
@@ -1712,6 +1762,7 @@ export const Constants = {
         'rotacion',
       ],
       plan_codigo: ['pro_mensual'],
+      tipo_incidente: ['casi_accidente', 'accidente'],
     },
   },
 } as const;
