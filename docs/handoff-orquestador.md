@@ -4,30 +4,25 @@ Working agreement + estado vivo para el **chat nuevo del orquestador**. Entre **
 
 > **Fuentes de verdad** (no duplicar acá lo que ya viven ahí): `CLAUDE.md` (producto + stack + principios), `docs/sprints/operativo.md` (tickets transversales + estado granular), `docs/technical/10-roadmap.md` (roadmap), `docs/lessons-learned.md`. Este doc es el **mapa de entrada**, no el territorio.
 
-## Estado de `main` (snapshot — al cierre del PR de mantenimiento post-handoff)
+## Estado de `main`
 
-- **HEAD:** `920683a` — `docs: versionar docs untracked + gitignore config local (#180)`. CI de main en verde, ruleset enforced (deletion + non_fast_forward + required_status_checks + pull_request).
-- **Últimos merges:**
-  - **chore docs** ✅ `920683a` (#180) — versionar docs untracked + config de gitignore local.
-  - **handoff orquestador** ✅ `6f62517` (#179) — este doc (working agreement del flujo gated).
-  - **T-082-FU5** ✅ `6ed89e4` (#178) — guard anti-drift del runbook DR (`verify:dr-config`).
-  - **T-113** doc ✅ `6a5fa12` (#177) — marcar T-113b DONE en operativo.md.
-  - **T-113b** ✅ `68523dc` (#176) — limpiar DELETE-muerto en tests append-only + guard test-meta.
-- **Suite:** unit + component vía `pnpm test` (689 tests al cierre de FU5); integration + e2e con Supabase local efímero.
+> **El SHA no se hardcodea acá** (se desactualiza en cada merge → drift). Fuente viva: `git log -1 --oneline` para el HEAD y `git log --oneline -10` para los últimos merges (el orquestador los corre read-only desde su sandbox). El detalle del ruleset + required checks está en §Metodología de merge / branches.
+
+- **Suite:** unit + component vía `pnpm test`; integration + e2e con Supabase local efímero.
 
 ## En vuelo
 
-- **Sin PRs abiertos. 0 branches stale** (solo `main` local + `origin/main`). #179 (handoff) y #180 (chore docs) ya mergeados.
+- **PRs / branches abiertas:** no se snapshotea acá — verificar en el momento con `gh pr list` + `git branch -a`. Dependabot abre PRs periódicas (deps) que quedan para triage; no son deuda.
 - **Backlog técnico/DEVEX: esencialmente vacío.** Cerrados en esta etapa: T-109, T-111 (F1+F2+F2b), **T-112** (E2E ya corren aislados contra Supabase local — el job `E2E (Supabase local)` es required check; se removió el `if: false`), F1.2/F1.3, T-113a/T-113b/T-113d, Dependabot, T-082-FU + FU5.
 - **Próximo:** **roadmap de producto** — módulo de incidentes (dos formatos: casi-accidente vs accidente real con ART), diagnóstico-primero → Pitch RFC. El único trabajo en cola fuera de eso son los **DORMIDOS** (tabla abajo) + follow-ups opcionales; no hay deuda técnica abierta que bloquee.
 
-## Infra local (trampa de entorno)
+## Infra local
 
-El repo estaba en OneDrive, que corrompía `.git` y `node_modules`. Se resolvió con **junctions**: el repo real vive en `C:\Git\consultora-demo` y la carpeta de OneDrive apunta ahí.
+El repo vive en `C:\proyecto\consultora-demo`: repo git **normal**, sin junctions, **fuera de OneDrive**.
 
-- **`.git` y `node_modules` son junctions que apuntan FUERA del mount del sandbox** del agente orquestador → no los resuelve (bash da I/O error; los file tools los ven "fuera de la carpeta conectada"). El orquestador NO puede correr `git`/`gh` ni leer refs por su cuenta.
-- **Los comandos git/gh los corre Lautaro** (terminal local) **o el CC de VSCode**, siempre en `C:\Git\consultora-demo`. El orquestador pide el output y diagnostica sobre eso.
-- **`.git.OLD-DELETEME/`** es el backup del `.git` corrupto pre-junction. Gitignoreado mientras vive. Borrarlo del todo cuando Lautaro confirme varias sesiones estables.
+- **Por qué este setup:** OneDrive corrompía el `.git` (incluso vía junction — `lint-staged` hace `git stash` en cada commit y OneDrive clobbeaba el junction a mitad de operación). Se resolvió de raíz sacando el repo de OneDrive. El setup viejo (junction con el repo real en `C:\Git\consultora-demo` y espejo en `OneDrive\Documentos`) está **deprecado**: ya no hay junctions ni carpeta en OneDrive.
+- **El orquestador corre `git` read-only desde su sandbox para diagnóstico general** (`git log`, `git diff` del working tree); ya no hay junction que lo bloquee. **PERO el mount Windows→sandbox da vistas inconsistentes de los internals de `.git`** (HEAD, refs, locks) — puede reportar un `.git/HEAD` truncado o un lock fantasma que en Windows está sano. Ante cualquier señal de "corrupción" / HEAD irresoluble desde el sandbox, **confirmar con CC en terminal nativa ANTES de alarmar o tocar nada** (`type .git\HEAD`, `git fsck`). `gh` no está en el sandbox → PRs / CI / merge los corre Lautaro o el CC de Antigravity.
+- **No versionados que viven solo local** (copiados en la migración, gitignoreados): `.env.local`, `backups/`, `.claude`, `.agents`, `.obsidian`, `skills-lock.json`.
 
 ## El flujo gated (no negociable)
 
