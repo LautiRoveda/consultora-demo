@@ -69,7 +69,9 @@ test.describe('Accidentabilidad · libro de incidentes (T-063)', () => {
     await page.getByRole('button', { name: /Registrar incidente/i }).click();
 
     await expect(page).toHaveURL(/\/accidentabilidad\/[0-9a-f-]{36}$/, { timeout: 10_000 });
-    await expect(page.getByText('Casi-accidente (sin lesión)')).toBeVisible();
+    // El label de tipo aparece 2× en el detalle (badge del header + campo "Tipo"
+    // de la card Clasificación) → `.first()` para evitar strict-mode violation.
+    await expect(page.getByText('Casi-accidente (sin lesión)').first()).toBeVisible();
 
     // DB sanity.
     const { data: casiRows } = await adminClient
