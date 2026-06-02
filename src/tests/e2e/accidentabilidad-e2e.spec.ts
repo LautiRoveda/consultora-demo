@@ -59,7 +59,9 @@ test.describe('Accidentabilidad · libro de incidentes (T-063)', () => {
     await expect(page).toHaveURL(/\/accidentabilidad\/nuevo$/);
 
     // Por defecto tipo=casi_accidente → la sección Lesión NO se muestra.
-    await expect(page.getByText('Lesión')).toHaveCount(0);
+    // Apuntamos al heading exacto: `getByText('Lesión')` matchea por substring
+    // case-insensitive y pescaría "(sin/con lesión)" de los labels del Select.
+    await expect(page.getByRole('heading', { name: 'Lesión' })).toHaveCount(0);
 
     const descCasi = `Casi-accidente E2E ${Date.now().toString(36)}`;
     await page.getByLabel(/Fecha/).fill('2020-06-01');
@@ -81,15 +83,17 @@ test.describe('Accidentabilidad · libro de incidentes (T-063)', () => {
     // ── Alta accidente (con lesión) ─────────────────────────────────────────
     await page.goto('/accidentabilidad/nuevo');
     // Cambiar el tipo a "Accidente (con lesión)" → aparece la sección Lesión.
-    await page.getByLabel(/Tipo de incidente/).click();
+    // El trigger de Radix es un <button role=combobox> sin label asociable de
+    // forma fiable → lo ubicamos por su valor actual ("Casi-accidente …").
+    await page.getByRole('combobox').filter({ hasText: 'Casi-accidente' }).click();
     await page.getByRole('option', { name: 'Accidente (con lesión)' }).click();
-    await expect(page.getByText('Lesión')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Lesión' })).toBeVisible();
 
     const descAcc = `Accidente E2E ${Date.now().toString(36)}`;
     await page.getByLabel(/Fecha/).fill('2020-06-02');
     await page.getByLabel(/Qué pasó/).fill(descAcc);
-    // Gravedad (requerida para accidente).
-    await page.getByLabel(/Gravedad/).click();
+    // Gravedad (requerida para accidente). El trigger muestra el placeholder.
+    await page.getByRole('combobox').filter({ hasText: 'Elegí la gravedad' }).click();
     await page.getByRole('option', { name: 'Grave (baja prolongada)' }).click();
     await page.getByRole('button', { name: /Registrar incidente/i }).click();
 
@@ -102,8 +106,9 @@ test.describe('Accidentabilidad · libro de incidentes (T-063)', () => {
     await expect(page.getByText(descCasi)).toBeVisible();
     await expect(page.getByText(descAcc)).toBeVisible();
 
-    // Filtrar por tipo=accidente → sólo queda el accidente.
-    await page.getByLabel('Tipo', { exact: true }).click();
+    // Filtrar por tipo=accidente → sólo queda el accidente. El Select de filtro
+    // tiene id estable (`#filtro-tipo`).
+    await page.locator('#filtro-tipo').click();
     await page.getByRole('option', { name: 'Accidente (con lesión)' }).click();
     await expect(page).toHaveURL(/tipo=accidente/, { timeout: 10_000 });
     await expect(page.getByText(descAcc)).toBeVisible();
