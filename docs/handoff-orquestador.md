@@ -4,22 +4,30 @@ Working agreement + estado vivo para el **chat nuevo del orquestador**. Entre **
 
 > **Fuentes de verdad** (no duplicar acá lo que ya viven ahí): `CLAUDE.md` (producto + stack + principios), `docs/sprints/operativo.md` (tickets transversales + estado granular), `docs/technical/10-roadmap.md` (roadmap), `docs/lessons-learned.md`. Este doc es el **mapa de entrada**, no el territorio.
 
-## Estado de `main` (snapshot — al cierre de T-082-FU5)
+## Estado de `main` (snapshot — al cierre del PR de mantenimiento post-handoff)
 
-- **HEAD:** `6ed89e4` — `T-082-FU5 · verify:dr-config doc-as-code anti-drift del runbook DR (#178)`. CI de main en verde.
+- **HEAD:** `920683a` — `docs: versionar docs untracked + gitignore config local (#180)`. CI de main en verde, ruleset enforced (deletion + non_fast_forward + required_status_checks + pull_request).
 - **Últimos merges:**
+  - **chore docs** ✅ `920683a` (#180) — versionar docs untracked + config de gitignore local.
+  - **handoff orquestador** ✅ `6f62517` (#179) — este doc (working agreement del flujo gated).
   - **T-082-FU5** ✅ `6ed89e4` (#178) — guard anti-drift del runbook DR (`verify:dr-config`).
   - **T-113** doc ✅ `6a5fa12` (#177) — marcar T-113b DONE en operativo.md.
   - **T-113b** ✅ `68523dc` (#176) — limpiar DELETE-muerto en tests append-only + guard test-meta.
-  - **T-082-FU** ✅ `91fe8d2` (#175) — re-validar y corregir el runbook DR (Free sin backup auto + epp-firmas + secrets).
 - **Suite:** unit + component vía `pnpm test` (689 tests al cierre de FU5); integration + e2e con Supabase local efímero.
 
 ## En vuelo
 
-- **PR #179** — `docs/handoff-orquestador.md` (este doc). Abierto, gated, **esperando OK de merge**. Es el único PR abierto.
-- **FU5 NO está en vuelo: está mergeado** (`6ed89e4`, #178). No re-abrir.
+- **Sin PRs abiertos. 0 branches stale** (solo `main` local + `origin/main`). #179 (handoff) y #180 (chore docs) ya mergeados.
 - **Backlog técnico/DEVEX: esencialmente vacío.** Cerrados en esta etapa: T-109, T-111 (F1+F2+F2b), **T-112** (E2E ya corren aislados contra Supabase local — el job `E2E (Supabase local)` es required check; se removió el `if: false`), F1.2/F1.3, T-113a/T-113b/T-113d, Dependabot, T-082-FU + FU5.
-- **Próximo recomendado:** volver al **roadmap de producto** — confirmar la prioridad comercial con el owner antes de arrancar. El único trabajo en cola son los **DORMIDOS** (tabla abajo) + follow-ups opcionales; no hay deuda técnica abierta que bloquee.
+- **Próximo:** **roadmap de producto** — módulo de incidentes (dos formatos: casi-accidente vs accidente real con ART), diagnóstico-primero → Pitch RFC. El único trabajo en cola fuera de eso son los **DORMIDOS** (tabla abajo) + follow-ups opcionales; no hay deuda técnica abierta que bloquee.
+
+## Infra local (trampa de entorno)
+
+El repo estaba en OneDrive, que corrompía `.git` y `node_modules`. Se resolvió con **junctions**: el repo real vive en `C:\Git\consultora-demo` y la carpeta de OneDrive apunta ahí.
+
+- **`.git` y `node_modules` son junctions que apuntan FUERA del mount del sandbox** del agente orquestador → no los resuelve (bash da I/O error; los file tools los ven "fuera de la carpeta conectada"). El orquestador NO puede correr `git`/`gh` ni leer refs por su cuenta.
+- **Los comandos git/gh los corre Lautaro** (terminal local) **o el CC de VSCode**, siempre en `C:\Git\consultora-demo`. El orquestador pide el output y diagnostica sobre eso.
+- **`.git.OLD-DELETEME/`** es el backup del `.git` corrupto pre-junction. Gitignoreado mientras vive. Borrarlo del todo cuando Lautaro confirme varias sesiones estables.
 
 ## El flujo gated (no negociable)
 
