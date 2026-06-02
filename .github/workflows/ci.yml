@@ -258,8 +258,8 @@ jobs:
   # secrets. El orquestador NO usa --linked: imposible tocar la DB de prod. Los
   # servicios externos no se pegan de verdad en los specs (AI mockeada con
   # page.route, push con addInitScript, Telegram/Resend/MP solo tocan DB/UI).
-  # NOTA: arranca NO-required en branch protection hasta probar estabilidad (≥1
-  # corrida verde). Marcarlo required es un cambio de settings del repo, no de acá.
+  # NOTA: required en branch protection (ruleset), junto con CI e Integration. La
+  # flakiness inicial se resolvió (T-113d) → promovido a required.
   e2e-tests:
     name: E2E (Supabase local)
     runs-on: ubuntu-latest

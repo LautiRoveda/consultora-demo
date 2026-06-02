@@ -16,6 +16,12 @@ Cierra referencia circular pre-existente en `supabase/README.md` L161-167 (decí
 
 Documentado el trigger secundario del incident T-052 (EasyPanel deploy via webhook resetea `endpoint-mode` → 502 hasta SSH manual). Decisión Lautaro 20/05/2026: NO investigar empíricamente ni automatizar stopgap por baja frecuencia esperada (1-2 deploys/sprint en esta fase, sin users productivos reales). Mitigación intermedia: monitor uptime free (Better Stack + alerta Telegram) detecta 502 > 5 min sostenidos, fix manual ~30s siguiendo runbook escenario 2. Setup operativo: `docs/operations/uptime-monitoring.md`. Decisión NO-auto-fix global (T-052-FU1) sigue vigente; el monitor sólo notifica, no toca el swarm. Reactivar T-052-FU2 full (investigación empírica + stopgap automatizado) si: >3 incidents/sprint, O 1 incident con 502 > 30 min, O llegan users productivos reales con SLA implícito.
 
+## T-076 🔜 Doc-sync: drift `src/modules/` → `src/app/(app)/` (architecture + folder-structure)
+
+`docs/technical/02-architecture.md` (L64, L424) y `04-folder-structure.md` (L55, 197, 201, 214, 245, 256, 290) describen la estructura vieja `src/modules/<nombre>/` con `index.ts`/`types.ts`/`README.md` por módulo. La realidad: módulos co-localizados en `src/app/(app)/<modulo>/` (`actions.ts` + `queries.ts` + `schema.ts` + componentes + subrutas `nuevo/`, `[id]/`). Es reescritura de arquitectura (no sync puntual) → ticket aparte. Alcance: realinear ambos docs + barrer referencias cruzadas. DevEx/doc, sin código.
+
+(Number dentro del rango formal T-001..T-078: se ubica acá por ser DevEx/doc, no un módulo de negocio — coherente con el criterio de este archivo.)
+
 ## Seguros forward / Tech debt cross-modules
 
 - **T-NOR (Normalización denormalized `consultora_id`)**: evaluar trigger BEFORE INSERT auto-populate `consultora_id` desde parent FK aplicado a TODAS las tablas con denormalización (`epp_entrega_items`, `empleados_puestos`, `informe_attachments`, `calendar_event_reminders`). **NO crear ahora** — emerge si:
