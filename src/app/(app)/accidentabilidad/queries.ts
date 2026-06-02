@@ -21,6 +21,7 @@ export type IncidenteVigente = Database['public']['Views']['incidentes_vigentes'
 
 export type GetIncidentesFilters = {
   tipo?: IncidenteRow['tipo'];
+  gravedad?: IncidenteRow['gravedad'];
   clienteId?: string;
   empleadoId?: string;
   /** fecha >= desde (YYYY-MM-DD). */
@@ -53,6 +54,7 @@ export async function getIncidentes(
     .order('id', { ascending: true });
 
   if (filters.tipo) query = query.eq('tipo', filters.tipo);
+  if (filters.gravedad) query = query.eq('gravedad', filters.gravedad);
   if (filters.clienteId) query = query.eq('cliente_id', filters.clienteId);
   if (filters.empleadoId) query = query.eq('empleado_id', filters.empleadoId);
   if (filters.desde) query = query.gte('fecha', filters.desde);

@@ -37,17 +37,16 @@ export function IncidentesList({ incidentes, clienteOptions, initial, hasActiveF
     [clienteOptions],
   );
 
+  // Sólo free-text client-side: tipo/cliente/fecha/gravedad se filtran server-side
+  // (la prop `incidentes` ya viene filtrada por `getIncidentes`).
   const filtered = useMemo(() => {
     const qLower = q.trim().toLowerCase();
+    if (qLower.length === 0) return incidentes;
     return incidentes.filter((i) => {
-      if (initial.gravedad && i.gravedad !== initial.gravedad) return false;
-      if (qLower.length > 0) {
-        const haystack = `${i.descripcion ?? ''} ${i.lugar_especifico ?? ''}`.toLowerCase();
-        if (!haystack.includes(qLower)) return false;
-      }
-      return true;
+      const haystack = `${i.descripcion ?? ''} ${i.lugar_especifico ?? ''}`.toLowerCase();
+      return haystack.includes(qLower);
     });
-  }, [incidentes, q, initial.gravedad]);
+  }, [incidentes, q]);
 
   // Empty-state real: no hay incidentes en el tenant y no hay filtros activos.
   // Distinto a "ningún incidente coincide con los filtros".

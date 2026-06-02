@@ -115,6 +115,18 @@ test.describe('Accidentabilidad · libro de incidentes (T-063)', () => {
     await expect(page).toHaveURL(/tipo=accidente/, { timeout: 10_000 });
     await expect(page.getByText(descAcc)).toBeVisible();
     await expect(page.getByText(descCasi)).toHaveCount(0);
+
+    // ── Filtro gravedad SERVER-SIDE (T-063-FU1) ─────────────────────────────
+    // Navegación directa de URL (robusto, sin Radix). El accidente es 'grave';
+    // el casi-accidente tiene gravedad null.
+    // gravedad=leve → ninguno coincide (server devuelve 0 filas).
+    await page.goto('/accidentabilidad?gravedad=leve');
+    await expect(page.getByText(descAcc)).toHaveCount(0);
+    await expect(page.getByText(descCasi)).toHaveCount(0);
+    // gravedad=grave → sólo el accidente.
+    await page.goto('/accidentabilidad?gravedad=grave');
+    await expect(page.getByText(descAcc)).toBeVisible();
+    await expect(page.getByText(descCasi)).toHaveCount(0);
   });
 
   test('corregir + historial + anular sobre un accidente seedeado', async ({ page }) => {

@@ -46,7 +46,7 @@ export default async function AccidentabilidadPage({
   const desde = sp.desde?.trim() || undefined;
   const hasta = sp.hasta?.trim() || undefined;
 
-  const filters: GetIncidentesFilters = { tipo, clienteId, desde, hasta };
+  const filters: GetIncidentesFilters = { tipo, gravedad, clienteId, desde, hasta };
 
   const [incidentes, clientes] = await Promise.all([
     getIncidentes(supabase, filters),

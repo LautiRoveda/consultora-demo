@@ -76,7 +76,9 @@ export default async function IncidenteDetallePage({
             {cliente && <Field label="Cliente (dónde ocurrió)" value={cliente.razon_social} />}
             {empleado && (
               <Field
-                label="Empleado (víctima)"
+                label={
+                  incidente.tipo === 'accidente' ? 'Empleado (víctima)' : 'Empleado involucrado'
+                }
                 value={`${empleado.apellido}, ${empleado.nombre}${empleado.dni ? ` · DNI ${empleado.dni}` : ''}`}
               />
             )}
@@ -131,7 +133,7 @@ export default async function IncidenteDetallePage({
         </Card>
       )}
 
-      {historial.length > 0 && <HistorialTimeline historial={historial} />}
+      {historial.length > 0 && <HistorialTimeline vigente={incidente} historial={historial} />}
     </div>
   );
 }
