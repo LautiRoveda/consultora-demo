@@ -405,7 +405,9 @@ export function IncidenteForm(props: Props) {
               name="empleado_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Empleado (víctima)</FormLabel>
+                  <FormLabel>
+                    {isAccidente ? 'Empleado (víctima)' : 'Empleado involucrado'}
+                  </FormLabel>
                   <Select value={field.value} onValueChange={field.onChange} disabled={isPending}>
                     <FormControl>
                       <SelectTrigger>
