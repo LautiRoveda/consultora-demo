@@ -78,3 +78,7 @@ next-env.d.ts
 .obsidian/
 .agents/
 skills-lock.json
+
+# Backup del .git corrupto por OneDrive, conservado para rollback de emergencia post-migración a junction.
+# Temporal: se borra cuando Lautaro confirme varias sesiones estables. Mientras vive, fuera del tracking.
+.git.OLD-DELETEME/
