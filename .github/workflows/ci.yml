@@ -227,6 +227,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # T-062 · Gate de drift de db:types: el schema ya migrado debe generar
+      # EXACTAMENTE el src/shared/supabase/types.ts committeado. El `db reset`
+      # vive DENTRO de scripts/test-integration-local.mjs, así que acá levantamos
+      # el stack + reseteamos nosotros (idempotente: el test:integration de abajo
+      # repite start/reset sin efecto). Va temprano: post-reset, antes de que los
+      # tests muten datos (el schema no cambia con los inserts, pero por prolijidad).
+      # `git diff --exit-code` es read-only en CI: NO commitea, solo falla
+      # (mostrando el diff) si el generado difiere del committeado → hay que
+      # correr `pnpm db:types` y commitear.
+      - name: types.ts sin drift (db:types gate)
+        run: |
+          pnpm exec supabase start
+          pnpm exec supabase db reset
+          pnpm exec supabase gen types typescript --local > src/shared/supabase/types.ts
+          pnpm exec prettier --write src/shared/supabase/types.ts
+          git diff --exit-code src/shared/supabase/types.ts
+
       # `pnpm test:integration` = scripts/test-integration-local.mjs:
       #   supabase start (Docker local) -> db reset -> status -o env -> vitest.
       # El supabase CLI viene del devDep (pnpm exec), misma versión que local.
