@@ -1,5 +1,14 @@
 import type { LucideIcon } from 'lucide-react';
-import { Calendar, FileText, HardHat, Home, Settings, UserCheck, Users } from 'lucide-react';
+import {
+  Calendar,
+  FileText,
+  HardHat,
+  Home,
+  Settings,
+  ShieldAlert,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 
 /**
  * Items del sidebar autenticado. Fuente única de verdad para nav.
@@ -31,6 +40,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/clientes', label: 'Clientes', icon: Users, status: 'live' },
   { href: '/empleados', label: 'Empleados', icon: UserCheck, status: 'live' },
   { href: '/epp', label: 'EPP', icon: HardHat, status: 'live' },
+  { href: '/accidentabilidad', label: 'Accidentabilidad', icon: ShieldAlert, status: 'live' },
   { href: '/calendario', label: 'Calendario', icon: Calendar, status: 'live' },
   { href: '/settings/consultora', label: 'Configuración', icon: Settings, status: 'live' },
 ] as const;

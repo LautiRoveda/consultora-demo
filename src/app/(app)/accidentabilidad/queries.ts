@@ -69,6 +69,12 @@ export type IncidenteConHistorial = {
   incidente: IncidenteRow;
   /** Versiones anteriores siguiendo `corrige_id` (más nueva → más vieja). */
   historial: IncidenteRow[];
+  /**
+   * T-063: `true` si este registro es la cabeza vigente de su cadena —
+   * NO está anulado Y ningún otro registro lo supersede vía `corrige_id`.
+   * La UI sólo habilita Corregir/Anular sobre el registro vigente.
+   */
+  esVigente: boolean;
 };
 
 /**
@@ -97,5 +103,64 @@ export async function getIncidenteById(
     guard += 1;
   }
 
-  return { incidente: data, historial };
+  // Vigencia DERIVADA (la tabla es append-only, sin flag mutable): vigente =
+  // no anulado Y nadie lo supersede. Forward look RLS-scoped por `corrige_id`.
+  let esVigente = false;
+  if (!data.anulacion) {
+    const { data: superseder } = await supabase
+      .from('incidentes')
+      .select('id')
+      .eq('corrige_id', id)
+      .maybeSingle();
+    esVigente = !superseder;
+  }
+
+  return { incidente: data, historial, esVigente };
+}
+
+/**
+ * T-063: empleados activos del tenant con su cliente, para el `Select` del form
+ * de alta/corrección de incidentes. Mismo shape y cap (500) que
+ * `listEmpleadosForEntregaWizard` (EPP). RLS filtra cross-tenant.
+ */
+export type IncidenteEmpleadoOption = {
+  id: string;
+  nombre: string;
+  apellido: string;
+  dni: string | null;
+  cliente_id: string;
+  cliente_razon_social: string;
+};
+
+export async function listEmpleadosForIncidenteForm(
+  supabase: SupabaseClient<Database>,
+): Promise<IncidenteEmpleadoOption[]> {
+  const { data } = await supabase
+    .from('empleados')
+    .select('id, nombre, apellido, dni, cliente_id, cliente:clientes!inner(razon_social)')
+    .is('archived_at', null)
+    .order('apellido', { ascending: true })
+    .order('nombre', { ascending: true })
+    .limit(500);
+
+  if (!data) return [];
+
+  return data.map((row) => {
+    const r = row as unknown as {
+      id: string;
+      nombre: string;
+      apellido: string;
+      dni: string | null;
+      cliente_id: string;
+      cliente: { razon_social: string } | null;
+    };
+    return {
+      id: r.id,
+      nombre: r.nombre,
+      apellido: r.apellido,
+      dni: r.dni,
+      cliente_id: r.cliente_id,
+      cliente_razon_social: r.cliente?.razon_social ?? '—',
+    };
+  });
 }
