@@ -73,3 +73,8 @@ next-env.d.ts
 
 # Claude Code harness runtime (wake-up schedules, sessions, etc)
 /.claude/
+
+# Config local de herramientas (editor de notas Obsidian + tooling de skills) — no van al repo
+.obsidian/
+.agents/
+skills-lock.json
