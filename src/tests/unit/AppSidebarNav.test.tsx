@@ -43,10 +43,11 @@ describe('AppSidebarNav', () => {
     // T-029: Calendario soon → live. T-035: Notificaciones salio del sidebar
     // (vive como sub-tab de Configuracion). T-049: Clientes soon → live.
     // T-054: Empleados soon → live. T-101: EPP soon → live (redirige a
-    // /epp/catalogo hasta que T-106 traiga padron). Total 7 items, todos live.
+    // /epp/catalogo hasta que T-106 traiga padron). T-063: Accidentabilidad
+    // live. Total 8 items, todos live.
     const nav = screen.getByRole('navigation');
     const items = nav.querySelectorAll('li');
-    expect(items.length).toBe(7);
+    expect(items.length).toBe(8);
 
     const soonButtons = nav.querySelectorAll<HTMLButtonElement>(
       'button[aria-disabled="true"][disabled]',
@@ -76,6 +77,13 @@ describe('AppSidebarNav', () => {
     renderNav();
     const link = screen.getByRole('link', { name: /Empleados/i });
     expect(link).toHaveAttribute('href', '/empleados');
+    expect(link).not.toHaveAttribute('aria-current', 'page');
+  });
+
+  it('Accidentabilidad es link live (T-063) — sin aria-current en /dashboard', () => {
+    renderNav();
+    const link = screen.getByRole('link', { name: /Accidentabilidad/i });
+    expect(link).toHaveAttribute('href', '/accidentabilidad');
     expect(link).not.toHaveAttribute('aria-current', 'page');
   });
 });
