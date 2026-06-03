@@ -33,10 +33,14 @@ export const MAX_CAPTION_LENGTH = 500;
 export const MAX_FILENAME_LENGTH = 255;
 export const MIN_FILENAME_LENGTH = 1;
 
-// Buckets. Sincronizado con migrations storage_buckets.sql + t102_epp_firmas_bucket.sql.
+// Buckets. Sincronizado con migrations storage_buckets.sql + t102_epp_firmas_bucket.sql
+// + t057_checklists.sql.
 export const BUCKET_INFORME_ATTACHMENTS = 'informe-attachments' as const;
 export const BUCKET_CONSULTORA_LOGOS = 'consultora-logos' as const;
 export const BUCKET_EPP_FIRMAS = 'epp-firmas' as const;
+// T-057 · Checklists: firmas (PNG firma matriculado) + adjuntos (fotos de evidencia).
+export const BUCKET_CHECKLIST_FIRMAS = 'checklist-firmas' as const;
+export const BUCKET_CHECKLIST_ADJUNTOS = 'checklist-adjuntos' as const;
 
 // Lista canónica de buckets de Storage. FUENTE ÚNICA DE VERDAD para el backup
 // (scripts/backup-storage.ts itera sobre esto, no hardcodea su propia lista) y
@@ -47,6 +51,8 @@ export const STORAGE_BUCKETS = [
   BUCKET_CONSULTORA_LOGOS,
   BUCKET_INFORME_ATTACHMENTS,
   BUCKET_EPP_FIRMAS,
+  BUCKET_CHECKLIST_FIRMAS,
+  BUCKET_CHECKLIST_ADJUNTOS,
 ] as const;
 export type StorageBucket = (typeof STORAGE_BUCKETS)[number];
 

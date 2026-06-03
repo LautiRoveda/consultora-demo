@@ -28,6 +28,106 @@ export type Database = {
   };
   public: {
     Tables: {
+      acciones_correctivas: {
+        Row: {
+          calendar_event_id: string | null;
+          cerrada_at: string | null;
+          cerrada_por: string | null;
+          cliente_id: string | null;
+          consultora_id: string;
+          created_at: string;
+          created_by: string | null;
+          descripcion: string;
+          estado: string;
+          evidencia_cierre: string | null;
+          execution_id: string;
+          fecha_compromiso: string;
+          id: string;
+          prioridad: string;
+          respuesta_id: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          calendar_event_id?: string | null;
+          cerrada_at?: string | null;
+          cerrada_por?: string | null;
+          cliente_id?: string | null;
+          consultora_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          descripcion: string;
+          estado?: string;
+          evidencia_cierre?: string | null;
+          execution_id: string;
+          fecha_compromiso: string;
+          id?: string;
+          prioridad?: string;
+          respuesta_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          calendar_event_id?: string | null;
+          cerrada_at?: string | null;
+          cerrada_por?: string | null;
+          cliente_id?: string | null;
+          consultora_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          descripcion?: string;
+          estado?: string;
+          evidencia_cierre?: string | null;
+          execution_id?: string;
+          fecha_compromiso?: string;
+          id?: string;
+          prioridad?: string;
+          respuesta_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'acciones_correctivas_calendar_event_id_fkey';
+            columns: ['calendar_event_id'];
+            isOneToOne: false;
+            referencedRelation: 'calendar_events';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'acciones_correctivas_cliente_id_fkey';
+            columns: ['cliente_id'];
+            isOneToOne: false;
+            referencedRelation: 'clientes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'acciones_correctivas_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'acciones_correctivas_execution_id_fkey';
+            columns: ['execution_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'acciones_correctivas_execution_id_fkey';
+            columns: ['execution_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions_vigentes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'acciones_correctivas_respuesta_id_fkey';
+            columns: ['respuesta_id'];
+            isOneToOne: false;
+            referencedRelation: 'execution_respuestas';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       audit_log: {
         Row: {
           action: string;
@@ -242,6 +342,227 @@ export type Database = {
             columns: ['parent_event_id'];
             isOneToOne: false;
             referencedRelation: 'calendar_events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      checklist_executions: {
+        Row: {
+          anulacion: boolean;
+          cerrada_at: string | null;
+          cliente_id: string | null;
+          consultora_id: string;
+          corrige_id: string | null;
+          created_at: string;
+          created_by: string | null;
+          cumplimiento_pct: number | null;
+          establecimiento_cuit: string | null;
+          establecimiento_domicilio: string | null;
+          establecimiento_localidad: string | null;
+          establecimiento_provincia: string | null;
+          establecimiento_razon_social: string | null;
+          estado: string;
+          fecha_inspeccion: string | null;
+          firma_pdf_hash: string | null;
+          gps_lat: number | null;
+          gps_lng: number | null;
+          id: string;
+          inspector_user_id: string | null;
+          score_cumple: number | null;
+          score_na: number | null;
+          score_no_cumple: number | null;
+          template_version_id: string;
+          tiene_criticos_incumplidos: boolean | null;
+          updated_at: string;
+        };
+        Insert: {
+          anulacion?: boolean;
+          cerrada_at?: string | null;
+          cliente_id?: string | null;
+          consultora_id: string;
+          corrige_id?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          cumplimiento_pct?: number | null;
+          establecimiento_cuit?: string | null;
+          establecimiento_domicilio?: string | null;
+          establecimiento_localidad?: string | null;
+          establecimiento_provincia?: string | null;
+          establecimiento_razon_social?: string | null;
+          estado?: string;
+          fecha_inspeccion?: string | null;
+          firma_pdf_hash?: string | null;
+          gps_lat?: number | null;
+          gps_lng?: number | null;
+          id?: string;
+          inspector_user_id?: string | null;
+          score_cumple?: number | null;
+          score_na?: number | null;
+          score_no_cumple?: number | null;
+          template_version_id: string;
+          tiene_criticos_incumplidos?: boolean | null;
+          updated_at?: string;
+        };
+        Update: {
+          anulacion?: boolean;
+          cerrada_at?: string | null;
+          cliente_id?: string | null;
+          consultora_id?: string;
+          corrige_id?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          cumplimiento_pct?: number | null;
+          establecimiento_cuit?: string | null;
+          establecimiento_domicilio?: string | null;
+          establecimiento_localidad?: string | null;
+          establecimiento_provincia?: string | null;
+          establecimiento_razon_social?: string | null;
+          estado?: string;
+          fecha_inspeccion?: string | null;
+          firma_pdf_hash?: string | null;
+          gps_lat?: number | null;
+          gps_lng?: number | null;
+          id?: string;
+          inspector_user_id?: string | null;
+          score_cumple?: number | null;
+          score_na?: number | null;
+          score_no_cumple?: number | null;
+          template_version_id?: string;
+          tiene_criticos_incumplidos?: boolean | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'checklist_executions_cliente_id_fkey';
+            columns: ['cliente_id'];
+            isOneToOne: false;
+            referencedRelation: 'clientes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions_vigentes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_template_version_id_fkey';
+            columns: ['template_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_template_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      checklist_template_versions: {
+        Row: {
+          consultora_id: string | null;
+          created_at: string;
+          created_by: string | null;
+          estado: string;
+          id: string;
+          published_at: string | null;
+          published_by: string | null;
+          template_id: string;
+          updated_at: string;
+          version_number: number;
+        };
+        Insert: {
+          consultora_id?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          estado?: string;
+          id?: string;
+          published_at?: string | null;
+          published_by?: string | null;
+          template_id: string;
+          updated_at?: string;
+          version_number: number;
+        };
+        Update: {
+          consultora_id?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          estado?: string;
+          id?: string;
+          published_at?: string | null;
+          published_by?: string | null;
+          template_id?: string;
+          updated_at?: string;
+          version_number?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'checklist_template_versions_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_template_versions_template_id_fkey';
+            columns: ['template_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_templates';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      checklist_templates: {
+        Row: {
+          archived_at: string | null;
+          consultora_id: string | null;
+          created_at: string;
+          created_by: string | null;
+          descripcion: string | null;
+          id: string;
+          nombre: string;
+          tipo_inspeccion: string;
+          updated_at: string;
+        };
+        Insert: {
+          archived_at?: string | null;
+          consultora_id?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          descripcion?: string | null;
+          id?: string;
+          nombre: string;
+          tipo_inspeccion?: string;
+          updated_at?: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          consultora_id?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          descripcion?: string | null;
+          id?: string;
+          nombre?: string;
+          tipo_inspeccion?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'checklist_templates_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
             referencedColumns: ['id'];
           },
         ];
@@ -827,6 +1148,197 @@ export type Database = {
             columns: ['item_id'];
             isOneToOne: false;
             referencedRelation: 'epp_items';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      execution_adjuntos: {
+        Row: {
+          consultora_id: string;
+          created_at: string;
+          created_by: string | null;
+          execution_id: string;
+          id: string;
+          mime_type: string | null;
+          respuesta_id: string | null;
+          size_bytes: number | null;
+          storage_path: string;
+        };
+        Insert: {
+          consultora_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          execution_id: string;
+          id?: string;
+          mime_type?: string | null;
+          respuesta_id?: string | null;
+          size_bytes?: number | null;
+          storage_path: string;
+        };
+        Update: {
+          consultora_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          execution_id?: string;
+          id?: string;
+          mime_type?: string | null;
+          respuesta_id?: string | null;
+          size_bytes?: number | null;
+          storage_path?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'execution_adjuntos_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'execution_adjuntos_execution_id_fkey';
+            columns: ['execution_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'execution_adjuntos_execution_id_fkey';
+            columns: ['execution_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions_vigentes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'execution_adjuntos_respuesta_id_fkey';
+            columns: ['respuesta_id'];
+            isOneToOne: false;
+            referencedRelation: 'execution_respuestas';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      execution_firmas: {
+        Row: {
+          consultora_id: string;
+          created_at: string;
+          execution_id: string;
+          firma_storage_path: string;
+          firmado_at: string;
+          firmante_matricula: string | null;
+          firmante_nombre: string | null;
+          id: string;
+          rol: string;
+        };
+        Insert: {
+          consultora_id: string;
+          created_at?: string;
+          execution_id: string;
+          firma_storage_path: string;
+          firmado_at?: string;
+          firmante_matricula?: string | null;
+          firmante_nombre?: string | null;
+          id?: string;
+          rol: string;
+        };
+        Update: {
+          consultora_id?: string;
+          created_at?: string;
+          execution_id?: string;
+          firma_storage_path?: string;
+          firmado_at?: string;
+          firmante_matricula?: string | null;
+          firmante_nombre?: string | null;
+          id?: string;
+          rol?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'execution_firmas_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'execution_firmas_execution_id_fkey';
+            columns: ['execution_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'execution_firmas_execution_id_fkey';
+            columns: ['execution_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions_vigentes';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      execution_respuestas: {
+        Row: {
+          consultora_id: string;
+          created_at: string;
+          execution_id: string;
+          fecha_regularizacion: string | null;
+          id: string;
+          observacion: string | null;
+          template_item_id: string;
+          updated_at: string;
+          valor: string | null;
+          valor_numerico: number | null;
+        };
+        Insert: {
+          consultora_id: string;
+          created_at?: string;
+          execution_id: string;
+          fecha_regularizacion?: string | null;
+          id?: string;
+          observacion?: string | null;
+          template_item_id: string;
+          updated_at?: string;
+          valor?: string | null;
+          valor_numerico?: number | null;
+        };
+        Update: {
+          consultora_id?: string;
+          created_at?: string;
+          execution_id?: string;
+          fecha_regularizacion?: string | null;
+          id?: string;
+          observacion?: string | null;
+          template_item_id?: string;
+          updated_at?: string;
+          valor?: string | null;
+          valor_numerico?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'execution_respuestas_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'execution_respuestas_execution_id_fkey';
+            columns: ['execution_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'execution_respuestas_execution_id_fkey';
+            columns: ['execution_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions_vigentes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'execution_respuestas_template_item_id_fkey';
+            columns: ['template_item_id'];
+            isOneToOne: false;
+            referencedRelation: 'template_items';
             referencedColumns: ['id'];
           },
         ];
@@ -1454,8 +1966,243 @@ export type Database = {
         };
         Relationships: [];
       };
+      template_items: {
+        Row: {
+          config: Json | null;
+          consultora_id: string | null;
+          created_at: string;
+          es_critico: boolean;
+          es_requerido: boolean;
+          id: string;
+          orden: number;
+          referencia_normativa: string | null;
+          response_type: string;
+          section_id: string;
+          texto: string;
+          version_id: string;
+        };
+        Insert: {
+          config?: Json | null;
+          consultora_id?: string | null;
+          created_at?: string;
+          es_critico?: boolean;
+          es_requerido?: boolean;
+          id?: string;
+          orden: number;
+          referencia_normativa?: string | null;
+          response_type?: string;
+          section_id: string;
+          texto: string;
+          version_id: string;
+        };
+        Update: {
+          config?: Json | null;
+          consultora_id?: string | null;
+          created_at?: string;
+          es_critico?: boolean;
+          es_requerido?: boolean;
+          id?: string;
+          orden?: number;
+          referencia_normativa?: string | null;
+          response_type?: string;
+          section_id?: string;
+          texto?: string;
+          version_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'template_items_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'template_items_section_id_fkey';
+            columns: ['section_id'];
+            isOneToOne: false;
+            referencedRelation: 'template_sections';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'template_items_version_id_fkey';
+            columns: ['version_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_template_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      template_sections: {
+        Row: {
+          consultora_id: string | null;
+          created_at: string;
+          descripcion: string | null;
+          id: string;
+          orden: number;
+          titulo: string;
+          version_id: string;
+        };
+        Insert: {
+          consultora_id?: string | null;
+          created_at?: string;
+          descripcion?: string | null;
+          id?: string;
+          orden: number;
+          titulo: string;
+          version_id: string;
+        };
+        Update: {
+          consultora_id?: string | null;
+          created_at?: string;
+          descripcion?: string | null;
+          id?: string;
+          orden?: number;
+          titulo?: string;
+          version_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'template_sections_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'template_sections_version_id_fkey';
+            columns: ['version_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_template_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
+      checklist_executions_vigentes: {
+        Row: {
+          anulacion: boolean | null;
+          cerrada_at: string | null;
+          cliente_id: string | null;
+          consultora_id: string | null;
+          corrige_id: string | null;
+          created_at: string | null;
+          created_by: string | null;
+          cumplimiento_pct: number | null;
+          establecimiento_cuit: string | null;
+          establecimiento_domicilio: string | null;
+          establecimiento_localidad: string | null;
+          establecimiento_provincia: string | null;
+          establecimiento_razon_social: string | null;
+          estado: string | null;
+          fecha_inspeccion: string | null;
+          firma_pdf_hash: string | null;
+          gps_lat: number | null;
+          gps_lng: number | null;
+          id: string | null;
+          inspector_user_id: string | null;
+          score_cumple: number | null;
+          score_na: number | null;
+          score_no_cumple: number | null;
+          template_version_id: string | null;
+          tiene_criticos_incumplidos: boolean | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          anulacion?: boolean | null;
+          cerrada_at?: string | null;
+          cliente_id?: string | null;
+          consultora_id?: string | null;
+          corrige_id?: string | null;
+          created_at?: string | null;
+          created_by?: string | null;
+          cumplimiento_pct?: number | null;
+          establecimiento_cuit?: string | null;
+          establecimiento_domicilio?: string | null;
+          establecimiento_localidad?: string | null;
+          establecimiento_provincia?: string | null;
+          establecimiento_razon_social?: string | null;
+          estado?: string | null;
+          fecha_inspeccion?: string | null;
+          firma_pdf_hash?: string | null;
+          gps_lat?: number | null;
+          gps_lng?: number | null;
+          id?: string | null;
+          inspector_user_id?: string | null;
+          score_cumple?: number | null;
+          score_na?: number | null;
+          score_no_cumple?: number | null;
+          template_version_id?: string | null;
+          tiene_criticos_incumplidos?: boolean | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          anulacion?: boolean | null;
+          cerrada_at?: string | null;
+          cliente_id?: string | null;
+          consultora_id?: string | null;
+          corrige_id?: string | null;
+          created_at?: string | null;
+          created_by?: string | null;
+          cumplimiento_pct?: number | null;
+          establecimiento_cuit?: string | null;
+          establecimiento_domicilio?: string | null;
+          establecimiento_localidad?: string | null;
+          establecimiento_provincia?: string | null;
+          establecimiento_razon_social?: string | null;
+          estado?: string | null;
+          fecha_inspeccion?: string | null;
+          firma_pdf_hash?: string | null;
+          gps_lat?: number | null;
+          gps_lng?: number | null;
+          id?: string | null;
+          inspector_user_id?: string | null;
+          score_cumple?: number | null;
+          score_na?: number | null;
+          score_no_cumple?: number | null;
+          template_version_id?: string | null;
+          tiene_criticos_incumplidos?: boolean | null;
+          updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'checklist_executions_cliente_id_fkey';
+            columns: ['cliente_id'];
+            isOneToOne: false;
+            referencedRelation: 'clientes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions_vigentes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_template_version_id_fkey';
+            columns: ['template_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_template_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       incidentes_heads: {
         Row: {
           accion_inmediata: string | null;
@@ -1693,6 +2440,10 @@ export type Database = {
       };
       current_consultora_id: { Args: never; Returns: string };
       custom_access_token_hook: { Args: { event: Json }; Returns: Json };
+      gen_acciones_calendar_for: {
+        Args: { p_execution_id: string };
+        Returns: undefined;
+      };
       gen_epp_planificaciones_y_calendar_for: {
         Args: { p_entrega_id: string };
         Returns: undefined;

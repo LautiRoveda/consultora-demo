@@ -61,6 +61,7 @@ const EVENT_TIPO_PREFIX: Record<CalendarEventTipo, string> = {
   calibracion: 'Calibracion',
   examen_medico: 'Examen medico',
   custom: '',
+  accion_correctiva: 'Accion correctiva',
 };
 
 /**
