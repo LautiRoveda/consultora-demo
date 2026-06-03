@@ -44,10 +44,10 @@ describe('AppSidebarNav', () => {
     // (vive como sub-tab de Configuracion). T-049: Clientes soon → live.
     // T-054: Empleados soon → live. T-101: EPP soon → live (redirige a
     // /epp/catalogo hasta que T-106 traiga padron). T-063: Accidentabilidad
-    // live. Total 8 items, todos live.
+    // live. T-059: Checklists live. Total 9 items, todos live.
     const nav = screen.getByRole('navigation');
     const items = nav.querySelectorAll('li');
-    expect(items.length).toBe(8);
+    expect(items.length).toBe(9);
 
     const soonButtons = nav.querySelectorAll<HTMLButtonElement>(
       'button[aria-disabled="true"][disabled]',
@@ -84,6 +84,13 @@ describe('AppSidebarNav', () => {
     renderNav();
     const link = screen.getByRole('link', { name: /Accidentabilidad/i });
     expect(link).toHaveAttribute('href', '/accidentabilidad');
+    expect(link).not.toHaveAttribute('aria-current', 'page');
+  });
+
+  it('Checklists es link live (T-059) — sin aria-current en /dashboard', () => {
+    renderNav();
+    const link = screen.getByRole('link', { name: /Checklists/i });
+    expect(link).toHaveAttribute('href', '/checklists');
     expect(link).not.toHaveAttribute('aria-current', 'page');
   });
 });

@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Calendar,
+  ClipboardCheck,
   FileText,
   HardHat,
   Home,
@@ -40,6 +41,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/clientes', label: 'Clientes', icon: Users, status: 'live' },
   { href: '/empleados', label: 'Empleados', icon: UserCheck, status: 'live' },
   { href: '/epp', label: 'EPP', icon: HardHat, status: 'live' },
+  { href: '/checklists', label: 'Checklists', icon: ClipboardCheck, status: 'live' },
   { href: '/accidentabilidad', label: 'Accidentabilidad', icon: ShieldAlert, status: 'live' },
   { href: '/calendario', label: 'Calendario', icon: Calendar, status: 'live' },
   { href: '/settings/consultora', label: 'Configuración', icon: Settings, status: 'live' },
