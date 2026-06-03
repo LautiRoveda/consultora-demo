@@ -975,6 +975,13 @@ export type Database = {
             foreignKeyName: 'incidentes_corrige_id_fkey';
             columns: ['corrige_id'];
             isOneToOne: false;
+            referencedRelation: 'incidentes_heads';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'incidentes_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
             referencedRelation: 'incidentes_vigentes';
             referencedColumns: ['id'];
           },
@@ -1449,6 +1456,119 @@ export type Database = {
       };
     };
     Views: {
+      incidentes_heads: {
+        Row: {
+          accion_inmediata: string | null;
+          anulacion: boolean | null;
+          causa_raiz: string | null;
+          cliente_id: string | null;
+          consultora_id: string | null;
+          corrige_id: string | null;
+          created_at: string | null;
+          created_by: string | null;
+          descripcion: string | null;
+          dias_perdidos: number | null;
+          empleado_id: string | null;
+          fecha: string | null;
+          gravedad: Database['public']['Enums']['gravedad_incidente'] | null;
+          hora: string | null;
+          id: string | null;
+          informe_id: string | null;
+          lugar_especifico: string | null;
+          tipo: Database['public']['Enums']['tipo_incidente'] | null;
+        };
+        Insert: {
+          accion_inmediata?: string | null;
+          anulacion?: boolean | null;
+          causa_raiz?: string | null;
+          cliente_id?: string | null;
+          consultora_id?: string | null;
+          corrige_id?: string | null;
+          created_at?: string | null;
+          created_by?: string | null;
+          descripcion?: string | null;
+          dias_perdidos?: number | null;
+          empleado_id?: string | null;
+          fecha?: string | null;
+          gravedad?: Database['public']['Enums']['gravedad_incidente'] | null;
+          hora?: string | null;
+          id?: string | null;
+          informe_id?: string | null;
+          lugar_especifico?: string | null;
+          tipo?: Database['public']['Enums']['tipo_incidente'] | null;
+        };
+        Update: {
+          accion_inmediata?: string | null;
+          anulacion?: boolean | null;
+          causa_raiz?: string | null;
+          cliente_id?: string | null;
+          consultora_id?: string | null;
+          corrige_id?: string | null;
+          created_at?: string | null;
+          created_by?: string | null;
+          descripcion?: string | null;
+          dias_perdidos?: number | null;
+          empleado_id?: string | null;
+          fecha?: string | null;
+          gravedad?: Database['public']['Enums']['gravedad_incidente'] | null;
+          hora?: string | null;
+          id?: string | null;
+          informe_id?: string | null;
+          lugar_especifico?: string | null;
+          tipo?: Database['public']['Enums']['tipo_incidente'] | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'incidentes_cliente_id_fkey';
+            columns: ['cliente_id'];
+            isOneToOne: false;
+            referencedRelation: 'clientes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'incidentes_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'incidentes_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'incidentes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'incidentes_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'incidentes_heads';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'incidentes_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'incidentes_vigentes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'incidentes_empleado_id_fkey';
+            columns: ['empleado_id'];
+            isOneToOne: false;
+            referencedRelation: 'empleados';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'incidentes_informe_id_fkey';
+            columns: ['informe_id'];
+            isOneToOne: false;
+            referencedRelation: 'informes';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       incidentes_vigentes: {
         Row: {
           accion_inmediata: string | null;
@@ -1530,6 +1650,13 @@ export type Database = {
             columns: ['corrige_id'];
             isOneToOne: false;
             referencedRelation: 'incidentes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'incidentes_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'incidentes_heads';
             referencedColumns: ['id'];
           },
           {
