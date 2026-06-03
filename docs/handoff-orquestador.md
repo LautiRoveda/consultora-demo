@@ -43,7 +43,7 @@ El trabajo fluye entre tres actores; el **owner es el canal** entre los dos agen
 8. **Orquestador** revisa los diffs (lee los archivos de riesgo) → OK de review.
 9. **Owner** da el **OK de commit** → **CC** commitea + push + PR + monitorea los 3 required.
 10. **CC** reporta CI verde → **Orquestador** da el **OK de merge** → **CC** mergea (squash) + post-merge.
-11. **Deploy** (DB diff-validada → código) + **smoke del owner** en prod → recién ahí *done*.
+11. **Deploy**: el merge **auto-deploya solo el código** (webhook EasyPanel). Las **migraciones NO** — son `db push --linked` manual diff-validado, **en la misma ventana del merge** (si no, un feature con nav-item `live` queda roto en prod hasta aplicarlas — caso checklists T-059). Luego **smoke del owner** en prod → recién ahí *done*.
 
 ### Reglas del canal
 - **Un chat nuevo de CC por ticket** (contexto limpio, relee el código). El **orquestador mantiene el hilo** entre tickets.

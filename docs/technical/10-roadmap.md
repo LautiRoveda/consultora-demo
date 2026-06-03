@@ -169,9 +169,9 @@ Tickets base que dejan el repo listo para construir features.
 
 ### Sprint 6 · Checklists Lite + Incidentes (semana 6-7)
 
-- **T-057 · Migration: checklist_templates, checklist_executions.**
-- **T-058 · Módulo Checklists: CRUD de templates.**
-- **T-059 · UI: editor de checklist (items, criterios, requeridos).**
+- **T-057 · Migration: checklist_templates, checklist_executions.** ✅ ejecutado (#193) — schema base (9 tablas + RLS system-aware/freeze + audit + seed RGRL de sistema), aplicado en prod.
+- **T-058 · Módulo Checklists: CRUD de templates.** ✅ ejecutado (#194) — actions + RPCs clone/create + queries.
+- **T-059 · UI: editor de checklist (items, criterios, requeridos).** ✅ ejecutado (#195) — editor con Dialogs + reorder ↑/↓ (RPC two-phase) + versionado + clone RGRL, en prod.
 - **T-060 · Módulo Checklists: ejecutar checklist con firma.**
 - **T-061 · UI: ejecución de checklist en mobile (responsive).**
 - **T-062 · Módulo Accidentabilidad: libro de incidentes simple (sin IA).** ✅

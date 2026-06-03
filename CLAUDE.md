@@ -48,10 +48,10 @@ Roadmap por fases en [`docs/technical/10-roadmap.md`](docs/technical/10-roadmap.
 | 3 ✅ | T-026..T-037 + T-034 calendario + notificaciones | [sprint-3.md](docs/sprints/sprint-3.md) |
 | 4 🚧 | T-047..T-055 clientes + empleados (Clientes ✅ + Empleados ✅) | [sprint-4.md](docs/sprints/sprint-4.md) |
 | 5 ✅ | T-100..T-106 EPP + T-109 trazabilidad EPP per-empleado + resumen semanal | [sprint-5.md](docs/sprints/sprint-5.md) |
-| 6 🚧 | Incidentes: T-062 módulo ✅ + T-063 UI ✅ + T-063-FU1 pulido ✅ + T-075 link IA ✅ + T-063-FU2 ver anulados ✅. Checklists T-057..T-061 pendientes | [operativo.md](docs/sprints/operativo.md) |
+| 6 🚧 | Incidentes: T-062 módulo ✅ + T-063 UI ✅ + T-063-FU1 pulido ✅ + T-075 link IA ✅ + T-063-FU2 ver anulados ✅. Checklists: T-057 schema ✅ + T-058 backend templates ✅ + T-059 UI editor ✅ (en prod) · T-060/T-061 ejecución pendientes | [operativo.md](docs/sprints/operativo.md) |
 | Op | Transversales (T-079 email templates, T-052-FU1/FU2 VPS runbook + monitor, T-111 aislamiento tests + cleanup prod, …) | [operativo.md](docs/sprints/operativo.md) |
 
-**Próximo ticket**: módulo **Accidentabilidad** (libro de incidentes) **completo** y en prod (T-062 + T-063 + T-063-FU1 + T-075 link IA + T-063-FU2 ver anulados). Próximo: por definir — checklists Sprint 6 (T-057..T-061) o lo que el owner priorice.
+**Próximo ticket**: módulo **Accidentabilidad** (libro de incidentes) **completo** y en prod (T-062 + T-063 + T-063-FU1 + T-075 link IA + T-063-FU2 ver anulados). **Checklists**: T-057..T-059 ✅ en prod (schema + backend + UI editor); siguen **T-060** (ejecución con firma) + **T-061** (ejecución mobile). Próximo: por definir — Checklists T-060/T-061 o lo que el owner priorice.
 
 ## RLS / multi-tenancy
 
