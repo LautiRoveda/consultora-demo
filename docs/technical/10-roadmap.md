@@ -177,8 +177,8 @@ Tickets base que dejan el repo listo para construir features.
 - **T-062 · Módulo Accidentabilidad: libro de incidentes simple (sin IA).** ✅
 - **T-063 · UI: alta/listado de incidentes.** ✅
   - **T-063-FU1 · Pulido UX libro de incidentes** ✅ — historial enriquecido (resalta los campos que cambiaron), filtro gravedad server-side, copy "víctima"/"involucrado" según tipo.
-  - **T-063-FU2 · Ver anulados en el listado** (backlog) — toggle "incluir anulados" calcando `IncludeArchivedToggle` de `clientes`; el libro es append-only (los anulados quedan en DB pero hoy no hay forma de verlos desde la UI). Agrupar con el próximo trabajo del módulo.
-- **T-075 · Link `informe_id` incidente↔informe + botón "Generar investigación IA"** (follow-up de Accidentabilidad; RFC propio). El libro es append-only (sólo INSERT/SELECT) → setear `informe_id` en un registro existente hoy sólo se puede vía corrección (ensucia el historial). **RFC-stub**: evaluar un path de **UPDATE acotado** (policy / función `security definer` que sólo permita setear `informe_id`, con audit `action='linked'`) vs el glue-correction; reusar `createInformeAction` con metadata pre-poblada desde el incidente + su cliente; ocultar el botón si el incidente ya está vinculado. Aplica sólo a `tipo='accidente'`.
+  - **T-063-FU2 · Ver anulados en el listado** ✅ DONE (#191) — toggle "incluir anulados" (calca `IncludeArchivedToggle` de `clientes`); vista `incidentes_heads` (head de cadena, anulados incluidos), badge "Anulado", toggle visible incluso en onboarding.
+- **T-075 · Link `informe_id` incidente↔informe + botón "Generar investigación IA"** ✅ DONE (#191, en prod) — RPC `security definer` `link_informe_to_incidente` (UPDATE acotado a `informe_id`, audit `action='linked'`, append-only intacto); reusa `createInformeAction` con metadata pre-poblada desde el incidente + cliente/empleado; botón muta a "Ver informe" si ya está vinculado, deshabilitado sin cliente. Solo `tipo='accidente'`.
 
 **Criterio de aceptación Sprint 6:** el usuario puede crear sus checklists, ejecutarlos firmados, registrar incidentes en un libro digital.
 
