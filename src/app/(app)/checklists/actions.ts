@@ -28,10 +28,15 @@ import {
   deleteSectionSchema,
   editPublishedTemplateSchema,
   publishVersionSchema,
+  reorderItemsSchema,
+  reorderSectionsSchema,
+  restoreTemplateSchema,
   updateItemSchema,
   updateSectionSchema,
+  updateTemplateMetaSchema,
 } from './schema';
 
+type ChecklistTemplateUpdate = Database['public']['Tables']['checklist_templates']['Update'];
 type TemplateSectionInsert = Database['public']['Tables']['template_sections']['Insert'];
 type TemplateSectionUpdate = Database['public']['Tables']['template_sections']['Update'];
 type TemplateItemInsert = Database['public']['Tables']['template_items']['Insert'];
@@ -109,6 +114,20 @@ export type ArchiveTemplateResult =
   | InvalidInput
   | AuthBillingFailure;
 
+export type RestoreTemplateResult =
+  | { ok: true; templateId: string }
+  | { ok: false; code: 'NOT_FOUND' | 'ALREADY_ACTIVE'; message: string }
+  | InvalidInput
+  | AuthBillingFailure
+  | DuplicateName;
+
+export type UpdateTemplateMetaResult =
+  | { ok: true; templateId: string }
+  | { ok: false; code: 'NOT_FOUND'; message: string }
+  | InvalidInput
+  | AuthBillingFailure
+  | DuplicateName;
+
 export type SectionMutationResult =
   | { ok: true; sectionId: string }
   | StructureFailure
@@ -118,6 +137,12 @@ export type SectionMutationResult =
 export type ItemMutationResult =
   | { ok: true; itemId: string }
   | StructureFailure
+  | InvalidInput
+  | AuthBillingFailure;
+
+export type ReorderResult =
+  | { ok: true }
+  | { ok: false; code: 'NOT_FOUND' | 'VERSION_NOT_DRAFT' | 'INVALID_ORDER_SET'; message: string }
   | InvalidInput
   | AuthBillingFailure;
 
@@ -581,6 +606,140 @@ export async function archiveTemplateAction(input: unknown): Promise<ArchiveTemp
   return { ok: true, templateId };
 }
 
+export async function restoreTemplateAction(input: unknown): Promise<RestoreTemplateResult> {
+  const parsed = restoreTemplateSchema.safeParse(input);
+  if (!parsed.success) return invalidInput(parsed.error.issues, 'ID inválido.');
+  const templateId = parsed.data.templateId;
+
+  const supabase = await createClient();
+  const pre = await requireOwnerWithBilling(supabase);
+  if (!pre.ok) return pre;
+
+  const { data: existing } = await supabase
+    .from('checklist_templates')
+    .select('id, archived_at, consultora_id')
+    .eq('id', templateId)
+    .maybeSingle();
+  if (!existing || existing.consultora_id === null) {
+    return { ok: false, code: 'NOT_FOUND', message: 'Template no encontrado.' };
+  }
+  if (existing.archived_at === null) {
+    return { ok: false, code: 'ALREADY_ACTIVE', message: 'El template ya estaba activo.' };
+  }
+
+  const { data, error } = await supabase
+    .from('checklist_templates')
+    .update({ archived_at: null })
+    .eq('id', templateId)
+    .select('id')
+    .maybeSingle();
+
+  // El índice parcial (consultora_id, nombre) WHERE archived_at IS NULL puede chocar
+  // si el nombre se reusó en un template activo mientras este estaba archivado.
+  if (isNameUniqueViolation(error)) {
+    return {
+      ok: false,
+      code: 'DUPLICATE_NAME',
+      fieldErrors: {
+        nombre: ['Ya existe un template activo con ese nombre. Renombralo antes de restaurar.'],
+      },
+      message: 'No se pudo restaurar: ya hay un template activo con ese nombre.',
+    };
+  }
+  if (error || !data) {
+    logger.error(
+      { err: error, templateId, consultoraId: pre.ctx.consultora.id },
+      'restoreTemplateAction: restore failed',
+    );
+    return {
+      ok: false,
+      code: 'INTERNAL_ERROR',
+      message: 'No se pudo restaurar el template. Reintentá en unos minutos.',
+    };
+  }
+
+  revalidateChecklists();
+  logger.info(
+    {
+      templateId,
+      userId: pre.ctx.userId,
+      consultoraId: pre.ctx.consultora.id,
+      action: 'restore_template',
+    },
+    'restoreTemplateAction: restored',
+  );
+  return { ok: true, templateId };
+}
+
+/**
+ * Edita la meta del template (nombre/descripcion/tipo_inspeccion). Vive en
+ * checklist_templates (no en la versión) → editable independientemente del estado
+ * de las versiones. Solo templates del tenant (los de sistema son read-only).
+ */
+export async function updateTemplateMetaAction(input: unknown): Promise<UpdateTemplateMetaResult> {
+  const parsed = updateTemplateMetaSchema.safeParse(input);
+  if (!parsed.success) return invalidInput(parsed.error.issues);
+  const templateId = parsed.data.templateId;
+
+  const supabase = await createClient();
+  const pre = await requireOwnerWithBilling(supabase);
+  if (!pre.ok) return pre;
+
+  const { data: existing } = await supabase
+    .from('checklist_templates')
+    .select('id, consultora_id')
+    .eq('id', templateId)
+    .maybeSingle();
+  if (!existing || existing.consultora_id === null) {
+    return { ok: false, code: 'NOT_FOUND', message: 'Template no encontrado.' };
+  }
+
+  const patch: ChecklistTemplateUpdate = {};
+  if (parsed.data.nombre !== undefined) patch.nombre = parsed.data.nombre;
+  if (parsed.data.descripcion !== undefined) patch.descripcion = parsed.data.descripcion;
+  if (parsed.data.tipo_inspeccion !== undefined)
+    patch.tipo_inspeccion = parsed.data.tipo_inspeccion;
+
+  const { data, error } = await supabase
+    .from('checklist_templates')
+    .update(patch)
+    .eq('id', templateId)
+    .select('id')
+    .maybeSingle();
+
+  if (isNameUniqueViolation(error)) {
+    return {
+      ok: false,
+      code: 'DUPLICATE_NAME',
+      fieldErrors: { nombre: ['Ya existe un template activo con ese nombre.'] },
+      message: `Ya existe un template activo con nombre "${parsed.data.nombre ?? ''}".`,
+    };
+  }
+  if (error || !data) {
+    logger.error(
+      { err: error, templateId, consultoraId: pre.ctx.consultora.id },
+      'updateTemplateMetaAction: update failed',
+    );
+    return {
+      ok: false,
+      code: 'INTERNAL_ERROR',
+      message: 'No se pudo actualizar el template. Reintentá en unos minutos.',
+    };
+  }
+
+  revalidateChecklists();
+  logger.info(
+    {
+      templateId,
+      userId: pre.ctx.userId,
+      consultoraId: pre.ctx.consultora.id,
+      action: 'update_template_meta',
+    },
+    'updateTemplateMetaAction: updated',
+  );
+  return { ok: true, templateId };
+}
+
 // ============================== Sections ==============================
 
 export async function addSectionAction(input: unknown): Promise<SectionMutationResult> {
@@ -853,6 +1012,101 @@ export async function deleteItemAction(input: unknown): Promise<ItemMutationResu
 
   revalidateChecklists();
   return { ok: true, itemId: parsed.data.itemId };
+}
+
+// ============================== Reorder ==============================
+
+/** Mapea el error de las RPCs reorder_* a la union. `null` = sin error. */
+function mapReorderError(
+  err: { message?: string } | null,
+): Exclude<ReorderResult, { ok: true }> | null {
+  if (!err) return null;
+  if (rpcErrorHas(err, 'VERSION_NOT_FOUND') || rpcErrorHas(err, 'SECTION_NOT_FOUND')) {
+    return { ok: false, code: 'NOT_FOUND', message: 'Elemento no encontrado. Recargá la página.' };
+  }
+  if (rpcErrorHas(err, 'NOT_OWNER')) {
+    return { ok: false, code: 'FORBIDDEN_NOT_OWNER', message: 'Solo el owner puede reordenar.' };
+  }
+  if (rpcErrorHas(err, 'VERSION_NOT_DRAFT')) {
+    return { ok: false, code: 'VERSION_NOT_DRAFT', message: 'La versión ya no está en borrador.' };
+  }
+  if (rpcErrorHas(err, 'INVALID_ORDER_SET')) {
+    return {
+      ok: false,
+      code: 'INVALID_ORDER_SET',
+      message: 'La lista cambió. Recargá la página e intentá de nuevo.',
+    };
+  }
+  return {
+    ok: false,
+    code: 'INTERNAL_ERROR',
+    message: 'No se pudo reordenar. Reintentá en unos minutos.',
+  };
+}
+
+export async function reorderSectionsAction(input: unknown): Promise<ReorderResult> {
+  const parsed = reorderSectionsSchema.safeParse(input);
+  if (!parsed.success) return invalidInput(parsed.error.issues);
+
+  const supabase = await createClient();
+  const pre = await requireOwnerWithBilling(supabase);
+  if (!pre.ok) return pre;
+
+  // Guard determinístico antes de la RPC (la RPC re-valida como backstop de carrera).
+  const vctx = await getVersionEditContext(supabase, parsed.data.versionId);
+  const guard = notEditable(vctx);
+  if (guard) return guard;
+
+  const { error } = await supabase.rpc('reorder_template_sections', {
+    p_version_id: parsed.data.versionId,
+    p_ordered_ids: parsed.data.orderedIds,
+  });
+
+  const mapped = mapReorderError(error);
+  if (mapped) {
+    if (mapped.code === 'INTERNAL_ERROR') {
+      logger.error(
+        { err: error, versionId: parsed.data.versionId, consultoraId: pre.ctx.consultora.id },
+        'reorderSectionsAction: rpc failed',
+      );
+    }
+    return mapped;
+  }
+
+  revalidateChecklists();
+  return { ok: true };
+}
+
+export async function reorderItemsAction(input: unknown): Promise<ReorderResult> {
+  const parsed = reorderItemsSchema.safeParse(input);
+  if (!parsed.success) return invalidInput(parsed.error.issues);
+
+  const supabase = await createClient();
+  const pre = await requireOwnerWithBilling(supabase);
+  if (!pre.ok) return pre;
+
+  const vctx = await getSectionEditContext(supabase, parsed.data.sectionId);
+  const guard = notEditable(vctx);
+  if (guard) return guard;
+
+  const { error } = await supabase.rpc('reorder_template_items', {
+    p_section_id: parsed.data.sectionId,
+    p_ordered_ids: parsed.data.orderedIds,
+  });
+
+  const mapped = mapReorderError(error);
+  if (mapped) {
+    if (mapped.code === 'INTERNAL_ERROR') {
+      logger.error(
+        { err: error, sectionId: parsed.data.sectionId, consultoraId: pre.ctx.consultora.id },
+        'reorderItemsAction: rpc failed',
+      );
+    }
+    return mapped;
+  }
+
+  revalidateChecklists();
+  return { ok: true };
 }
 
 // ============================== Helpers internos ==============================

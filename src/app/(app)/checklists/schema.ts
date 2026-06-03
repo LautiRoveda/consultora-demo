@@ -85,7 +85,22 @@ export const cloneSystemTemplateSchema = z.object({
 
 export const editPublishedTemplateSchema = z.object({ templateId: uuidField });
 export const archiveTemplateSchema = z.object({ templateId: uuidField });
+export const restoreTemplateSchema = z.object({ templateId: uuidField });
 export const publishVersionSchema = z.object({ versionId: uuidField });
+
+// Edita la meta del template (nombre/descripcion/tipo) — vive en checklist_templates,
+// no en la versión. Patch parcial con ≥1 campo (igual que update section/item).
+export const updateTemplateMetaSchema = z
+  .object({
+    templateId: uuidField,
+    nombre: nombreField.optional(),
+    descripcion: descripcionField.nullable().optional(),
+    tipo_inspeccion: tipoInspeccionField.optional(),
+  })
+  .refine(
+    (p) => p.nombre !== undefined || p.descripcion !== undefined || p.tipo_inspeccion !== undefined,
+    { message: 'Debe haber al menos un campo a actualizar.' },
+  );
 
 // ============================== Sections ==============================
 
@@ -142,11 +157,32 @@ export const updateItemSchema = z
 
 export const deleteItemSchema = z.object({ itemId: uuidField });
 
+// ============================== Reorder (T-059) ==============================
+// La UI manda el ARRAY COMPLETO reordenado de ids; la RPC two-phase reasigna
+// `orden` a 0..N-1 sin violar el índice único non-deferrable.
+
+const orderedIdsField = z
+  .array(uuidField)
+  .min(1, { message: 'La lista de orden no puede estar vacía.' });
+
+export const reorderSectionsSchema = z.object({
+  versionId: uuidField,
+  orderedIds: orderedIdsField,
+});
+
+export const reorderItemsSchema = z.object({
+  sectionId: uuidField,
+  orderedIds: orderedIdsField,
+});
+
 // ============================== Tipos inferidos ==============================
 
 export type CreateChecklistTemplateInput = z.infer<typeof createChecklistTemplateSchema>;
 export type CloneSystemTemplateInput = z.infer<typeof cloneSystemTemplateSchema>;
+export type UpdateTemplateMetaInput = z.infer<typeof updateTemplateMetaSchema>;
 export type AddSectionInput = z.infer<typeof addSectionSchema>;
 export type UpdateSectionInput = z.infer<typeof updateSectionSchema>;
 export type AddItemInput = z.infer<typeof addItemSchema>;
 export type UpdateItemInput = z.infer<typeof updateItemSchema>;
+export type ReorderSectionsInput = z.infer<typeof reorderSectionsSchema>;
+export type ReorderItemsInput = z.infer<typeof reorderItemsSchema>;
