@@ -2431,12 +2431,41 @@ export type Database = {
       };
     };
     Functions: {
+      clone_system_template: {
+        Args: {
+          p_consultora_id: string;
+          p_nombre: string;
+          p_system_template_id: string;
+        };
+        Returns: Json;
+      };
+      clone_template_to_draft: {
+        Args: { p_template_id: string };
+        Returns: string;
+      };
+      clone_version_structure: {
+        Args: {
+          p_consultora: string;
+          p_from_version: string;
+          p_to_version: string;
+        };
+        Returns: undefined;
+      };
       create_consultora_and_owner: {
         Args: { p_name: string; p_user_id: string };
         Returns: {
           consultora_id: string;
           slug: string;
         }[];
+      };
+      create_template_with_draft: {
+        Args: {
+          p_consultora_id: string;
+          p_descripcion: string;
+          p_nombre: string;
+          p_tipo_inspeccion: string;
+        };
+        Returns: Json;
       };
       current_consultora_id: { Args: never; Returns: string };
       custom_access_token_hook: { Args: { event: Json }; Returns: Json };
