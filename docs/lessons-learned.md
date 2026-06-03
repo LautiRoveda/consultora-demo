@@ -270,6 +270,8 @@ Tras reboot del VPS Hostinger por mantenimiento, el VIP allocation del swarm que
 
 **Origen**: T-022.5-FU3. Push a `main` dispara deploy automático sin intervención. Habilitado en EasyPanel CE self-hosted. Pre-FU3 era click manual "Implementar" en EasyPanel UI tras cada merge.
 
+**El auto-deploy publica el CÓDIGO, NO las migraciones** (T-059). Las migraciones de Supabase siguen siendo `db push --linked` manual y diff-validado (T-016). Implicancia: si un PR mete una migración + código que la usa con un nav-item `live`, mergear auto-deploya el código → si la migración no se aplica a prod en la **misma ventana del merge**, el feature queda **roto en prod** (tablas inexistentes). Práctica segura: aplicar la migración en la ventana del merge, o mantener el nav-item `soon`/gated hasta aplicarla. *Caso testigo: checklists (T-057..T-059) — nav `live` + migraciones diferidas → `/checklists` roto en prod hasta el `db push`.*
+
 ### Dev local Chromium para PDF render
 
 **Origen**: T-023, T-024-FU2. Documentado en `docs/technical/06-deployment.md` sección "Chromium para PDF render".
