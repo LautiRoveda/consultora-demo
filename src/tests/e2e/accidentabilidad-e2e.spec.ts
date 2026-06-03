@@ -343,13 +343,14 @@ test.describe('Accidentabilidad · libro de incidentes (T-063)', () => {
     await loginViaUI(page, email, password);
     await page.goto('/accidentabilidad');
 
-    // Por defecto el anulado NO se ve.
-    await expect(page.getByText('Anulado')).toHaveCount(0);
+    // Por defecto el anulado NO se ve (badge exacto "Anulado" — `exact` evita
+    // matchear el label "Ver anulados" del toggle o "anulá" del subtítulo).
+    await expect(page.getByText('Anulado', { exact: true })).toHaveCount(0);
 
-    // Toggle "Ver anulados" → aparece con badge.
+    // El toggle se renderiza aun en onboarding (tenant all-anulled): revelar.
     await page.locator('#filtro-anulados').click();
     await expect(page).toHaveURL(/anulados=1/, { timeout: 10_000 });
-    await expect(page.getByText('Anulado').first()).toBeVisible();
+    await expect(page.getByText('Anulado', { exact: true }).first()).toBeVisible();
 
     // Preserva los demás filtros: con tipo=accidente en URL, togglear mantiene ambos.
     await page.goto('/accidentabilidad?tipo=accidente');
