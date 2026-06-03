@@ -51,7 +51,14 @@ export function IncidenteDetailHeader({
           Registrado el {formatTimestampEs(incidente.created_at)}
         </p>
       </div>
-      {esVigente && <IncidenteActionsButtons incidenteId={incidente.id} />}
+      {esVigente && (
+        <IncidenteActionsButtons
+          incidenteId={incidente.id}
+          tipo={incidente.tipo}
+          informeId={incidente.informe_id}
+          tieneCliente={incidente.cliente_id != null}
+        />
+      )}
     </div>
   );
 }

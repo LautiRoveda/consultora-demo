@@ -41,6 +41,18 @@ function makeSupabase(builder: ReturnType<typeof makeBuilder>['builder']) {
   return { from: vi.fn(() => builder) } as unknown as Parameters<typeof getIncidentes>[0];
 }
 
+/** Captura el nombre de relación pasado a `.from(...)` (para asertar la vista). */
+function makeSupabaseRecordingFrom(builder: ReturnType<typeof makeBuilder>['builder']) {
+  const fromArgs: string[] = [];
+  const supabase = {
+    from: (rel: string) => {
+      fromArgs.push(rel);
+      return builder;
+    },
+  } as unknown as Parameters<typeof getIncidentes>[0];
+  return { supabase, fromArgs };
+}
+
 describe('getIncidentes · filtro gravedad server-side', () => {
   it('aplica .eq("gravedad", value) cuando se pasa gravedad', async () => {
     const { builder, calls } = makeBuilder();
@@ -60,5 +72,35 @@ describe('getIncidentes · filtro gravedad server-side', () => {
     await getIncidentes(makeSupabase(builder), { tipo: 'accidente', gravedad: 'mortal' });
     expect(calls).toContainEqual({ method: 'eq', args: ['tipo', 'accidente'] });
     expect(calls).toContainEqual({ method: 'eq', args: ['gravedad', 'mortal'] });
+  });
+});
+
+describe('getIncidentes · fuente según includeAnulados (T-063-FU2)', () => {
+  it('default (sin includeAnulados) lee de incidentes_vigentes', async () => {
+    const { builder } = makeBuilder();
+    const { supabase, fromArgs } = makeSupabaseRecordingFrom(builder);
+    await getIncidentes(supabase, {});
+    expect(fromArgs).toEqual(['incidentes_vigentes']);
+  });
+
+  it('includeAnulados:false lee de incidentes_vigentes', async () => {
+    const { builder } = makeBuilder();
+    const { supabase, fromArgs } = makeSupabaseRecordingFrom(builder);
+    await getIncidentes(supabase, { includeAnulados: false });
+    expect(fromArgs).toEqual(['incidentes_vigentes']);
+  });
+
+  it('includeAnulados:true lee de incidentes_heads', async () => {
+    const { builder } = makeBuilder();
+    const { supabase, fromArgs } = makeSupabaseRecordingFrom(builder);
+    await getIncidentes(supabase, { includeAnulados: true });
+    expect(fromArgs).toEqual(['incidentes_heads']);
+  });
+
+  it('includeAnulados:true mantiene los filtros server-side (.eq gravedad)', async () => {
+    const { builder, calls } = makeBuilder();
+    const { supabase } = makeSupabaseRecordingFrom(builder);
+    await getIncidentes(supabase, { includeAnulados: true, gravedad: 'grave' });
+    expect(calls).toContainEqual({ method: 'eq', args: ['gravedad', 'grave'] });
   });
 });

@@ -1,5 +1,6 @@
 'use client';
 
+import type { TipoIncidente } from '../schema';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
@@ -19,21 +20,36 @@ import {
 import { Button } from '@/shared/ui/button';
 import { Label } from '@/shared/ui/label';
 import { Textarea } from '@/shared/ui/textarea';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip';
 
-import { anularIncidenteAction } from '../actions';
+import { anularIncidenteAction, generarInvestigacionIaAction } from '../actions';
 
 const MOTIVO_MIN = 5;
 const MOTIVO_MAX = 2000;
 
+type Props = {
+  incidenteId: string;
+  /** T-075: gating del botón IA — solo accidentes. */
+  tipo: TipoIncidente;
+  /** T-075: si ya hay informe vinculado, el botón muta a "Ver informe". */
+  informeId: string | null;
+  /** T-075: sin cliente no se puede generar (razón social/CUIT salen del cliente). */
+  tieneCliente: boolean;
+};
+
 /**
  * T-063 · Acciones del detail view sobre el registro VIGENTE: Corregir (link a
- * `/corregir`) + Anular (AlertDialog con `motivo`). Sin botón "Generar
- * investigación IA" — el link `informe_id` se difiere a un ticket dedicado.
+ * `/corregir`) + Anular (AlertDialog con `motivo`).
+ *
+ * T-075 · En accidentes suma "Generar investigación IA" (crea el informe
+ * accidente pre-poblado y cae al editor) — o "Ver informe" si ya está vinculado.
+ * Sin cliente, el botón se deshabilita con tooltip (no se emite un informe legal
+ * con la empresa en blanco).
  *
  * El `motivo` usa estado controlado (no RHF anidado) — más simple y evita
  * quirks de form-in-dialog con el focus-trap de Radix.
  */
-export function IncidenteActionsButtons({ incidenteId }: { incidenteId: string }) {
+export function IncidenteActionsButtons({ incidenteId, tipo, informeId, tieneCliente }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -41,6 +57,45 @@ export function IncidenteActionsButtons({ incidenteId }: { incidenteId: string }
 
   const motivoTrim = motivo.trim();
   const motivoValid = motivoTrim.length >= MOTIVO_MIN && motivoTrim.length <= MOTIVO_MAX;
+
+  function handleGenerarIa() {
+    startTransition(async () => {
+      const result = await generarInvestigacionIaAction(incidenteId);
+
+      if (result.ok) {
+        router.push(result.redirectTo);
+        return;
+      }
+
+      switch (result.code) {
+        case 'ALREADY_LINKED':
+          toast.info('Este incidente ya tiene un informe de investigación');
+          router.push(result.redirectTo);
+          return;
+        case 'NO_CLIENTE':
+          toast.error('Falta el cliente', { description: result.message });
+          return;
+        case 'NOT_VIGENTE':
+        case 'NOT_ACCIDENTE':
+        case 'NOT_FOUND':
+          toast.error('No se puede generar', { description: result.message });
+          router.refresh();
+          return;
+        case 'BILLING_GATED':
+          toast.error('Plan expirado', {
+            description: result.message,
+            action: { label: 'Suscribirme', onClick: () => router.push('/settings/billing') },
+          });
+          return;
+        case 'UNAUTHENTICATED':
+          toast.error('Sesión vencida', { description: result.message });
+          router.push('/login');
+          return;
+        default:
+          toast.error('Error inesperado', { description: result.message });
+      }
+    });
+  }
 
   function handleAnular() {
     if (!motivoValid) return;
@@ -87,7 +142,32 @@ export function IncidenteActionsButtons({ incidenteId }: { incidenteId: string }
   }
 
   return (
-    <div className="flex shrink-0 gap-2">
+    <div className="flex shrink-0 flex-wrap gap-2">
+      {tipo === 'accidente' &&
+        (informeId ? (
+          <Button asChild>
+            <Link href={`/informes/${informeId}`}>Ver informe</Link>
+          </Button>
+        ) : tieneCliente ? (
+          <Button type="button" onClick={handleGenerarIa} disabled={isPending}>
+            Generar investigación IA
+          </Button>
+        ) : (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={0}>
+                  <Button type="button" disabled>
+                    Generar investigación IA
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                Asociá un cliente al incidente para generar la investigación
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ))}
       <Button asChild variant="outline">
         <Link href={`/accidentabilidad/${incidenteId}/corregir`}>Corregir</Link>
       </Button>

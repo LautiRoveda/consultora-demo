@@ -15,6 +15,7 @@ type SearchParams = {
   gravedad?: string;
   desde?: string;
   hasta?: string;
+  anulados?: string;
 };
 
 /**
@@ -45,8 +46,16 @@ export default async function AccidentabilidadPage({
       : undefined;
   const desde = sp.desde?.trim() || undefined;
   const hasta = sp.hasta?.trim() || undefined;
+  const includeAnulados = sp.anulados === '1';
 
-  const filters: GetIncidentesFilters = { tipo, gravedad, clienteId, desde, hasta };
+  const filters: GetIncidentesFilters = {
+    tipo,
+    gravedad,
+    clienteId,
+    desde,
+    hasta,
+    includeAnulados,
+  };
 
   const [incidentes, clientes] = await Promise.all([
     getIncidentes(supabase, filters),
@@ -54,7 +63,7 @@ export default async function AccidentabilidadPage({
   ]);
   const clienteOptions = clientes.map((c) => ({ id: c.id, razon_social: c.razon_social }));
 
-  const hasActiveFilters = !!(tipo || clienteId || gravedad || desde || hasta);
+  const hasActiveFilters = !!(tipo || clienteId || gravedad || desde || hasta || includeAnulados);
 
   return (
     <div className="space-y-6">
@@ -77,7 +86,7 @@ export default async function AccidentabilidadPage({
       <IncidentesList
         incidentes={incidentes}
         clienteOptions={clienteOptions}
-        initial={{ tipo, clienteId, gravedad, desde, hasta }}
+        initial={{ tipo, clienteId, gravedad, desde, hasta, incluirAnulados: includeAnulados }}
         hasActiveFilters={hasActiveFilters}
       />
     </div>

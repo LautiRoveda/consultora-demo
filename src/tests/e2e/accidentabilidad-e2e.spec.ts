@@ -26,7 +26,10 @@ const createdConsultoraIds: string[] = [];
 
 test.afterEach(async () => {
   for (const consultoraId of createdConsultoraIds.splice(0)) {
+    // Orden FK: incidentes (ref clientes/empleados RESTRICT, informes SET NULL) →
+    // informes (ref clientes) → empleados → clientes.
     await adminClient.from('incidentes').delete().eq('consultora_id', consultoraId);
+    await adminClient.from('informes').delete().eq('consultora_id', consultoraId);
     await adminClient.from('empleados').delete().eq('consultora_id', consultoraId);
     await adminClient.from('clientes').delete().eq('consultora_id', consultoraId);
   }
@@ -205,5 +208,154 @@ test.describe('Accidentabilidad · libro de incidentes (T-063)', () => {
       .eq('anulacion', true)
       .maybeSingle();
     expect(tombstone?.corrige_id).toBe(vigenteId);
+  });
+
+  test('T-075 · "Generar investigación IA" → editor pre-poblado → "Ver informe"', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const email = uniqueTestEmail('inc-ia');
+    const { userId, consultoraId, password } = await createTestUserWithConsultora({
+      email,
+      consultoraName: `T-075 ia ${Date.now().toString(36)}`,
+    });
+    createdUserIds.push(userId);
+    createdConsultoraIds.push(consultoraId);
+
+    // Seed: cliente + accidente vinculado a ese cliente (con cliente → botón habilitado).
+    const { data: cli } = await adminClient
+      .from('clientes')
+      .insert({
+        consultora_id: consultoraId,
+        razon_social: 'Metalúrgica E2E SA',
+        cuit: `30-${Date.now().toString().slice(-8)}-9`,
+        created_by: userId,
+      })
+      .select('id')
+      .single();
+
+    const { data: seed } = await adminClient
+      .from('incidentes')
+      .insert({
+        consultora_id: consultoraId,
+        created_by: userId,
+        tipo: 'accidente',
+        fecha: '2020-06-01',
+        descripcion: 'Corte en la mano al operar la prensa.',
+        gravedad: 'grave',
+        cliente_id: cli!.id,
+      })
+      .select('id')
+      .single();
+    const incidenteId = seed!.id;
+
+    await loginViaUI(page, email, password);
+    await page.goto(`/accidentabilidad/${incidenteId}`);
+
+    // Botón IA habilitado (accidente vigente con cliente).
+    const genBtn = page.getByRole('button', { name: 'Generar investigación IA' });
+    await expect(genBtn).toBeEnabled();
+    await genBtn.click();
+
+    // Cae en el editor del informe recién creado (no auto-genera).
+    await expect(page).toHaveURL(/\/informes\/[0-9a-f-]{36}\/editar$/, { timeout: 15_000 });
+
+    // DB sanity: el incidente quedó vinculado.
+    const { data: inc } = await adminClient
+      .from('incidentes')
+      .select('informe_id')
+      .eq('id', incidenteId)
+      .single();
+    expect(inc?.informe_id).not.toBeNull();
+
+    // Volver al detalle: el botón ahora es "Ver informe".
+    await page.goto(`/accidentabilidad/${incidenteId}`);
+    await expect(page.getByRole('link', { name: 'Ver informe' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Generar investigación IA' })).toHaveCount(0);
+  });
+
+  test('T-075 · sin cliente, el botón "Generar investigación IA" está deshabilitado', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const email = uniqueTestEmail('inc-ia-nocli');
+    const { userId, consultoraId, password } = await createTestUserWithConsultora({
+      email,
+      consultoraName: `T-075 nocli ${Date.now().toString(36)}`,
+    });
+    createdUserIds.push(userId);
+    createdConsultoraIds.push(consultoraId);
+
+    const { data: seed } = await adminClient
+      .from('incidentes')
+      .insert({
+        consultora_id: consultoraId,
+        created_by: userId,
+        tipo: 'accidente',
+        fecha: '2020-06-01',
+        descripcion: 'Accidente sin cliente asociado E2E.',
+        gravedad: 'grave',
+      })
+      .select('id')
+      .single();
+
+    await loginViaUI(page, email, password);
+    await page.goto(`/accidentabilidad/${seed!.id}`);
+    await expect(page.getByRole('button', { name: 'Generar investigación IA' })).toBeDisabled();
+  });
+
+  test('T-063-FU2 · toggle "Ver anulados" muestra el anulado con badge y preserva filtros', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const email = uniqueTestEmail('inc-anulados');
+    const { userId, consultoraId, password } = await createTestUserWithConsultora({
+      email,
+      consultoraName: `T-063-FU2 anulados ${Date.now().toString(36)}`,
+    });
+    createdUserIds.push(userId);
+    createdConsultoraIds.push(consultoraId);
+
+    // Seed: alta accidente + tombstone que la anula (head de cadena = tombstone).
+    const { data: alta } = await adminClient
+      .from('incidentes')
+      .insert({
+        consultora_id: consultoraId,
+        created_by: userId,
+        tipo: 'accidente',
+        fecha: '2020-06-01',
+        descripcion: 'Accidente anulado E2E.',
+        gravedad: 'grave',
+      })
+      .select('id')
+      .single();
+    await adminClient.from('incidentes').insert({
+      consultora_id: consultoraId,
+      created_by: userId,
+      corrige_id: alta!.id,
+      anulacion: true,
+      tipo: 'accidente',
+      fecha: '2020-06-01',
+      gravedad: 'grave',
+      descripcion: 'Anulación: cargado por error E2E.',
+    });
+
+    await loginViaUI(page, email, password);
+    await page.goto('/accidentabilidad');
+
+    // Por defecto el anulado NO se ve (badge exacto "Anulado" — `exact` evita
+    // matchear el label "Ver anulados" del toggle o "anulá" del subtítulo).
+    await expect(page.getByText('Anulado', { exact: true })).toHaveCount(0);
+
+    // El toggle se renderiza aun en onboarding (tenant all-anulled): revelar.
+    await page.locator('#filtro-anulados').click();
+    await expect(page).toHaveURL(/anulados=1/, { timeout: 10_000 });
+    await expect(page.getByText('Anulado', { exact: true }).first()).toBeVisible();
+
+    // Preserva los demás filtros: con tipo=accidente en URL, togglear mantiene ambos.
+    await page.goto('/accidentabilidad?tipo=accidente');
+    await page.locator('#filtro-anulados').click();
+    await expect(page).toHaveURL(/tipo=accidente/, { timeout: 10_000 });
+    await expect(page).toHaveURL(/anulados=1/);
   });
 });

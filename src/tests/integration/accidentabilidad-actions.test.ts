@@ -446,3 +446,97 @@ describe('anularIncidenteAction', () => {
     expect(vigentes.some((v) => v.id === alta.incidenteId)).toBe(false);
   });
 });
+
+describe('generarInvestigacionIaAction (T-075)', () => {
+  it('13. happy: accidente con cliente → crea informe accidente + linkea + redirect /editar', async () => {
+    await signInAs(emailMemberA);
+    const { registerIncidenteAction, generarInvestigacionIaAction } =
+      await import('@/app/(app)/accidentabilidad/actions');
+
+    const alta = await registerIncidenteAction({ ...baseAccidente, cliente_id: clienteAId });
+    expect(alta.ok).toBe(true);
+    if (!alta.ok) return;
+
+    const gen = await generarInvestigacionIaAction(alta.incidenteId);
+    expect(gen.ok).toBe(true);
+    if (!gen.ok) return;
+    expect(gen.redirectTo).toMatch(/^\/informes\/[0-9a-f-]{36}\/editar$/);
+
+    // El incidente quedó vinculado al informe creado.
+    const { data: inc } = await admin
+      .from('incidentes')
+      .select('informe_id')
+      .eq('id', alta.incidenteId)
+      .single();
+    expect(inc?.informe_id).toBe(gen.informeId);
+
+    // El informe es tipo accidente, del tenant cA, con cliente_id propagado.
+    const { data: inf } = await admin
+      .from('informes')
+      .select('tipo, consultora_id, cliente_id')
+      .eq('id', gen.informeId)
+      .single();
+    expect(inf).toMatchObject({ tipo: 'accidente', consultora_id: cAId, cliente_id: clienteAId });
+
+    // Audit del link.
+    const { data: audit } = await admin
+      .from('audit_log')
+      .select('action')
+      .eq('entity_type', 'incidentes')
+      .eq('entity_id', alta.incidenteId)
+      .eq('action', 'linked')
+      .maybeSingle();
+    expect(audit?.action).toBe('linked');
+  });
+
+  it('14. NO_CLIENTE: accidente sin cliente asociado', async () => {
+    await signInAs(emailMemberA);
+    const { registerIncidenteAction, generarInvestigacionIaAction } =
+      await import('@/app/(app)/accidentabilidad/actions');
+
+    const alta = await registerIncidenteAction(baseAccidente); // sin cliente_id
+    expect(alta.ok).toBe(true);
+    if (!alta.ok) return;
+
+    const gen = await generarInvestigacionIaAction(alta.incidenteId);
+    expect(gen.ok).toBe(false);
+    if (gen.ok) return;
+    expect(gen.code).toBe('NO_CLIENTE');
+  });
+
+  it('15. NOT_ACCIDENTE: un casi_accidente no se investiga', async () => {
+    await signInAs(emailMemberA);
+    const { registerIncidenteAction, generarInvestigacionIaAction } =
+      await import('@/app/(app)/accidentabilidad/actions');
+
+    const alta = await registerIncidenteAction({ ...baseCasi, cliente_id: clienteAId });
+    expect(alta.ok).toBe(true);
+    if (!alta.ok) return;
+
+    const gen = await generarInvestigacionIaAction(alta.incidenteId);
+    expect(gen.ok).toBe(false);
+    if (gen.ok) return;
+    expect(gen.code).toBe('NOT_ACCIDENTE');
+  });
+
+  it('16. ALREADY_LINKED: segundo intento redirige al informe existente', async () => {
+    await signInAs(emailMemberA);
+    const { registerIncidenteAction, generarInvestigacionIaAction } =
+      await import('@/app/(app)/accidentabilidad/actions');
+
+    const alta = await registerIncidenteAction({ ...baseAccidente, cliente_id: clienteAId });
+    expect(alta.ok).toBe(true);
+    if (!alta.ok) return;
+
+    const gen1 = await generarInvestigacionIaAction(alta.incidenteId);
+    expect(gen1.ok).toBe(true);
+    if (!gen1.ok) return;
+
+    const gen2 = await generarInvestigacionIaAction(alta.incidenteId);
+    expect(gen2.ok).toBe(false);
+    if (gen2.ok) return;
+    expect(gen2.code).toBe('ALREADY_LINKED');
+    if (gen2.code !== 'ALREADY_LINKED') return;
+    expect(gen2.redirectTo).toBe(`/informes/${gen1.informeId}`);
+  });
+});

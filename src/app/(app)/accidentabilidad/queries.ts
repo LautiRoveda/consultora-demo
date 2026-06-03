@@ -30,6 +30,12 @@ export type GetIncidentesFilters = {
   hasta?: string;
   limit?: number;
   offset?: number;
+  /**
+   * T-063-FU2: si `true`, lee de `incidentes_heads` (head de cada cadena,
+   * INCLUIDOS los anulados) en vez de `incidentes_vigentes`. La fila trae
+   * `anulacion` para que la UI badgee los anulados.
+   */
+  includeAnulados?: boolean;
 };
 
 // Cap defensivo del walk-back de correcciones. No debería ciclar (append-only +
@@ -37,8 +43,10 @@ export type GetIncidentesFilters = {
 const HISTORIAL_MAX = 50;
 
 /**
- * Lista paginada de incidentes VIGENTES del tenant del JWT (lee de la vista
- * `incidentes_vigentes`: excluye anulados y versiones superseded).
+ * Lista paginada de incidentes del tenant del JWT. Por default lee de
+ * `incidentes_vigentes` (excluye anulados y versiones superseded); con
+ * `includeAnulados` lee de `incidentes_heads` (head de cada cadena, anulados
+ * incluidos). Ambas vistas son row-compatibles (`IncidenteVigente`).
  */
 export async function getIncidentes(
   supabase: SupabaseClient<Database>,
@@ -46,9 +54,10 @@ export async function getIncidentes(
 ): Promise<IncidenteVigente[]> {
   const limit = filters.limit ?? 50;
   const offset = filters.offset ?? 0;
+  const source = filters.includeAnulados ? 'incidentes_heads' : 'incidentes_vigentes';
 
   let query = supabase
-    .from('incidentes_vigentes')
+    .from(source)
     .select('*')
     .order('fecha', { ascending: false })
     .order('id', { ascending: true });
