@@ -651,7 +651,11 @@ export async function cerrarEjecucionAction(input: unknown): Promise<CerrarEjecu
   //     Si falla, la ejecución sigue borrador y el reintento re-corre todo.
   const capaRows = buildCapaRows(items, respuestas, cerradaAt);
   if (capaRows.length > 0) {
-    const { error: capaErr } = await admin.from('acciones_correctivas').upsert(
+    // INSERT plano (no upsert): `uq_acciones_execution_respuesta` es un índice
+    // PARCIAL (WHERE respuesta_id IS NOT NULL) → PostgREST no puede usarlo como
+    // arbiter de ON CONFLICT (Postgres 42P10). Idempotencia: ante 23505 (el set
+    // ya se insertó en un cierre previo fallido) se tolera y se sigue al gen.
+    const { error: capaErr } = await admin.from('acciones_correctivas').insert(
       capaRows.map((c) => ({
         consultora_id: pre.ctx.consultoraId,
         execution_id: d.executionId,
@@ -662,9 +666,8 @@ export async function cerrarEjecucionAction(input: unknown): Promise<CerrarEjecu
         fecha_compromiso: c.fecha_compromiso,
         created_by: pre.ctx.userId,
       })),
-      { onConflict: 'execution_id,respuesta_id', ignoreDuplicates: true },
     );
-    if (capaErr) {
+    if (capaErr && capaErr.code !== UNIQUE_VIOLATION_CODE) {
       logger.error(
         { ...ctx, executionId: d.executionId, err: capaErr.message },
         'cerrarEjecucionAction: CAPA insert failed (ejecución sigue borrador → reintento)',
