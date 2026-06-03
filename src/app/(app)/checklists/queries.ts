@@ -15,13 +15,23 @@ export type TemplateItemRow = Database['public']['Tables']['template_items']['Ro
 // filtra por el claim del JWT. Las tablas de template además exponen las filas de
 // sistema (consultora_id IS NULL) vía la policy SELECT.
 
-export type ChecklistTemplateListItem = ChecklistTemplateRow & { isSystem: boolean };
+export type ChecklistTemplateListItem = ChecklistTemplateRow & {
+  isSystem: boolean;
+  /** Estado de la versión de mayor `version_number` ('draft' | 'published' | null). */
+  latestVersionEstado: string | null;
+  latestVersionNumber: number | null;
+  /** Hay un borrador abierto (≤1 por template) → la UI rutea "Editar" directo a él. */
+  hasDraft: boolean;
+};
 
 export type GetChecklistTemplatesOptions = { includeArchived?: boolean };
 
 /**
  * Templates visibles para el tenant: los propios + los de sistema (RGRL). Marca
- * `isSystem` (consultora_id IS NULL) para que la UI distinga catálogo vs sistema.
+ * `isSystem` (consultora_id IS NULL) para que la UI distinga catálogo vs sistema, y
+ * adjunta el estado/número de la última versión + `hasDraft` (para el badge de la
+ * lista y rutear "Editar"). La versión draft, si existe, siempre tiene el mayor
+ * `version_number` (create = v1 draft; clone = max+1) ⇒ "última" = draft cuando lo hay.
  */
 export async function getChecklistTemplates(
   supabase: SupabaseClient<Database>,
@@ -38,7 +48,37 @@ export async function getChecklistTemplates(
   if (!includeArchived) query = query.is('archived_at', null);
 
   const { data } = await query;
-  return (data ?? []).map((t) => ({ ...t, isSystem: t.consultora_id === null }));
+  const templates = data ?? [];
+  if (templates.length === 0) return [];
+
+  const { data: versions } = await supabase
+    .from('checklist_template_versions')
+    .select('template_id, version_number, estado')
+    .in(
+      'template_id',
+      templates.map((t) => t.id),
+    );
+
+  const latest = new Map<string, { estado: string; versionNumber: number }>();
+  const withDraft = new Set<string>();
+  for (const v of versions ?? []) {
+    if (v.estado === 'draft') withDraft.add(v.template_id);
+    const cur = latest.get(v.template_id);
+    if (!cur || v.version_number > cur.versionNumber) {
+      latest.set(v.template_id, { estado: v.estado, versionNumber: v.version_number });
+    }
+  }
+
+  return templates.map((t) => {
+    const l = latest.get(t.id);
+    return {
+      ...t,
+      isSystem: t.consultora_id === null,
+      latestVersionEstado: l?.estado ?? null,
+      latestVersionNumber: l?.versionNumber ?? null,
+      hasDraft: withDraft.has(t.id),
+    };
+  });
 }
 
 export type TemplateSectionNode = TemplateSectionRow & { items: TemplateItemRow[] };

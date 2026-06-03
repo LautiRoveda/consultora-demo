@@ -2500,6 +2500,14 @@ export type Database = {
           dispatched: boolean;
         }[];
       };
+      reorder_template_items: {
+        Args: { p_ordered_ids: string[]; p_section_id: string };
+        Returns: undefined;
+      };
+      reorder_template_sections: {
+        Args: { p_ordered_ids: string[]; p_version_id: string };
+        Returns: undefined;
+      };
       role_on_consultora: { Args: { p_consultora_id: string }; Returns: string };
       set_cron_vault_secret: {
         Args: { new_value: string; secret_name: string };
