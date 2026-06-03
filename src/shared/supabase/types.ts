@@ -1705,6 +1705,10 @@ export type Database = {
         Args: { p_consultora_id: string };
         Returns: boolean;
       };
+      link_informe_to_incidente: {
+        Args: { p_incidente_id: string; p_informe_id: string };
+        Returns: undefined;
+      };
       my_consultora_ids: { Args: never; Returns: string[] };
       process_dunning_recovery: { Args: never; Returns: undefined };
       process_epp_weekly_summary: { Args: never; Returns: undefined };
