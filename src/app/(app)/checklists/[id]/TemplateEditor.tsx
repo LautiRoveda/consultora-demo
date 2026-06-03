@@ -5,7 +5,6 @@ import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 
-import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
 
 import { reorderSectionsAction } from '../actions';
@@ -19,7 +18,6 @@ import { TemplateMetaDialog } from './TemplateMetaDialog';
 interface Props {
   templateId: string;
   versionId: string;
-  versionNumber: number;
   nombre: string;
   descripcion: string | null;
   tipoInspeccion: TipoInspeccion;
@@ -29,7 +27,6 @@ interface Props {
 export function TemplateEditor({
   templateId,
   versionId,
-  versionNumber,
   nombre,
   descripcion,
   tipoInspeccion,
@@ -57,13 +54,10 @@ export function TemplateEditor({
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">Borrador v{versionNumber}</Badge>
-          <TemplateMetaDialog
-            templateId={templateId}
-            initialValues={{ nombre, descripcion, tipo_inspeccion: tipoInspeccion }}
-          />
-        </div>
+        <TemplateMetaDialog
+          templateId={templateId}
+          initialValues={{ nombre, descripcion, tipo_inspeccion: tipoInspeccion }}
+        />
         <PublishButton versionId={versionId} itemCount={itemCount} />
       </div>
 

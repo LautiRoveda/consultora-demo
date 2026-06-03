@@ -74,7 +74,6 @@ export default async function ChecklistTemplatePage({
         <TemplateEditor
           templateId={template.id}
           versionId={version.id}
-          versionNumber={version.version_number}
           nombre={template.nombre}
           descripcion={template.descripcion}
           tipoInspeccion={template.tipo_inspeccion as TipoInspeccion}
