@@ -22,7 +22,7 @@ Cómo construir el sistema, ticket por ticket, con dependencias claras. La idea:
 
 **Source of truth de tickets ejecutados**: `CLAUDE.md`.
 
-**Convención forward**: cada ticket nuevo toma el siguiente number libre cronológicamente. NO reusar numbers ya ejecutados. Próximo libre: **T-075** (después de los renumerados de Sprint 5/6/7).
+**Convención forward**: cada ticket nuevo toma el siguiente number libre cronológicamente. NO reusar numbers ya ejecutados. Próximo libre: **T-077** (T-075 = link `informe_id`/IA de Accidentabilidad; T-076 = doc-sync `src/modules/` en `operativo.md`).
 
 ## Fase 1 · MVP cobrable (target: 6-8 semanas con foco)
 
@@ -169,13 +169,16 @@ Tickets base que dejan el repo listo para construir features.
 
 ### Sprint 6 · Checklists Lite + Incidentes (semana 6-7)
 
-- **T-057 · Migration: checklist_templates, checklist_executions, incidents.**
+- **T-057 · Migration: checklist_templates, checklist_executions.**
 - **T-058 · Módulo Checklists: CRUD de templates.**
 - **T-059 · UI: editor de checklist (items, criterios, requeridos).**
 - **T-060 · Módulo Checklists: ejecutar checklist con firma.**
 - **T-061 · UI: ejecución de checklist en mobile (responsive).**
-- **T-062 · Módulo Accidentabilidad: libro de incidentes simple (sin IA).**
-- **T-063 · UI: alta/listado de incidentes.**
+- **T-062 · Módulo Accidentabilidad: libro de incidentes simple (sin IA).** ✅
+- **T-063 · UI: alta/listado de incidentes.** ✅
+  - **T-063-FU1 · Pulido UX libro de incidentes** ✅ — historial enriquecido (resalta los campos que cambiaron), filtro gravedad server-side, copy "víctima"/"involucrado" según tipo.
+  - **T-063-FU2 · Ver anulados en el listado** (backlog) — toggle "incluir anulados" calcando `IncludeArchivedToggle` de `clientes`; el libro es append-only (los anulados quedan en DB pero hoy no hay forma de verlos desde la UI). Agrupar con el próximo trabajo del módulo.
+- **T-075 · Link `informe_id` incidente↔informe + botón "Generar investigación IA"** (follow-up de Accidentabilidad; RFC propio). El libro es append-only (sólo INSERT/SELECT) → setear `informe_id` en un registro existente hoy sólo se puede vía corrección (ensucia el historial). **RFC-stub**: evaluar un path de **UPDATE acotado** (policy / función `security definer` que sólo permita setear `informe_id`, con audit `action='linked'`) vs el glue-correction; reusar `createInformeAction` con metadata pre-poblada desde el incidente + su cliente; ocultar el botón si el incidente ya está vinculado. Aplica sólo a `tipo='accidente'`.
 
 **Criterio de aceptación Sprint 6:** el usuario puede crear sus checklists, ejecutarlos firmados, registrar incidentes en un libro digital.
 
