@@ -78,6 +78,12 @@ Un cron en este stack es una cadena de cuatro saltos: `pg_cron` (schedule) → `
 
 El merge auto-deploya **solo el código** (webhook EasyPanel, no es job de GitHub Actions → no se ve por `gh`, tarda unos min en rebuildear la imagen ~600MB+Chromium). Las migraciones NO. Si el código mergeado **depende** de un objeto de la migración (FU1: `getEjecucionesForConsultora` lee `checklist_executions_heads`), aplicar la migración a prod **ANTES** del merge: apenas mergeás, el deploy publica el código y si la vista no existe, rompe. Si el código aún no usa el objeto, basta la misma ventana del merge. Gate del `db push`: `migration list --linked` + `db push --linked --dry-run` (diff validado por el orquestador) + OK explícito del owner (es prod), sin `--yes`/`--force` (el prompt se confirma a mano). Contraste con la "Moraleja 1" de T-108 (verificar post-merge): el post-merge sirve de check de drift, pero el ORDEN seguro con auto-deploy es **migración-primero**.
 
+### Numeración de migraciones: contador secuencial por día, no HHMMSS
+
+**Origen**: T-114.
+
+La convención `<YYYYMMDDHHMMSS>_<snake>.sql` se usa en la práctica como contador secuencial por día (`YYYYMMDD00000N`), no wall-clock real. Antes de nombrar una migración nueva: `ls supabase/migrations/ | tail` y tomar el siguiente `00000N` del día. En T-114 la primera propuesta fue `20260604000001` pero ese prefijo ya lo había tomado T-061-FU1 (mismo día) → colisión de versión (confunde `supabase migration list`/`repair`, viola la unicidad esperada). Cazado en review antes de commitear → renombrada a `20260604000002`.
+
 ## Tests integration
 
 ### Suite de integración + E2E escribían a prod → contaminación de 14k consultoras
@@ -103,6 +109,12 @@ Limpiar dependientes antes que padres (informes → clientes → users) evita FK
 ### Test assertions sa-east-1 + Promise.all NO confiables
 
 **Origen**: T-047. Test 3 (anon NO ve clientes) ajustada: `error.code === '42501' permission denied for function is_member_of_consultora` porque los helpers T-015 tienen grant `to authenticated, service_role` (NO anon); defensa en profundidad esperada — anon NUNCA debe llegar a evaluar el filtro RLS porque el helper rechaza antes.
+
+### red→green ejecutado en CI (2 commits) cuando no hay Docker local
+
+**Origen**: T-114.
+
+El gate "demo red→green ejecutada" (no documentada) choca cuando el dev no tiene Docker local (el runner de integration necesita `supabase start` → Docker). Solución que SÍ ejecuta el RED: partir el PR en 2 commits. Commit 1 = solo el test, SIN la migración → el job Integration corre contra el estado viejo → el test falla por la razón esperada (RED real, visible en el run). Commit 2 = agrega la migración → re-corre verde (GREEN). El squash colapsa los 2. NO sirve "diferir a CI" sin el commit-1-sin-migración (el CI siempre corre la branch completa → siempre verde → nunca ves el RED). Tampoco `test:integration:remote` como atajo (apunta a Supabase remoto, crea/borra data real — lo que T-111 aisló). Aplicado en T-114 #204: run rojo 26963251304 → run verde 26963914133. Aclarar en la descripción del PR que el primer run rojo es el RED intencional.
 
 ## Tests unit / component
 
