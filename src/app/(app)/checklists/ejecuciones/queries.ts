@@ -183,12 +183,30 @@ export async function getEjecucionForEdit(
   return { execution, sections: sectionNodes, respuestasByItemId };
 }
 
-/** Listado de ejecuciones VIGENTES del tenant (head de cadena, no anuladas). */
-export async function getEjecucionesForConsultora(sb: Sb): Promise<ChecklistExecutionVigenteRow[]> {
-  const { data } = await sb
-    .from('checklist_executions_vigentes')
-    .select('*')
-    .order('created_at', { ascending: false });
+export type GetEjecucionesOptions = {
+  /**
+   * T-061-FU1: si `true`, lee de `checklist_executions_heads` (head de cada cadena,
+   * INCLUIDAS las anuladas/tombstones) en vez de `checklist_executions_vigentes`.
+   * Ambas vistas son row-compatibles → un solo tipo de retorno. La fila trae
+   * `estado` ('anulada' en los tombstones) para que la UI badgee los anulados.
+   */
+  includeAnuladas?: boolean;
+};
+
+/**
+ * Listado de ejecuciones del tenant. Por default lee de
+ * `checklist_executions_vigentes` (head no anulada); con `includeAnuladas` lee de
+ * `checklist_executions_heads` (head de cada cadena, anuladas incluidas). RLS
+ * filtra cross-tenant. Mismo patrón que `getIncidentes` (T-063-FU2).
+ */
+export async function getEjecucionesForConsultora(
+  sb: Sb,
+  opts: GetEjecucionesOptions = {},
+): Promise<ChecklistExecutionVigenteRow[]> {
+  const source = opts.includeAnuladas
+    ? 'checklist_executions_heads'
+    : 'checklist_executions_vigentes';
+  const { data } = await sb.from(source).select('*').order('created_at', { ascending: false });
   return data ?? [];
 }
 

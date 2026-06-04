@@ -625,3 +625,91 @@ describe('anularEjecucionAction', () => {
     if (!r.ok) expect(r.code).toBe('FORBIDDEN_NOT_OWNER');
   });
 });
+
+// ============================== Vistas heads / vigentes (T-061-FU1) ==============================
+
+describe('checklist_executions_heads (vista — T-061-FU1: anuladas incluidas)', () => {
+  // Cliente member-scoped: lee las vistas con security_invoker → RLS de cA aplica.
+  function memberAClient() {
+    return createSbClient<Database>(url!, anonKey!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+
+  it('13. anulada aparece en heads pero NO en vigentes; superseded en ninguna', async () => {
+    // Cadena: borrador P ← tombstone Q (anula P). Insert directo via admin
+    // (service-role bypassa la INSERT policy que fuerza estado=borrador/anulacion=false).
+    const { data: p } = await admin
+      .from('checklist_executions')
+      .insert({
+        consultora_id: cAId,
+        created_by: ownerAId,
+        template_version_id: versionId,
+        cliente_id: clienteAId,
+        estado: 'borrador',
+      })
+      .select('id')
+      .single();
+    const { data: q } = await admin
+      .from('checklist_executions')
+      .insert({
+        consultora_id: cAId,
+        created_by: ownerAId,
+        template_version_id: versionId,
+        cliente_id: clienteAId,
+        estado: 'anulada',
+        anulacion: true,
+        corrige_id: p!.id,
+      })
+      .select('id')
+      .single();
+
+    const client = memberAClient();
+    const { error: signInErr } = await client.auth.signInWithPassword({
+      email: emailMemberA,
+      password,
+    });
+    expect(signInErr).toBeNull();
+
+    // heads: el head de la cadena es el tombstone Q (anulacion=true); P está superseded.
+    const { data: heads, error: headsErr } = await client
+      .from('checklist_executions_heads')
+      .select('id, estado, anulacion')
+      .in('id', [p!.id, q!.id]);
+    expect(headsErr).toBeNull();
+    expect((heads ?? []).map((r) => r.id)).toEqual([q!.id]);
+    expect(heads?.[0]?.estado).toBe('anulada');
+    expect(heads?.[0]?.anulacion).toBe(true);
+
+    // vigentes: ninguno (la cadena está anulada).
+    const { data: vig } = await client
+      .from('checklist_executions_vigentes')
+      .select('id')
+      .in('id', [p!.id, q!.id]);
+    expect(vig ?? []).toEqual([]);
+  });
+
+  it('14. heads respeta RLS: member de cA NO ve heads de cB (cross-tenant)', async () => {
+    const { data: ins } = await admin
+      .from('checklist_executions')
+      .insert({
+        consultora_id: cBId,
+        created_by: ownerBId,
+        template_version_id: versionId,
+        cliente_id: clienteBId,
+        estado: 'borrador',
+      })
+      .select('id')
+      .single();
+
+    const client = memberAClient();
+    await client.auth.signInWithPassword({ email: emailMemberA, password });
+
+    const { data, error } = await client
+      .from('checklist_executions_heads')
+      .select('id')
+      .eq('id', ins!.id);
+    expect(error).toBeNull();
+    expect(data ?? []).toEqual([]);
+  });
+});
