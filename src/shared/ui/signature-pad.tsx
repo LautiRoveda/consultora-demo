@@ -110,7 +110,13 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(fu
       e.preventDefault();
       const point = getPointFromEvent(e);
       if (!point) return;
-      canvasRef.current?.setPointerCapture(e.pointerId);
+      try {
+        canvasRef.current?.setPointerCapture(e.pointerId);
+      } catch {
+        // setPointerCapture puede tirar (InvalidStateError) con punteros sintéticos
+        // (p.ej. el mouse de Playwright en E2E). El trazo no depende de la captura
+        // —solo mantiene el move si el puntero sale del canvas— así que seguimos.
+      }
       isDrawingRef.current = true;
       lastPointRef.current = point;
 
