@@ -129,19 +129,43 @@ test.describe('Inspecciones · cierre + detalle + PDF + anular (T-061b)', () => 
     await expect(page.getByText(/Se generarán 1 acción/i)).toBeVisible();
     await expect(page.getByTestId('capa-preview')).toBeVisible();
 
-    // Firmar el canvas (pointer drag) + nombre del matriculado.
+    // Firmar el canvas + nombre del matriculado. page.mouse no sintetiza pointer
+    // events que disparen el onPointerDown del pad en el Chromium de CI → dibujamos
+    // despachando PointerEvents reales sobre el canvas (coords vía getBoundingClientRect).
     await page.getByLabel(/Nombre del matriculado/i).fill('Ing. Juana Pérez');
     const canvas = page.getByRole('img', { name: /Pad de firma/i });
-    // El canvas queda bajo el fold en mobile (390x844) → scroll para que el drag
-    // de page.mouse caiga sobre él (boundingBox dentro del viewport).
     await canvas.scrollIntoViewIfNeeded();
-    const box = await canvas.boundingBox();
-    if (!box) throw new Error('canvas de firma sin boundingBox');
-    await page.mouse.move(box.x + 20, box.y + 20);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.7, { steps: 10 });
-    await page.mouse.move(box.x + box.width * 0.9, box.y + box.height * 0.3, { steps: 10 });
-    await page.mouse.up();
+    await canvas.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const at = (x: number, y: number, buttons: number) =>
+        new PointerEvent(buttons ? 'pointermove' : 'pointerup', {
+          clientX: r.left + x,
+          clientY: r.top + y,
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: 'mouse',
+          isPrimary: true,
+          button: 0,
+          buttons,
+        });
+      el.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          clientX: r.left + r.width * 0.15,
+          clientY: r.top + r.height * 0.3,
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: 'mouse',
+          isPrimary: true,
+          button: 0,
+          buttons: 1,
+        }),
+      );
+      el.dispatchEvent(at(r.width * 0.6, r.height * 0.7, 1));
+      el.dispatchEvent(at(r.width * 0.9, r.height * 0.3, 1));
+      el.dispatchEvent(at(r.width * 0.9, r.height * 0.3, 0));
+    });
 
     const submit = page.getByRole('button', { name: 'Cerrar y firmar inspección' });
     await expect(submit).toBeEnabled();
