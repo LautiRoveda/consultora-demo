@@ -143,6 +143,7 @@ export function EjecucionRunner({
 
       {isLast && (
         <ReadyToCloseCard
+          executionId={executionId}
           isOwner={isOwner}
           answeredRequired={answeredRequired}
           totalRequired={totalRequired}

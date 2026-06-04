@@ -1,16 +1,17 @@
 /**
- * T-102 · Unit tests del SignaturePad canvas component.
+ * T-102 · Unit tests del SignaturePad canvas component (T-061b: lift a shared/ui,
+ * lo comparten EPP entregas y Checklists cierre).
  *
  * jsdom no implementa HTMLCanvasElement.getContext('2d') ni toDataURL real.
  * Mockeamos prototype methods para verificar la API contractual: render con
  * dimensiones, clear() invoca clearRect, toDataURL() devuelve string PNG.
  */
-import type { SignaturePadHandle } from '@/app/(app)/epp/entregas/SignaturePad';
+import type { SignaturePadHandle } from '@/shared/ui/signature-pad';
 import { cleanup, render, screen } from '@testing-library/react';
 import { createRef } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { SignaturePad } from '@/app/(app)/epp/entregas/SignaturePad';
+import { SignaturePad } from '@/shared/ui/signature-pad';
 
 type CtxMock = {
   clearRect: ReturnType<typeof vi.fn>;

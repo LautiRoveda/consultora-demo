@@ -1,8 +1,8 @@
 'use client';
 
+import type { SignaturePadHandle } from '@/shared/ui/signature-pad';
 import type { ItemCatalogOption } from './EntregaItemsBuilder';
 import type { CreateEntregaInput } from './schema';
-import type { SignaturePadHandle } from './SignaturePad';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState } from 'react';
@@ -13,12 +13,12 @@ import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/shared/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select';
+import { SignaturePad } from '@/shared/ui/signature-pad';
 import { Textarea } from '@/shared/ui/textarea';
 
 import { createEntregaAction } from './actions';
 import { EntregaItemsBuilder } from './EntregaItemsBuilder';
 import { createEntregaSchema, DEFAULT_MOTIVO_ENTREGA } from './schema';
-import { SignaturePad } from './SignaturePad';
 
 type WizardStep = 'empleado' | 'items' | 'firma';
 

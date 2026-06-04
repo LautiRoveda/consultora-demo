@@ -178,8 +178,8 @@ test.describe('Inspecciones · runner (T-061a)', () => {
       )
       .toBeGreaterThan(0);
 
-    // Sección única = última → card de cierre (owner).
-    await expect(page.getByText(/vas a poder cerrar y firmar/i)).toBeVisible();
+    // Sección única = última + ítem obligatorio respondido → CTA de cierre (owner, T-061b).
+    await expect(page.getByRole('link', { name: /Cerrar y firmar inspección/i })).toBeVisible();
 
     // Guard: anular el borrador por fuera → el próximo save da EXEC_NOT_DRAFT.
     await adminClient
