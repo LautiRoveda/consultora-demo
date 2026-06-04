@@ -280,3 +280,101 @@ export async function getEjecucionForPdf(
     firmaMatriculado: firma ?? null,
   };
 }
+
+// ============================== Read para el detalle (T-061b) ==============================
+
+export type CapaForDetail = {
+  id: string;
+  descripcion: string;
+  prioridad: string;
+  estado: string;
+  /** YYYY-MM-DD. */
+  fecha_compromiso: string;
+  calendar_event_id: string | null;
+  /** YYYY-MM-DD del evento de calendario (para el `?month=` del deep-link). null si no hay evento. */
+  calendar_event_fecha_vencimiento: string | null;
+};
+
+/**
+ * CAPAs (acciones_correctivas) de una ejecución para el detalle, con la fecha del
+ * evento de calendario asociado (para deep-linkear a /calendario?event=&month=).
+ * Dos pasos (no embed PostgREST): trae las CAPAs y, si alguna tiene
+ * calendar_event_id, resuelve las fechas en un solo IN(...) (RLS-scoped igual).
+ */
+export async function getAccionesForExecution(
+  sb: Sb,
+  executionId: string,
+): Promise<CapaForDetail[]> {
+  const { data: acciones } = await sb
+    .from('acciones_correctivas')
+    .select('id, descripcion, prioridad, estado, fecha_compromiso, calendar_event_id')
+    .eq('execution_id', executionId)
+    .order('fecha_compromiso', { ascending: true });
+  const rows = acciones ?? [];
+
+  const eventIds = [
+    ...new Set(rows.map((r) => r.calendar_event_id).filter((x): x is string => x != null)),
+  ];
+  const fechaByEventId = new Map<string, string>();
+  if (eventIds.length > 0) {
+    const { data: events } = await sb
+      .from('calendar_events')
+      .select('id, fecha_vencimiento')
+      .in('id', eventIds);
+    for (const e of events ?? []) fechaByEventId.set(e.id, e.fecha_vencimiento);
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    descripcion: r.descripcion,
+    prioridad: r.prioridad,
+    estado: r.estado,
+    fecha_compromiso: r.fecha_compromiso,
+    calendar_event_id: r.calendar_event_id,
+    calendar_event_fecha_vencimiento: r.calendar_event_id
+      ? (fechaByEventId.get(r.calendar_event_id) ?? null)
+      : null,
+  }));
+}
+
+/**
+ * ¿La ejecución es la cabeza vigente de su cadena? (espeja la vista
+ * checklist_executions_vigentes: anulacion=false AND sin hijo que la corrija).
+ * El único hijo posible en checklists es el tombstone de anulación → `false`
+ * = anulada/superseded.
+ */
+async function isEjecucionVigente(sb: Sb, execution: ChecklistExecutionRow): Promise<boolean> {
+  if (execution.anulacion) return false;
+  const { data } = await sb
+    .from('checklist_executions')
+    .select('id')
+    .eq('corrige_id', execution.id)
+    .limit(1)
+    .maybeSingle();
+  return data == null;
+}
+
+export type EjecucionForDetail = EjecucionForPdf & {
+  acciones: CapaForDetail[];
+  /** Cabeza vigente (cerrada head). false = anulada/superseded → banner read-only. */
+  esVigente: boolean;
+};
+
+/**
+ * Datos completos del detalle de una ejecución cerrada/anulada (T-061b): el mismo
+ * shape del PDF + sus CAPAs (con fecha de calendario) + flag de vigencia. El page
+ * firma firma/adjuntos sobre este shape (igual que el print page). `null` si no
+ * existe / RLS / cross-tenant.
+ */
+export async function getEjecucionForDetail(
+  sb: Sb,
+  executionId: string,
+): Promise<EjecucionForDetail | null> {
+  const base = await getEjecucionForPdf(sb, executionId);
+  if (!base) return null;
+  const [acciones, esVigente] = await Promise.all([
+    getAccionesForExecution(sb, executionId),
+    isEjecucionVigente(sb, base.execution),
+  ]);
+  return { ...base, acciones, esVigente };
+}

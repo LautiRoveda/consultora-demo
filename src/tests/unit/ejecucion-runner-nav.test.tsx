@@ -109,10 +109,33 @@ describe('EjecucionRunner', () => {
     expect(screen.queryByText(/vas a poder cerrar y firmar/i)).not.toBeInTheDocument();
   });
 
-  it('última sección: owner ve el texto de cierre (no "pedile al titular")', () => {
+  it('última sección incompleta: owner ve "Cierre con firma" (no "pedile al titular", no CTA)', () => {
     renderRunner(true);
     fireEvent.click(screen.getByRole('button', { name: /Siguiente/ }));
-    expect(screen.getByText(/vas a poder cerrar y firmar/i)).toBeInTheDocument();
+    expect(screen.getByText(/Cierre con firma/i)).toBeInTheDocument();
     expect(screen.queryByText(/Pedile al titular/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /Cerrar y firmar inspección/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('última sección completa: owner ve el CTA "Cerrar y firmar" → /cerrar (T-061b)', () => {
+    const todas: Record<string, ExecutionRespuestaRow> = {
+      i1: { id: 'r1', valor: 'si' } as ExecutionRespuestaRow,
+      i2: { id: 'r2', valor: 'si' } as ExecutionRespuestaRow,
+      i3: { id: 'r3', valor: 'si' } as ExecutionRespuestaRow,
+    };
+    render(
+      <EjecucionRunner
+        executionId={EXEC}
+        isOwner
+        sections={sections}
+        respuestasByItemId={todas}
+        adjuntosByItemId={{}}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Siguiente/ }));
+    const cta = screen.getByRole('link', { name: /Cerrar y firmar inspección/i });
+    expect(cta).toHaveAttribute('href', `/checklists/ejecuciones/${EXEC}/cerrar`);
   });
 });

@@ -5,19 +5,19 @@ import { notFound, redirect } from 'next/navigation';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { formatCivilDateAR } from '@/shared/lib/format-date';
 import { createSignedChecklistAdjuntoUrl } from '@/shared/storage/checklist-adjuntos';
+import { createSignedChecklistFirmaUrl } from '@/shared/storage/checklist-firmas';
 import { createClient } from '@/shared/supabase/server';
 import { Button } from '@/shared/ui/button';
 
 import { getClienteById } from '../../../clientes/queries';
-import { EjecucionCerradaPlaceholder } from '../EjecucionCerradaPlaceholder';
+import { EjecucionDetailView } from '../EjecucionDetailView';
 import { EjecucionRunner } from '../EjecucionRunner';
-import { getEjecucionForEdit } from '../queries';
+import { getEjecucionBasics, getEjecucionForDetail, getEjecucionForEdit } from '../queries';
 
 /**
- * T-061a · Pantalla de relevamiento de una inspección. borrador → runner
- * sección-por-sección; cerrada/anulada → placeholder (T-061b trae el detalle).
- * Carga los adjuntos existentes + signed URLs y los agrupa por ítem (vía respuesta_id)
- * para que las fotos sobrevivan a un reload.
+ * T-061a/b · Pantalla de una inspección. borrador → runner sección-por-sección;
+ * cerrada/anulada → detalle completo (T-061b) con score, hallazgos+fotos, CAPAs,
+ * firma, Descargar PDF y Anular. Carga los adjuntos + signed URLs.
  */
 export default async function EjecucionRunnerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -31,12 +31,50 @@ export default async function EjecucionRunnerPage({ params }: { params: Promise<
   const consultora = await getCurrentConsultora(supabase, user.id);
   if (!consultora) redirect('/dashboard');
 
+  const basics = await getEjecucionBasics(supabase, id);
+  if (!basics) notFound();
+
+  // ── Cerrada / anulada → detalle completo (T-061b). ──────────────────────────
+  if (basics.estado !== 'borrador') {
+    const detail = await getEjecucionForDetail(supabase, id);
+    if (!detail) notFound();
+
+    let firmaUrl: string | null = null;
+    if (detail.firmaMatriculado?.firma_storage_path) {
+      const { signedUrl } = await createSignedChecklistFirmaUrl(
+        supabase,
+        detail.firmaMatriculado.firma_storage_path,
+      );
+      firmaUrl = signedUrl;
+    }
+
+    const adjuntosByRespuesta: Record<string, string[]> = {};
+    await Promise.all(
+      detail.adjuntos.map(async (a) => {
+        if (!a.respuesta_id) return;
+        const { signedUrl } = await createSignedChecklistAdjuntoUrl(supabase, a.storage_path);
+        if (signedUrl) (adjuntosByRespuesta[a.respuesta_id] ??= []).push(signedUrl);
+      }),
+    );
+
+    return (
+      <EjecucionDetailView
+        execution={detail.execution}
+        sections={detail.sections}
+        respuestasByItemId={detail.respuestasByItemId}
+        adjuntosByRespuesta={adjuntosByRespuesta}
+        firma={detail.firmaMatriculado}
+        firmaUrl={firmaUrl}
+        acciones={detail.acciones}
+        esVigente={detail.esVigente}
+        isOwner={consultora.role === 'owner'}
+      />
+    );
+  }
+
+  // ── Borrador → runner (T-061a). ─────────────────────────────────────────────
   const data = await getEjecucionForEdit(supabase, id);
   if (!data) notFound();
-
-  if (data.execution.estado !== 'borrador') {
-    return <EjecucionCerradaPlaceholder execution={data.execution} />;
-  }
 
   // Adjuntos existentes → signed URLs, agrupados por ítem (respuesta_id → item).
   const itemIdByRespuestaId = new Map<string, string>();
