@@ -132,6 +132,9 @@ test.describe('Inspecciones · cierre + detalle + PDF + anular (T-061b)', () => 
     // Firmar el canvas (pointer drag) + nombre del matriculado.
     await page.getByLabel(/Nombre del matriculado/i).fill('Ing. Juana Pérez');
     const canvas = page.getByRole('img', { name: /Pad de firma/i });
+    // El canvas queda bajo el fold en mobile (390x844) → scroll para que el drag
+    // de page.mouse caiga sobre él (boundingBox dentro del viewport).
+    await canvas.scrollIntoViewIfNeeded();
     const box = await canvas.boundingBox();
     if (!box) throw new Error('canvas de firma sin boundingBox');
     await page.mouse.move(box.x + 20, box.y + 20);
