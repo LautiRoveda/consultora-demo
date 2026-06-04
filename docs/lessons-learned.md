@@ -72,6 +72,12 @@ Un cron en este stack es una cadena de cuatro saltos: `pg_cron` (schedule) → `
 
 **0 emails con status 200 = éxito** cuando no hay actividad: el route hace skip silencioso si la consultora no tiene nada accionable (no inserta en la log table). El smoke valida el DISPARO (200), no el envío. Runbook completo: `docs/operations/t-109-weekly-summary-smoke.md`.
 
+### Orden `db push` ↔ merge cuando el código depende de la migración
+
+**Origen**: T-061-FU1. **Aplicable a**: cualquier merge cuyo código nuevo lea una vista/tabla/RPC recién creada.
+
+El merge auto-deploya **solo el código** (webhook EasyPanel, no es job de GitHub Actions → no se ve por `gh`, tarda unos min en rebuildear la imagen ~600MB+Chromium). Las migraciones NO. Si el código mergeado **depende** de un objeto de la migración (FU1: `getEjecucionesForConsultora` lee `checklist_executions_heads`), aplicar la migración a prod **ANTES** del merge: apenas mergeás, el deploy publica el código y si la vista no existe, rompe. Si el código aún no usa el objeto, basta la misma ventana del merge. Gate del `db push`: `migration list --linked` + `db push --linked --dry-run` (diff validado por el orquestador) + OK explícito del owner (es prod), sin `--yes`/`--force` (el prompt se confirma a mano). Contraste con la "Moraleja 1" de T-108 (verificar post-merge): el post-merge sirve de check de drift, pero el ORDEN seguro con auto-deploy es **migración-primero**.
+
 ## Tests integration
 
 ### Suite de integración + E2E escribían a prod → contaminación de 14k consultoras
@@ -97,6 +103,14 @@ Limpiar dependientes antes que padres (informes → clientes → users) evita FK
 ### Test assertions sa-east-1 + Promise.all NO confiables
 
 **Origen**: T-047. Test 3 (anon NO ve clientes) ajustada: `error.code === '42501' permission denied for function is_member_of_consultora` porque los helpers T-015 tienen grant `to authenticated, service_role` (NO anon); defensa en profundidad esperada — anon NUNCA debe llegar a evaluar el filtro RLS porque el helper rechaza antes.
+
+## Tests unit / component
+
+### Flaky por timeout de `waitFor` bajo contención del CI (project component)
+
+**Origen**: T-116. **Aplicable a**: cualquier `.test.tsx` con cadenas async (RHF+Zod, toasts) en el project `component`.
+
+`ClienteForm > DUPLICATE_CUIT` flapeaba ~1/N en CI: el `waitFor`/`findBy` default de testing-library (1000ms) vence bajo contención de CPU al correr los 94 archivos del project `component` en paralelo; en aislamiento pasa siempre. **Fix**: `configure({ asyncUtilTimeout: 5000 })` global en `src/tests/setup.ts` (lo carga solo el project component → no toca unit/integration); sube el techo de TODOS los async utils, y los que ya pasaban resuelven al primer intento. **Diagnóstico**: los projects de vitest (`unit` .test.ts/node, `component` .test.tsx/jsdom, `integration`) corren en pools/environments separados con `isolate=true` → un test de un project NO contamina a otro. **Descartá cross-project antes de buscar state pollution**: el flaky de un `.test.tsx` no lo causa un `.test.ts` nuevo de otro ticket (caso real: se sospechó de T-061-FU1, cuyo test es project `unit`, pool aparte). Verificación de un fix de flaky por timing: correr la suite completa 3-5× seguidas, no una sola vez.
 
 ## Tests E2E
 
@@ -223,6 +237,12 @@ Cuando un componente client (Collapsible+useMediaQuery+useState) tiene que rende
 ### CSP `img-src` para signed URLs cross-origin
 
 **Origen**: T-024 hallazgo crítico. El CSP `img-src 'self' data:` bloquea silenciosamente las signed URLs cross-origin al host `*.supabase.co`. Fix: derivar el origin desde `NEXT_PUBLIC_SUPABASE_URL` y agregarlo dinámicamente al `img-src` server-side, con fallback `https:` si el env está malformado (más restrictivo que `*`). Síntoma sin fix: PDF sale con alt text + icono "broken image" donde debería estar el logo/foto.
+
+### Tombstone vacío: el listado de anulados linkea al original, no al tombstone
+
+**Origen**: T-061-FU1 (checklists). **Aplicable a**: cualquier listado "ver anulados" sobre el modelo de supersession `corrige_id` + tombstone.
+
+Anular inserta un **tombstone hijo** (`anulacion=true`, `corrige_id`→original) que **NO** copia el snapshot/respuestas/firma — esos viven en el registro original. La vista `_heads` devuelve el **tombstone** como head de la cadena (el original queda superseded por su hijo). Si el listado de anulados linkea a `row.id` (el tombstone), el detalle busca datos por `execution_id=tombstone.id` → **pantalla vacía**. **Fix**: linkear las filas anuladas a `corrige_id` (el original), cuyo detalle ya renderiza todo + banner "anulada" (tiene hijo tombstone → `esVigente=false`). Incidentes (T-063-FU2) lo resuelve distinto: su `HistorialTimeline` sigue `corrige_id` desde el detalle del propio tombstone. **Moraleja**: al calcar el patrón `_heads`/"ver anulados" de otro módulo, resolver primero **de dónde salen los datos del detalle** del tombstone — no asumir que el head trae el contenido.
 
 ## Operativo / VPS
 
