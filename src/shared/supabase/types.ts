@@ -116,6 +116,13 @@ export type Database = {
             foreignKeyName: 'acciones_correctivas_execution_id_fkey';
             columns: ['execution_id'];
             isOneToOne: false;
+            referencedRelation: 'checklist_executions_heads';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'acciones_correctivas_execution_id_fkey';
+            columns: ['execution_id'];
+            isOneToOne: false;
             referencedRelation: 'checklist_executions_vigentes';
             referencedColumns: ['id'];
           },
@@ -451,6 +458,13 @@ export type Database = {
             columns: ['corrige_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions_heads';
             referencedColumns: ['id'];
           },
           {
@@ -1205,6 +1219,13 @@ export type Database = {
             foreignKeyName: 'execution_adjuntos_execution_id_fkey';
             columns: ['execution_id'];
             isOneToOne: false;
+            referencedRelation: 'checklist_executions_heads';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'execution_adjuntos_execution_id_fkey';
+            columns: ['execution_id'];
+            isOneToOne: false;
             referencedRelation: 'checklist_executions_vigentes';
             referencedColumns: ['id'];
           },
@@ -1270,6 +1291,13 @@ export type Database = {
             foreignKeyName: 'execution_firmas_execution_id_fkey';
             columns: ['execution_id'];
             isOneToOne: false;
+            referencedRelation: 'checklist_executions_heads';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'execution_firmas_execution_id_fkey';
+            columns: ['execution_id'];
+            isOneToOne: false;
             referencedRelation: 'checklist_executions_vigentes';
             referencedColumns: ['id'];
           },
@@ -1325,6 +1353,13 @@ export type Database = {
             columns: ['execution_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'execution_respuestas_execution_id_fkey';
+            columns: ['execution_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions_heads';
             referencedColumns: ['id'];
           },
           {
@@ -2080,6 +2115,136 @@ export type Database = {
       };
     };
     Views: {
+      checklist_executions_heads: {
+        Row: {
+          anulacion: boolean | null;
+          cerrada_at: string | null;
+          cliente_id: string | null;
+          consultora_id: string | null;
+          corrige_id: string | null;
+          created_at: string | null;
+          created_by: string | null;
+          cumplimiento_pct: number | null;
+          establecimiento_cuit: string | null;
+          establecimiento_domicilio: string | null;
+          establecimiento_localidad: string | null;
+          establecimiento_provincia: string | null;
+          establecimiento_razon_social: string | null;
+          estado: string | null;
+          fecha_inspeccion: string | null;
+          firma_pdf_hash: string | null;
+          gps_lat: number | null;
+          gps_lng: number | null;
+          id: string | null;
+          inspector_user_id: string | null;
+          score_cumple: number | null;
+          score_na: number | null;
+          score_no_cumple: number | null;
+          template_version_id: string | null;
+          tiene_criticos_incumplidos: boolean | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          anulacion?: boolean | null;
+          cerrada_at?: string | null;
+          cliente_id?: string | null;
+          consultora_id?: string | null;
+          corrige_id?: string | null;
+          created_at?: string | null;
+          created_by?: string | null;
+          cumplimiento_pct?: number | null;
+          establecimiento_cuit?: string | null;
+          establecimiento_domicilio?: string | null;
+          establecimiento_localidad?: string | null;
+          establecimiento_provincia?: string | null;
+          establecimiento_razon_social?: string | null;
+          estado?: string | null;
+          fecha_inspeccion?: string | null;
+          firma_pdf_hash?: string | null;
+          gps_lat?: number | null;
+          gps_lng?: number | null;
+          id?: string | null;
+          inspector_user_id?: string | null;
+          score_cumple?: number | null;
+          score_na?: number | null;
+          score_no_cumple?: number | null;
+          template_version_id?: string | null;
+          tiene_criticos_incumplidos?: boolean | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          anulacion?: boolean | null;
+          cerrada_at?: string | null;
+          cliente_id?: string | null;
+          consultora_id?: string | null;
+          corrige_id?: string | null;
+          created_at?: string | null;
+          created_by?: string | null;
+          cumplimiento_pct?: number | null;
+          establecimiento_cuit?: string | null;
+          establecimiento_domicilio?: string | null;
+          establecimiento_localidad?: string | null;
+          establecimiento_provincia?: string | null;
+          establecimiento_razon_social?: string | null;
+          estado?: string | null;
+          fecha_inspeccion?: string | null;
+          firma_pdf_hash?: string | null;
+          gps_lat?: number | null;
+          gps_lng?: number | null;
+          id?: string | null;
+          inspector_user_id?: string | null;
+          score_cumple?: number | null;
+          score_na?: number | null;
+          score_no_cumple?: number | null;
+          template_version_id?: string | null;
+          tiene_criticos_incumplidos?: boolean | null;
+          updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'checklist_executions_cliente_id_fkey';
+            columns: ['cliente_id'];
+            isOneToOne: false;
+            referencedRelation: 'clientes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions_heads';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions_vigentes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_template_version_id_fkey';
+            columns: ['template_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_template_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       checklist_executions_vigentes: {
         Row: {
           anulacion: boolean | null;
@@ -2185,6 +2350,13 @@ export type Database = {
             columns: ['corrige_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checklist_executions_corrige_id_fkey';
+            columns: ['corrige_id'];
+            isOneToOne: false;
+            referencedRelation: 'checklist_executions_heads';
             referencedColumns: ['id'];
           },
           {
