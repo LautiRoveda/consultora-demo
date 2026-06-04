@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { createClient } from '@/shared/supabase/server';
 import { Badge } from '@/shared/ui/badge';
+import { Button } from '@/shared/ui/button';
 
 import { CloneSystemButton } from '../CloneSystemButton';
 import { EditDraftButton } from '../EditDraftButton';
@@ -81,19 +82,27 @@ export default async function ChecklistTemplatePage({
         />
       ) : (
         <div className="space-y-4">
-          {canEdit && (
-            <div className="flex flex-wrap items-center gap-2">
-              {isSystem && <CloneSystemButton systemTemplateId={template.id} size="default" />}
-              {isOwn && !isArchived && version.estado === 'published' && (
-                <EditDraftButton templateId={template.id} />
-              )}
-              {isOwn && isArchived && (
-                <p className="text-muted-foreground text-sm">
-                  Restaurá el template desde la lista para poder editarlo.
-                </p>
-              )}
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* T-061a: ejecutar = uso diario, lo puede hacer cualquier member. */}
+            {!isArchived && version.estado === 'published' && (
+              <Button asChild>
+                <Link href={`/checklists/ejecuciones/nueva?template=${template.id}`}>
+                  Ejecutar inspección
+                </Link>
+              </Button>
+            )}
+            {canEdit && isSystem && (
+              <CloneSystemButton systemTemplateId={template.id} size="default" />
+            )}
+            {canEdit && isOwn && !isArchived && version.estado === 'published' && (
+              <EditDraftButton templateId={template.id} />
+            )}
+            {canEdit && isOwn && isArchived && (
+              <p className="text-muted-foreground text-sm">
+                Restaurá el template desde la lista para poder editarlo.
+              </p>
+            )}
+          </div>
           <TemplateReadOnlyView sections={sections} />
         </div>
       )}

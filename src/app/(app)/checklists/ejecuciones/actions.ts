@@ -69,7 +69,7 @@ export type CreateEjecucionResult =
   | DomainFailure<'VERSION_NOT_PUBLISHED' | 'NO_CLIENTE' | 'INTERNAL_ERROR'>;
 
 export type SaveRespuestaResult =
-  | { ok: true }
+  | { ok: true; respuestaId: string }
   | InvalidInput
   | AccessFailure
   | DomainFailure<'NOT_FOUND' | 'EXEC_NOT_DRAFT' | 'INTERNAL_ERROR'>;
@@ -283,9 +283,11 @@ export async function saveRespuestaAction(input: unknown): Promise<SaveRespuesta
       break;
   }
 
-  const { error } = await supabase
+  // RETURNING id: la UI lo usa para atar la foto al hallazgo recién guardado (T-061a).
+  const { data: rows, error } = await supabase
     .from('execution_respuestas')
-    .upsert(payload, { onConflict: 'execution_id,template_item_id' });
+    .upsert(payload, { onConflict: 'execution_id,template_item_id' })
+    .select('id');
 
   if (error?.code === RLS_VIOLATION_CODE) {
     // Carrera: la inspección dejó de ser borrador entre el guard y el UPSERT.
@@ -303,8 +305,15 @@ export async function saveRespuestaAction(input: unknown): Promise<SaveRespuesta
     };
   }
 
+  const respuestaId = rows?.[0]?.id;
+  if (!respuestaId) {
+    // 0 filas sin error = el UPDATE del UPSERT lo filtró RLS USING (parent dejó de ser
+    // borrador entre el guard y el write). Mismo significado que el 42501 de arriba.
+    return { ok: false, code: 'EXEC_NOT_DRAFT', message: 'La inspección ya no es editable.' };
+  }
+
   revalidateEjecucion(d.executionId);
-  return { ok: true };
+  return { ok: true, respuestaId };
 }
 
 // ============================== Adjuntos (fotos) ==============================
