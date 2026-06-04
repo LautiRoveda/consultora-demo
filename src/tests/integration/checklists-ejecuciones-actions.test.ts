@@ -315,18 +315,23 @@ describe('saveRespuestaAction', () => {
     const executionId = await freshExecution();
     const r = await saveCumple(executionId, item1Id, 'si');
     expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // T-061a: el action devuelve el respuestaId (la UI lo usa para atar la foto).
+    expect(r.respuestaId).toMatch(/^[0-9a-f-]{36}$/);
 
     const { data: resp } = await admin
       .from('execution_respuestas')
-      .select('valor, consultora_id')
+      .select('id, valor, consultora_id')
       .eq('execution_id', executionId)
       .eq('template_item_id', item1Id)
       .single();
-    expect(resp).toMatchObject({ valor: 'si', consultora_id: cAId });
+    expect(resp).toMatchObject({ id: r.respuestaId, valor: 'si', consultora_id: cAId });
 
-    // Segundo save = UPDATE (mismo par execution+item, unique index).
+    // Segundo save = UPDATE (mismo par execution+item, unique index) → mismo respuestaId.
     const r2 = await saveCumple(executionId, item1Id, 'no', '2026-07-01');
     expect(r2.ok).toBe(true);
+    if (!r2.ok) return;
+    expect(r2.respuestaId).toBe(r.respuestaId);
     const { data: resp2 } = await admin
       .from('execution_respuestas')
       .select('valor, fecha_regularizacion')
