@@ -50,10 +50,11 @@ describe('AppSidebarNav', () => {
     // (vive como sub-tab de Configuracion). T-049: Clientes soon → live.
     // T-054: Empleados soon → live. T-101: EPP soon → live (redirige a
     // /epp/catalogo hasta que T-106 traiga padron). T-063: Accidentabilidad
-    // live. T-059: Checklists live. T-061a: Inspecciones live. Total 10 items.
+    // live. T-059: Checklists live. T-061a: Inspecciones live. T-117: Asistente
+    // live. Total 11 items.
     const navEl = screen.getByRole('navigation');
     const items = navEl.querySelectorAll('li');
-    expect(items.length).toBe(10);
+    expect(items.length).toBe(11);
 
     const soonButtons = navEl.querySelectorAll<HTMLButtonElement>(
       'button[aria-disabled="true"][disabled]',
