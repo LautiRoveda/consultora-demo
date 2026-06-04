@@ -140,8 +140,8 @@ test.describe('Inspecciones · runner (T-061a)', () => {
     await expect(page.getByText('Seguridad')).toBeVisible();
     await expect(page.getByText('Extintores señalizados')).toBeVisible();
 
-    // Responder "Cumple" → autosave.
-    await page.getByRole('radio', { name: 'Cumple' }).click();
+    // Responder "Cumple" → autosave. exact: "Cumple" es substring de "No cumple".
+    await page.getByRole('radio', { name: 'Cumple', exact: true }).click();
     await expect(page.getByText('Guardado')).toBeVisible({ timeout: 10_000 });
 
     await expect
@@ -186,7 +186,7 @@ test.describe('Inspecciones · runner (T-061a)', () => {
       .update({ estado: 'anulada' })
       .eq('id', executionId);
 
-    await page.getByRole('radio', { name: 'No cumple' }).click();
+    await page.getByRole('radio', { name: 'No cumple', exact: true }).click();
     await expect(page.getByText(/ya fue cerrada o anulada/i)).toBeVisible({ timeout: 10_000 });
   });
 });
