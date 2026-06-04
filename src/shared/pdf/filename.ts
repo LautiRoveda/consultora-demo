@@ -122,3 +122,31 @@ export function buildEppPlanillaFilename(args: BuildEppPlanillaFilenameArgs): st
   if (slug === 'informe') slug = 'empleado';
   return `planilla-299-11-${slug}-${fecha}.pdf`;
 }
+
+export type BuildChecklistInspeccionFilenameArgs = {
+  /** Razón social del establecimiento (snapshot congelado al cierre). */
+  establecimiento: string | null;
+  /** ISO de cierre — usamos la fecha (YYYY-MM-DD) para el sufijo. */
+  cerradaAt: string | Date;
+};
+
+/**
+ * T-060b · Filename canónico del PDF de inspección RGRL.
+ *
+ * Formato: `inspeccion-rgrl-<slug-establecimiento>-<YYYY-MM-DD>.pdf`.
+ * Ejemplo: `inspeccion-rgrl-metalurgica-del-sur-sa-2026-06-03.pdf`.
+ * Fecha UTC (evita off-by-one por timezone del dispositivo).
+ */
+export function buildChecklistInspeccionFilename(
+  args: BuildChecklistInspeccionFilenameArgs,
+): string {
+  const date = typeof args.cerradaAt === 'string' ? new Date(args.cerradaAt) : args.cerradaAt;
+  const yyyy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(date.getUTCDate()).padStart(2, '0');
+  const fecha = `${yyyy}-${mm}-${dd}`;
+
+  let slug = slugifyTitulo(args.establecimiento ?? '');
+  if (slug === 'informe') slug = 'establecimiento';
+  return `inspeccion-rgrl-${slug}-${fecha}.pdf`;
+}

@@ -113,9 +113,18 @@ export const cerrarEjecucionSchema = z.object({
   gps_lng: z.number().min(-180).max(180).optional(),
 });
 
+// ============================== Anular (T-060b) ==============================
+
+export const anularEjecucionSchema = z.object({
+  executionId: uuidField,
+  // Motivo opcional: va al logger/audit (no hay columna en checklist_executions).
+  motivo: z.string().trim().max(2000, { message: 'Máximo 2000 caracteres.' }).optional(),
+});
+
 // ============================== Tipos inferidos ==============================
 
 export type CreateEjecucionInput = z.infer<typeof createEjecucionSchema>;
 export type SaveRespuestaInput = z.infer<typeof saveRespuestaSchema>;
 export type UploadAdjuntoInput = z.infer<typeof uploadAdjuntoSchema>;
 export type CerrarEjecucionInput = z.infer<typeof cerrarEjecucionSchema>;
+export type AnularEjecucionInput = z.infer<typeof anularEjecucionSchema>;

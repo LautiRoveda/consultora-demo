@@ -237,7 +237,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // Orden: executions (RESTRICT vs versions) → templates (cascade versions) → resto.
+  // Orden: CAPAs (RESTRICT vs executions) + calendar (acciones→event SET NULL) →
+  // executions (RESTRICT vs versions) → templates (cascade versions) → resto.
+  await admin.from('calendar_event_reminders').delete().in('consultora_id', [cAId, cBId]);
+  await admin.from('calendar_events').delete().in('consultora_id', [cAId, cBId]);
+  await admin.from('acciones_correctivas').delete().in('consultora_id', [cAId, cBId]);
   await admin.from('checklist_executions').delete().in('consultora_id', [cAId, cBId]);
   await admin.from('checklist_templates').delete().in('consultora_id', [cAId, cBId]);
   await admin.from('clientes').delete().in('consultora_id', [cAId, cBId]);
@@ -462,5 +466,157 @@ describe('cerrarEjecucionAction', () => {
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe('NOT_FOUND');
+  });
+});
+
+// fecha futura para que los reminders [30,7,0] no caigan en el pasado (gen los omite).
+function futureDateISO(daysAhead: number): string {
+  return new Date(Date.now() + daysAhead * 86_400_000).toISOString().slice(0, 10);
+}
+
+// ============================== CAPA + calendario (T-060b) ==============================
+
+describe('cerrarEjecucionAction · CAPA + calendario', () => {
+  it('10. cierre con un "no cumple" → 1 CAPA (alta) + calendar_event accion_correctiva + reminders [30,7,0]', async () => {
+    const executionId = await freshExecution();
+    const future = futureDateISO(90);
+    await saveCumple(executionId, item1Id, 'si'); // cumple
+    await saveCumple(executionId, item2Id, 'no', future); // no cumple (crítico → prioridad alta)
+
+    await signInAs(emailOwnerA);
+    const { cerrarEjecucionAction } = await execActions();
+    const r = await cerrarEjecucionAction({
+      executionId,
+      firma_base64: FIRMA_PNG,
+      firmante_nombre: 'Ing. Pérez',
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.capaCount).toBe(1);
+
+    const { data: capas } = await admin
+      .from('acciones_correctivas')
+      .select(
+        'id, prioridad, fecha_compromiso, estado, calendar_event_id, cliente_id, respuesta_id',
+      )
+      .eq('execution_id', executionId);
+    expect(capas?.length).toBe(1);
+    const capa = capas![0]!;
+    expect(capa.prioridad).toBe('alta');
+    expect(capa.fecha_compromiso).toBe(future);
+    expect(capa.estado).toBe('abierta');
+    expect(capa.cliente_id).toBe(clienteAId);
+    expect(capa.calendar_event_id).not.toBeNull();
+
+    const { data: ev } = await admin
+      .from('calendar_events')
+      .select('tipo, status, fecha_vencimiento')
+      .eq('id', capa.calendar_event_id!)
+      .single();
+    expect(ev).toMatchObject({
+      tipo: 'accion_correctiva',
+      status: 'pending',
+      fecha_vencimiento: future,
+    });
+
+    const { data: reminders } = await admin
+      .from('calendar_event_reminders')
+      .select('offset_days, scheduled_at, status')
+      .eq('event_id', capa.calendar_event_id!);
+    expect((reminders ?? []).map((x) => x.offset_days).sort((a, b) => b - a)).toEqual([30, 7, 0]);
+    for (const rem of reminders ?? []) {
+      expect(rem.status).toBe('pending');
+      expect(new Date(rem.scheduled_at).getTime()).toBeGreaterThan(Date.now());
+    }
+
+    // Idempotencia: re-invocar gen_acciones_calendar_for NO duplica el evento.
+    await admin.rpc('gen_acciones_calendar_for', { p_execution_id: executionId });
+    const { count } = await admin
+      .from('calendar_events')
+      .select('id', { count: 'exact', head: true })
+      .contains('metadata', { execution_id: executionId });
+    expect(count).toBe(1);
+  });
+});
+
+// ============================== anularEjecucionAction (T-060b) ==============================
+
+describe('anularEjecucionAction', () => {
+  it('11. anular cerrada → CAPAs anuladas + eventos cancelled + reminders skipped + tombstone; retry → ALREADY_ANULLED', async () => {
+    const executionId = await freshExecution();
+    const future = futureDateISO(60);
+    await saveCumple(executionId, item1Id, 'si');
+    await saveCumple(executionId, item2Id, 'no', future);
+
+    await signInAs(emailOwnerA);
+    const { cerrarEjecucionAction, anularEjecucionAction } = await execActions();
+    const closed = await cerrarEjecucionAction({
+      executionId,
+      firma_base64: FIRMA_PNG,
+      firmante_nombre: 'Ing. Pérez',
+    });
+    expect(closed.ok).toBe(true);
+
+    const { data: capaBefore } = await admin
+      .from('acciones_correctivas')
+      .select('id, calendar_event_id')
+      .eq('execution_id', executionId)
+      .single();
+    const eventId = capaBefore!.calendar_event_id!;
+
+    const an = await anularEjecucionAction({ executionId, motivo: 'Error de carga' });
+    expect(an.ok).toBe(true);
+    if (!an.ok) return;
+
+    // Tombstone.
+    const { data: tomb } = await admin
+      .from('checklist_executions')
+      .select('estado, anulacion, corrige_id')
+      .eq('id', an.tombstoneId)
+      .single();
+    expect(tomb).toMatchObject({ estado: 'anulada', anulacion: true, corrige_id: executionId });
+
+    // CAPA anulada.
+    const { data: capaAfter } = await admin
+      .from('acciones_correctivas')
+      .select('estado')
+      .eq('id', capaBefore!.id)
+      .single();
+    expect(capaAfter?.estado).toBe('anulada');
+
+    // Evento cancelled + reminders skipped.
+    const { data: ev } = await admin
+      .from('calendar_events')
+      .select('status')
+      .eq('id', eventId)
+      .single();
+    expect(ev?.status).toBe('cancelled');
+    const { data: rems } = await admin
+      .from('calendar_event_reminders')
+      .select('status')
+      .eq('event_id', eventId);
+    for (const rem of rems ?? []) expect(rem.status).toBe('skipped');
+
+    // La ejecución original deja de ser vigente (el tombstone la supersede).
+    const { data: vig } = await admin
+      .from('checklist_executions_vigentes')
+      .select('id')
+      .eq('id', executionId)
+      .maybeSingle();
+    expect(vig).toBeNull();
+
+    // Retry → ALREADY_ANULLED (uq_checklist_exec_corrige).
+    const again = await anularEjecucionAction({ executionId, motivo: 'otra' });
+    expect(again.ok).toBe(false);
+    if (!again.ok) expect(again.code).toBe('ALREADY_ANULLED');
+  });
+
+  it('12. member (no owner) NO puede anular → FORBIDDEN_NOT_OWNER', async () => {
+    const executionId = await freshExecution();
+    await signInAs(emailMemberA);
+    const { anularEjecucionAction } = await execActions();
+    const r = await anularEjecucionAction({ executionId });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.code).toBe('FORBIDDEN_NOT_OWNER');
   });
 });

@@ -25,6 +25,7 @@ import { createClient } from '@/shared/supabase/server';
 import { createServiceRoleClient } from '@/shared/supabase/service-role';
 
 import { getClienteById } from '../../clientes/queries';
+import { buildCapaRows } from './acciones-capa';
 import { computeFirmaPdfHash } from './hash';
 import {
   getAdjuntoForDelete,
@@ -36,6 +37,7 @@ import {
   respuestaBelongsToExecution,
 } from './queries';
 import {
+  anularEjecucionSchema,
   cerrarEjecucionSchema,
   createEjecucionSchema,
   deleteAdjuntoSchema,
@@ -90,6 +92,10 @@ export type CerrarEjecucionResult =
       executionId: string;
       cumplimiento_pct: number | null;
       tiene_criticos_incumplidos: boolean;
+      /** CAPAs generadas (1 por "no cumple"). */
+      capaCount: number;
+      /** Presente si las CAPAs se crearon pero gen_acciones_calendar_for falló (no-fatal). */
+      calendarWarning?: string;
     }
   | InvalidInput
   | AccessFailure
@@ -107,6 +113,12 @@ export type CerrarEjecucionResult =
       faltantes: Array<{ id: string; texto: string }>;
       message: string;
     };
+
+export type AnularEjecucionResult =
+  | { ok: true; tombstoneId: string }
+  | InvalidInput
+  | AccessFailure
+  | DomainFailure<'NOT_FOUND' | 'ALREADY_ANULLED' | 'INTERNAL_ERROR'>;
 
 // ============================== Helpers ==============================
 
@@ -633,6 +645,56 @@ export async function cerrarEjecucionAction(input: unknown): Promise<CerrarEjecu
     }
   }
 
+  // 9.5 Generar CAPAs (1 por "no cumple") ANTES del flip. Idempotente
+  //     (ON CONFLICT execution_id,respuesta_id). El flip (paso 10, último) solo
+  //     se alcanza si esto corrió → una ejecución cerrada SIEMPRE tiene sus CAPAs.
+  //     Si falla, la ejecución sigue borrador y el reintento re-corre todo.
+  const capaRows = buildCapaRows(items, respuestas, cerradaAt);
+  if (capaRows.length > 0) {
+    // INSERT plano (no upsert): `uq_acciones_execution_respuesta` es un índice
+    // PARCIAL (WHERE respuesta_id IS NOT NULL) → PostgREST no puede usarlo como
+    // arbiter de ON CONFLICT (Postgres 42P10). Idempotencia: ante 23505 (el set
+    // ya se insertó en un cierre previo fallido) se tolera y se sigue al gen.
+    const { error: capaErr } = await admin.from('acciones_correctivas').insert(
+      capaRows.map((c) => ({
+        consultora_id: pre.ctx.consultoraId,
+        execution_id: d.executionId,
+        respuesta_id: c.respuesta_id,
+        cliente_id: exec.cliente_id,
+        descripcion: c.descripcion,
+        prioridad: c.prioridad,
+        fecha_compromiso: c.fecha_compromiso,
+        created_by: pre.ctx.userId,
+      })),
+    );
+    if (capaErr && capaErr.code !== UNIQUE_VIOLATION_CODE) {
+      logger.error(
+        { ...ctx, executionId: d.executionId, err: capaErr.message },
+        'cerrarEjecucionAction: CAPA insert failed (ejecución sigue borrador → reintento)',
+      );
+      return {
+        ok: false,
+        code: 'INTERNAL_ERROR',
+        message: 'No se pudieron generar las acciones correctivas. Reintentá.',
+      };
+    }
+  }
+
+  // 9.6 Inyectar las CAPAs al Calendario (warning NO-fatal, patrón EPP T-102).
+  //     Idempotente: procesa solo acciones con calendar_event_id IS NULL.
+  let calendarWarning: string | undefined;
+  const { error: rpcErr } = await admin.rpc('gen_acciones_calendar_for', {
+    p_execution_id: d.executionId,
+  });
+  if (rpcErr) {
+    logger.warn(
+      { ...ctx, executionId: d.executionId, err: rpcErr.message },
+      'cerrarEjecucionAction: gen_acciones_calendar_for failed (CAPAs OK, recordatorios pendientes)',
+    );
+    calendarWarning =
+      'Inspección cerrada. La generación de recordatorios en el calendario quedó pendiente — reintentá en unos minutos.';
+  }
+
   // 10. Flip a cerrada con CAS (estado='borrador') — congela todo en un solo UPDATE.
   const { data: closed, error: updErr } = await admin
     .from('checklist_executions')
@@ -682,12 +744,15 @@ export async function cerrarEjecucionAction(input: unknown): Promise<CerrarEjecu
   }
 
   revalidateEjecucion(d.executionId);
+  revalidatePath('/calendario');
   logger.info(
     {
       ...ctx,
       executionId: d.executionId,
       cumplimiento_pct: score.cumplimiento_pct,
       tiene_criticos_incumplidos: score.tiene_criticos_incumplidos,
+      capaCount: capaRows.length,
+      calendarWarning: calendarWarning ? true : undefined,
       action: 'cerrar_ejecucion',
     },
     'cerrarEjecucionAction: closed',
@@ -697,5 +762,156 @@ export async function cerrarEjecucionAction(input: unknown): Promise<CerrarEjecu
     executionId: d.executionId,
     cumplimiento_pct: score.cumplimiento_pct,
     tiene_criticos_incumplidos: score.tiene_criticos_incumplidos,
+    capaCount: capaRows.length,
+    ...(calendarWarning ? { calendarWarning } : {}),
   };
+}
+
+// ============================== Anular (tombstone + cascada) ==============================
+
+export async function anularEjecucionAction(input: unknown): Promise<AnularEjecucionResult> {
+  const parsed = anularEjecucionSchema.safeParse(input);
+  if (!parsed.success) return invalidInput(parsed.error.issues, 'Datos inválidos.');
+
+  const supabase = await createClient();
+  const pre = await requireOwnerWithBilling(supabase);
+  if (!pre.ok) return pre;
+
+  const d = parsed.data;
+  const ctx = { userId: pre.ctx.userId, consultoraId: pre.ctx.consultoraId };
+
+  // 1. Cargar target (RLS → tenant-scoped).
+  const exec = await getEjecucionBasics(supabase, d.executionId);
+  if (!exec) return { ok: false, code: 'NOT_FOUND', message: 'Inspección no encontrada.' };
+  if (exec.estado === 'anulada') {
+    return { ok: false, code: 'ALREADY_ANULLED', message: 'La inspección ya está anulada.' };
+  }
+
+  const admin = createServiceRoleClient();
+
+  // 2. CASCADA primero (idempotente). Se corre ANTES del tombstone para ser
+  //    retry-safe: si el tombstone falla, el reintento re-aplica la cascada
+  //    (no-op) + tombstone; si la cascada falla, la ejecución aún NO está
+  //    tombstoneada → el reintento la completa.
+  //  a. acciones_correctivas → anulada.
+  const { error: capasErr } = await admin
+    .from('acciones_correctivas')
+    .update({ estado: 'anulada' })
+    .eq('execution_id', d.executionId)
+    .neq('estado', 'anulada');
+  if (capasErr) {
+    logger.error(
+      { ...ctx, executionId: d.executionId, err: capasErr.message },
+      'anularEjecucionAction: cascade acciones failed',
+    );
+    return {
+      ok: false,
+      code: 'INTERNAL_ERROR',
+      message: 'No se pudieron anular las acciones correctivas. Reintentá.',
+    };
+  }
+
+  //  b/c. Eventos + reminders de TODAS las CAPAs de la ejecución (subquery
+  //       implícito leyendo todas las acciones, NO un RETURNING de las recién
+  //       anuladas → un reintento tras falla entre (a) y (b) igual los cancela).
+  const { data: capasConEvento } = await admin
+    .from('acciones_correctivas')
+    .select('calendar_event_id')
+    .eq('execution_id', d.executionId)
+    .not('calendar_event_id', 'is', null);
+  const eventIds = [
+    ...new Set(
+      (capasConEvento ?? []).map((c) => c.calendar_event_id).filter((x): x is string => x != null),
+    ),
+  ];
+
+  if (eventIds.length > 0) {
+    const { error: evErr } = await admin
+      .from('calendar_events')
+      .update({ status: 'cancelled' })
+      .in('id', eventIds)
+      .neq('status', 'cancelled');
+    if (evErr) {
+      logger.error(
+        { ...ctx, executionId: d.executionId, err: evErr.message },
+        'anularEjecucionAction: cancel calendar_events failed',
+      );
+      return {
+        ok: false,
+        code: 'INTERNAL_ERROR',
+        message: 'No se pudieron cancelar los eventos del calendario. Reintentá.',
+      };
+    }
+    const { error: remErr } = await admin
+      .from('calendar_event_reminders')
+      .update({ status: 'skipped' })
+      .in('event_id', eventIds)
+      .eq('status', 'pending');
+    if (remErr) {
+      logger.error(
+        { ...ctx, executionId: d.executionId, err: remErr.message },
+        'anularEjecucionAction: skip reminders failed',
+      );
+      return {
+        ok: false,
+        code: 'INTERNAL_ERROR',
+        message: 'No se pudieron cancelar los recordatorios. Reintentá.',
+      };
+    }
+  }
+
+  // 3. Tombstone (service-role). 23505 (uq_checklist_exec_corrige) → ALREADY_ANULLED.
+  const { data: tombstone, error: tombErr } = await admin
+    .from('checklist_executions')
+    .insert({
+      consultora_id: pre.ctx.consultoraId,
+      created_by: pre.ctx.userId,
+      corrige_id: d.executionId,
+      anulacion: true,
+      estado: 'anulada',
+      template_version_id: exec.template_version_id,
+      cliente_id: exec.cliente_id,
+    })
+    .select('id')
+    .maybeSingle();
+
+  if (tombErr) {
+    if (tombErr.code === UNIQUE_VIOLATION_CODE) {
+      return {
+        ok: false,
+        code: 'ALREADY_ANULLED',
+        message: 'La inspección ya fue anulada o corregida.',
+      };
+    }
+    logger.error(
+      { ...ctx, executionId: d.executionId, err: tombErr.message },
+      'anularEjecucionAction: tombstone insert failed',
+    );
+    return {
+      ok: false,
+      code: 'INTERNAL_ERROR',
+      message: 'No se pudo anular la inspección. Reintentá.',
+    };
+  }
+  if (!tombstone) {
+    return {
+      ok: false,
+      code: 'INTERNAL_ERROR',
+      message: 'No se pudo anular la inspección. Reintentá.',
+    };
+  }
+
+  revalidateEjecucion(d.executionId);
+  revalidatePath('/calendario');
+  logger.info(
+    {
+      ...ctx,
+      executionId: d.executionId,
+      tombstoneId: tombstone.id,
+      motivo: d.motivo ?? null,
+      action: 'anular_ejecucion',
+    },
+    'anularEjecucionAction: annulled',
+  );
+  return { ok: true, tombstoneId: tombstone.id };
 }

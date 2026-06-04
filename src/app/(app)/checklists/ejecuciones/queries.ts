@@ -112,17 +112,17 @@ export async function getItemsForVersion(sb: Sb, versionId: string): Promise<Ite
 
 export type RespuestaForClose = Pick<
   ExecutionRespuestaRow,
-  'template_item_id' | 'valor' | 'valor_numerico' | 'observacion' | 'fecha_regularizacion'
+  'id' | 'template_item_id' | 'valor' | 'valor_numerico' | 'observacion' | 'fecha_regularizacion'
 >;
 
-/** Respuestas de una ejecución (para score + CAPA + hash canónico). */
+/** Respuestas de una ejecución (para score + CAPA + hash canónico). `id` = respuesta_id de la CAPA. */
 export async function getRespuestasForExecution(
   sb: Sb,
   executionId: string,
 ): Promise<RespuestaForClose[]> {
   const { data } = await sb
     .from('execution_respuestas')
-    .select('template_item_id, valor, valor_numerico, observacion, fecha_regularizacion')
+    .select('id, template_item_id, valor, valor_numerico, observacion, fecha_regularizacion')
     .eq('execution_id', executionId);
   return data ?? [];
 }
@@ -190,4 +190,93 @@ export async function getEjecucionesForConsultora(sb: Sb): Promise<ChecklistExec
     .select('*')
     .order('created_at', { ascending: false });
   return data ?? [];
+}
+
+// ============================== Read para el PDF (T-060b) ==============================
+
+export type EjecucionAdjunto = Pick<
+  Database['public']['Tables']['execution_adjuntos']['Row'],
+  'id' | 'respuesta_id' | 'storage_path' | 'mime_type'
+>;
+export type EjecucionFirma = Pick<
+  Database['public']['Tables']['execution_firmas']['Row'],
+  'rol' | 'firma_storage_path' | 'firmante_nombre' | 'firmante_matricula' | 'firmado_at'
+>;
+
+export type EjecucionForPdf = {
+  execution: ChecklistExecutionRow;
+  sections: EjecucionSectionNode[];
+  respuestasByItemId: Record<string, ExecutionRespuestaRow>;
+  adjuntos: EjecucionAdjunto[];
+  firmaMatriculado: EjecucionFirma | null;
+};
+
+/**
+ * Datos completos de una ejecución para el PDF RGRL: cabecera + estructura +
+ * respuestas + adjuntos + firma del matriculado. `null` si no existe/RLS. El
+ * page del print genera las signed URLs (firma/adjuntos/logo) sobre este shape.
+ */
+export async function getEjecucionForPdf(
+  sb: Sb,
+  executionId: string,
+): Promise<EjecucionForPdf | null> {
+  const { data: execution } = await sb
+    .from('checklist_executions')
+    .select('*')
+    .eq('id', executionId)
+    .maybeSingle();
+  if (!execution) return null;
+
+  const [
+    { data: sections },
+    { data: items },
+    { data: respuestas },
+    { data: adjuntos },
+    { data: firma },
+  ] = await Promise.all([
+    sb
+      .from('template_sections')
+      .select('*')
+      .eq('version_id', execution.template_version_id)
+      .order('orden', { ascending: true }),
+    sb
+      .from('template_items')
+      .select('*')
+      .eq('version_id', execution.template_version_id)
+      .order('orden', { ascending: true }),
+    sb.from('execution_respuestas').select('*').eq('execution_id', executionId),
+    sb
+      .from('execution_adjuntos')
+      .select('id, respuesta_id, storage_path, mime_type')
+      .eq('execution_id', executionId)
+      .order('created_at', { ascending: true }),
+    sb
+      .from('execution_firmas')
+      .select('rol, firma_storage_path, firmante_nombre, firmante_matricula, firmado_at')
+      .eq('execution_id', executionId)
+      .eq('rol', 'matriculado')
+      .maybeSingle(),
+  ]);
+
+  const itemsBySection = new Map<string, TemplateItemRow[]>();
+  for (const item of items ?? []) {
+    const arr = itemsBySection.get(item.section_id);
+    if (arr) arr.push(item);
+    else itemsBySection.set(item.section_id, [item]);
+  }
+  const sectionNodes: EjecucionSectionNode[] = (sections ?? []).map((s) => ({
+    ...s,
+    items: itemsBySection.get(s.id) ?? [],
+  }));
+
+  const respuestasByItemId: Record<string, ExecutionRespuestaRow> = {};
+  for (const r of respuestas ?? []) respuestasByItemId[r.template_item_id] = r;
+
+  return {
+    execution,
+    sections: sectionNodes,
+    respuestasByItemId,
+    adjuntos: adjuntos ?? [],
+    firmaMatriculado: firma ?? null,
+  };
 }
