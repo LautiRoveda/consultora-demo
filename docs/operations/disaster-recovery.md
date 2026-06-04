@@ -149,6 +149,7 @@ Borrar los intermedios después de los 6 meses si Drive se llena.
 | `SUPABASE_SERVICE_ROLE_KEY` | **CRÍTICO** | Cada 12 meses o tras leak |
 | `ANTHROPIC_API_KEY` | **CRÍTICO** | Cada 12 meses o tras leak |
 | `ANTHROPIC_EPP_SUGGEST_MODEL` | Bajo (no secreto) | Si cambiás el modelo del sugeridor EPP (default Haiku 4.5, T-106) |
+| `ANTHROPIC_CHAT_MODEL` | Bajo (no secreto) | Si cambiás el modelo del asistente IA de EPP (default Haiku 4.5, T-117) |
 | `RESEND_API_KEY` | Alto | Cada 12 meses o tras leak |
 | `RESEND_FROM_ADDRESS` | Bajo | Si cambia dominio email |
 | `RESEND_REPLY_TO_ADDRESS` | Bajo | Si cambia política reply-to |

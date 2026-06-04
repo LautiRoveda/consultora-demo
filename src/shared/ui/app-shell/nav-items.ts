@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  Bot,
   Calendar,
   ClipboardCheck,
   FileText,
@@ -42,6 +43,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/clientes', label: 'Clientes', icon: Users, status: 'live' },
   { href: '/empleados', label: 'Empleados', icon: UserCheck, status: 'live' },
   { href: '/epp', label: 'EPP', icon: HardHat, status: 'live' },
+  // T-117: asistente IA contextual de EPP/empleados (chat en lenguaje natural).
+  // Junto a EPP porque su scope MVP son datos de EPP/empleados.
+  { href: '/asistente', label: 'Asistente', icon: Bot, status: 'live' },
   { href: '/checklists', label: 'Checklists', icon: ClipboardCheck, status: 'live' },
   // T-061a: ejecuciones = uso diario (member, en campo); 'Checklists' queda para
   // autoría de templates. Ruta anidada en /checklists/ejecuciones (revalidatePath
