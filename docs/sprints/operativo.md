@@ -92,3 +92,25 @@ El preámbulo de **checklists** (T-058) ya lo envuelve en try/catch → `INTERNA
 - Si el flip falla **persistentemente** tras CAPA+gen OK, queda un *borrador* con eventos vivos (alertas espurias) hasta el reintento.
 
 **Fix (opcional):** RPC `security definer` `close_checklist_execution(...)` que haga INSERT de CAPAs + `gen_acciones_calendar_for` + UPDATE `estado='cerrada'` en **una sola transacción** (todo-o-nada) → elimina ambos residuales. **Requiere migración + `pnpm db:types`** (Docker para regenerar `types.ts`). No se hizo en T-060b porque (a) la opción A ya satisface la invariante "cerrada ⇒ con CAPAs", (b) sin Docker no se puede regenerar `types.ts` → el gate `db:types` fallaría. **Prioridad BAJA**: solo si los residuales molestan en prod.
+
+## T-061-FU1 ✅ Ver inspecciones anuladas (toggle en el listado) — EN PROD
+
+Mergeado #202 (`5fc7598`); la migración se aplicó a prod **antes** del merge (`db push --linked` diff-validado: única pendiente `20260604000001`). Calca el patrón de incidentes T-063-FU2.
+
+- **Migración** `20260604000001_t061fu1_checklist_executions_heads_view.sql`: vista `checklist_executions_heads` (`security_invoker`, head de cada cadena SIN filtrar anulación = vigentes + tombstones) + `checklist_executions_vigentes` REDEFINIDA sobre heads (`create or replace`, single-source del `NOT EXISTS`) + 2 `grant select`. Read-only; no toca tabla/policies.
+- **Query**: `getEjecucionesForConsultora(sb, { includeAnuladas })` switchea la fuente heads↔vigentes (mismo molde que `getIncidentes`).
+- **UI**: toggle "Ver anuladas" (`EjecucionesAnuladasToggle`, push `?anuladas=1`) renderizado SIEMPRE (incluso en onboarding, así un tenant cuya única inspección fue anulada puede revelarla); `EjecucionesList` muestra el estado `anulada` (badge + subtítulo). El toggle cuenta en `hasActiveFilters` → no dispara el empty-state por sí solo.
+- **Link fix (clave)**: las filas anuladas linkean al **original** (`corrige_id`), NO al tombstone vacío — ver lesson "tombstone vacío" en lessons-learned. El detalle del original (T-061b) ya renderiza todo + banner "anulada" (tiene hijo tombstone → `esVigente=false`).
+- **types.ts**: hand-edit (sin Docker local; `db:types` usa `--linked`=prod, que aún no tenía la migración) — nueva view entry `checklist_executions_heads` + ref `_heads` en los 6 FK arrays (`corrige_id` ×3 relaciones, `execution_id` ×4 hijas). Validado por el **gate de drift de CI** (`gen types --local` + `git diff`).
+- **Tests**: unit `ejecuciones-queries.test.ts` (source switching) + integration tests 13-14 (heads incluye anuladas / vigentes las excluye / RLS cross-tenant).
+
+## Checklists · follow-ups abiertos (post T-061b/FU1) [BAJA]
+
+Dos guardas no urgentes (no alcanzables por la UI hoy, pero blindan el modelo de anulación):
+
+- **Guard redirect tombstone→original en `[id]/page.tsx`**: el acceso por URL directa al `tombstone.id` (`anulacion=true`) carga el detalle del tombstone vacío (sin respuestas/firma). Fix: si `basics.anulacion && basics.corrige_id` → `redirect(corrige_id)`. Requiere ampliar `getEjecucionBasics` con `anulacion` + `corrige_id` (hoy no los selecciona). La UI ya no expone el `tombstone.id` (lo cierra el link fix de FU1) → es defensa de borde.
+- **`anularEjecucionAction` valide `estado='cerrada'`**: hoy solo rechaza `estado='anulada'` (`ALREADY_ANULLED`) → un **borrador** se puede anular vía backend y el original queda `estado='borrador'` (técnicamente editable, y `/[id]` cae en el runner en vez del detalle con banner). No alcanzable por la UI (el CTA de anular vive solo en el detalle de una cerrada). Fix: rechazar todo `estado !== 'cerrada'` en la action.
+
+## T-116 ✅ Flaky `ClienteForm > DUPLICATE_CUIT` — `asyncUtilTimeout` global (project component) — EN MAIN
+
+Mergeado #201 (`215dc7b`). Flaky pre-existente intermitente: el `waitFor`/`findBy` default de testing-library (1000ms) vencía bajo contención de CPU al correr los 94 archivos del project `component` en paralelo (cadenas RHF+Zod async, p.ej. `ClienteForm` DUPLICATE_CUIT) → fallaba ~1/N runs, verde en aislamiento. **NO** era state pollution (projects `unit`/`component` aislados, `isolate=true`, `setup.ts` trivial) ni de T-061-FU1 (su test es project `unit`, pool aparte). **Fix** (1 archivo): `configure({ asyncUtilTimeout: 5000 })` en `src/tests/setup.ts` (lo carga solo el project component → no afecta unit/integration); sube el techo de TODOS los async utils, los que ya pasaban resuelven al primer intento. **Verificado 5/5 corridas verdes** de la suite completa; el test resuelve en ~400ms. Sin migración.
