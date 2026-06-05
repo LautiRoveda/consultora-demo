@@ -2672,6 +2672,7 @@ export type Database = {
           dispatched: boolean;
         }[];
       };
+      process_subscription_churn: { Args: never; Returns: number };
       reorder_template_items: {
         Args: { p_ordered_ids: string[]; p_section_id: string };
         Returns: undefined;
