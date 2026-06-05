@@ -13,6 +13,10 @@
  *  8. subscription_preapproval status=paused → UPDATE estado='morosa'.
  *  9. subscription_preapproval con mp_subscription_id que no matchea →
  *     200 + log warn + no DB changes.
+ *
+ * T-122 · además de suscripciones.estado, el trigger sync_consultora_plan_after_change
+ * sincroniza consultoras.plan/trial_hasta. Los tests 6/7/8 asertan plan='pro' +
+ * trial_hasta=NULL; el 9 (sin match) aserta que la consultora queda intacta.
  * 10. subscription_authorized_payment approved → INSERT factura
  *     (estado='pagada' + pagada_en seteado).
  * 11. Idempotency: 2× mismo authorized_payment id → 1 sola factura.
@@ -146,6 +150,16 @@ beforeEach(async () => {
     .single();
   if (sErr) throw sErr;
   subId = sub.id;
+
+  // T-122: estado conocido de la consultora para asertar el sync del cache. El
+  // INSERT de la suscripción (pendiente) ya disparó el trigger -> plan='trial';
+  // fijamos un trial_hasta NO-null para que la aserción "-> NULL" sea significativa
+  // y para resetear el plan='pro' que pudo dejar un test previo (el trigger no
+  // dispara en el DELETE del afterEach).
+  await admin
+    .from('consultoras')
+    .update({ plan: 'trial', trial_hasta: new Date(Date.now() + 10 * 86_400_000).toISOString() })
+    .eq('id', cId);
 });
 
 afterEach(async () => {
@@ -227,6 +241,15 @@ describe('mercadopago webhook · subscription_preapproval', () => {
       .single();
     expect(sub?.estado).toBe('activa');
     expect(sub?.cancelada_en).toBeNull();
+
+    // T-122: el trigger sincronizó el cache de la consultora.
+    const { data: cons } = await admin
+      .from('consultoras')
+      .select('plan, trial_hasta')
+      .eq('id', cId)
+      .single();
+    expect(cons?.plan).toBe('pro');
+    expect(cons?.trial_hasta).toBeNull();
   });
 
   it('7. preapproval status=cancelled → UPDATE estado=cancelada + cancelada_en', async () => {
@@ -249,6 +272,15 @@ describe('mercadopago webhook · subscription_preapproval', () => {
       .single();
     expect(sub?.estado).toBe('cancelada');
     expect(sub?.cancelada_en).not.toBeNull();
+
+    // T-122: cancelada mapea a 'pro' (acceso hasta cancelar_en lo da el gate).
+    const { data: cons } = await admin
+      .from('consultoras')
+      .select('plan, trial_hasta')
+      .eq('id', cId)
+      .single();
+    expect(cons?.plan).toBe('pro');
+    expect(cons?.trial_hasta).toBeNull();
   });
 
   it('8. preapproval status=paused → UPDATE estado=morosa', async () => {
@@ -270,6 +302,15 @@ describe('mercadopago webhook · subscription_preapproval', () => {
       .eq('id', subId)
       .single();
     expect(sub?.estado).toBe('morosa');
+
+    // T-122: morosa mapea a 'pro' (cliente que paga en reintento, no degradar).
+    const { data: cons } = await admin
+      .from('consultoras')
+      .select('plan, trial_hasta')
+      .eq('id', cId)
+      .single();
+    expect(cons?.plan).toBe('pro');
+    expect(cons?.trial_hasta).toBeNull();
   });
 
   it('9. preapproval con mp_subscription_id que no matchea → 200 + no DB change', async () => {
@@ -292,6 +333,16 @@ describe('mercadopago webhook · subscription_preapproval', () => {
       .eq('id', subId)
       .single();
     expect(sub?.estado).toBe('pendiente_autorizacion');
+
+    // T-122: sin match en suscripciones (count=0) el estado no cambió -> el trigger
+    // no disparó -> la consultora queda intacta (plan='trial', trial_hasta no-null).
+    const { data: cons } = await admin
+      .from('consultoras')
+      .select('plan, trial_hasta')
+      .eq('id', cId)
+      .single();
+    expect(cons?.plan).toBe('trial');
+    expect(cons?.trial_hasta).not.toBeNull();
   });
 });
 
