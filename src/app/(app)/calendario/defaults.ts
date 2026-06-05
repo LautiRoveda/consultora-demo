@@ -28,7 +28,10 @@ export type CalendarEventTipo = (typeof EVENT_TIPO_VALUES)[number];
 export const EVENT_STATUS_VALUES = ['pending', 'completed', 'cancelled'] as const;
 export type CalendarEventStatus = (typeof EVENT_STATUS_VALUES)[number];
 
-export const REMINDER_STATUS_VALUES = ['pending', 'sent', 'skipped', 'failed'] as const;
+// Espejo del CHECK calendar_event_reminders.status (migración calendar_events, estrechado
+// en T-124). 'failed' se quitó en T-124: nunca se escribió — el fallo de envío vive en
+// notification_log, no en el reminder. Ciclo real: pending -> sent (cron) | skipped (trigger T-123).
+export const REMINDER_STATUS_VALUES = ['pending', 'sent', 'skipped'] as const;
 export type CalendarEventReminderStatus = (typeof REMINDER_STATUS_VALUES)[number];
 
 /**
