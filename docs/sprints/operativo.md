@@ -44,6 +44,7 @@ Documentado el trigger secundario del incident T-052 (EasyPanel deploy via webho
 - **T-111 ✅ COMPLETO (F1 + F2 + F2b ejecutados 2026-05-31) · DEVEX: aislar integration tests (Supabase local efímero) + cleanup test data prod** (absorbe el ex-`T-DEVEX`). **Causa raíz**: `pnpm test:integration` corría all-at-once contra el Postgres prod-linked compartido → (a) fallas no determinísticas (RLS-claim collisions, fechas epoch por concurrencia) y (b) acumulación de ~14k consultoras de test en prod.
   - **F1 (aislamiento)**: `test:integration` ahora levanta un Supabase local efímero (`supabase start` + `db reset`) e inyecta sus keys (`scripts/test-integration-local.mjs`); cero cambios a la lógica de los tests (todo via `process.env`); `test:integration:remote` queda para debug puntual contra prod. Requiere Docker local. CI de integration (no corría) queda como follow-up.
   - **F2 (cleanup prod)**: borrado del test_set (identificación por EXCLUSIÓN: protegido = consultora con ≥1 member email ≠ @example.com; test = orphans con patrón + consultoras con members todos @example.com) vía bloque transaccional `DO` con `disable trigger user` + borrado explícito hijo→padre en orden topológico (Kahn dinámico sobre las FK; `session_replication_role='replica'` NO sirve en Supabase — `postgres` no es superuser → 42501; el cascade tampoco por las FK RESTRICT intra-dominio). Asserts pre/post (count del test_set, cero @gmail, cero huérfanos, restantes=5). **Backup**: Query B (dump JSON de los 5 reales, validado 1:1) + schema en git — Free NO tiene PITR ni backup automático; un full `pg_dump` habría respaldado solo basura (las 14k de test) → descartado. **Precondición cumplida**: E2E pausado (#161) congeló el universo en 14.484 (ver T-112). **EJECUTADO 2026-05-31** por Lautaro en el SQL editor (no el agente): **14.484 consultoras de test borradas, 5 restantes** (4 reales @gmail + "Debug"), reales intactos, bloque sin errores. **F2b** (`auth.users` de test): 5.811 users `@example.com`; el `delete` plano lo bloquea el trigger inmutable de `audit_log` (SET NULL sobre `actor_user_id`, 533 filas) + los audit AFTER de telegram/push en cascade → mismo molde `DO`+`disable trigger user`; cascadea `notification_channel_prefs`/`telegram_subscriptions`/`push_subscriptions` + `auth.*`; 4 @gmail intactos. **EJECUTADO 2026-05-31** por Lautaro: 5.811 `auth.users @example` borrados, 4 @gmail intactos, post-check 0/4/5 (0 @example, 4 @gmail, 5 consultoras). → **T-111 100% COMPLETO** (F1 aislamiento + F2 consultoras + F2b auth.users).
+  - **Residuo detectado en T-114** (2026-06-04): 3 reminders EPP de test pre-T-111 (`created_at` desde 2026-05-22, anteriores a la migración T-100 → de `createCalendarEventAction`, no de la RPC EPP) sobrevivieron al cleanup. Benignos; purga opcional. No urge.
 
 - **T-112 · DEVEX: aislar E2E (Playwright) de prod — Supabase efímero (sibling de T-111 F1)**. **Causa raíz**: el step `E2E tests` de `ci.yml` (job `ci`) corre Playwright contra la app buildeada con los secrets de prod, así que cada run crea consultoras de test en la DB prod-linked (~546 entre dos recounts de T-111 F2). F1 aisló los *integration*; los *E2E* siguen pegándole a prod. **Estado actual**: PAUSADO temporalmente (`if: false` en el step, T-111 F2) para congelar el universo antes del cleanup. **Solución permanente** (replicar el patrón F1 #158): levantar un Supabase local efímero (`supabase start` + `db reset`) + correr la app Next contra ese stack (Playwright `webServer` con las keys locales inyectadas), de modo que los E2E nunca toquen prod. Luego quitar el `if: false`. Considerar también un seed mínimo para los flows que hoy dependen de `admin.createUser`. **NO hacer durante T-111** — se registra para after-cleanup.
 
@@ -68,13 +69,15 @@ Documentado el trigger secundario del incident T-052 (EasyPanel deploy via webho
 
 - **Required checks (branch protection, forward)** — al configurar branch protection en `main`, los **3 jobs pueden ir `required`**: `CI` (build), `e2e-tests`, **y `integration-tests`**. El bloqueador de integration quedó **resuelto**: F1.4 en T-113a (`a4edb05`) + la flakiness sistémica en **T-113d** (#173, `--no-file-parallelism` → 5/5 verde, clase de pollution muerta). Ya no hay flake conocido que bloquee merges legítimos al azar.
 
-## T-114 🔜 Bug: `gen_epp_planificaciones_y_calendar_for` no crea `calendar_event_reminders` (vencimientos EPP no notifican en prod) [ALTA]
+## T-114 ✅ Fix: `gen_epp_planificaciones_y_calendar_for` no crea `calendar_event_reminders` (vencimientos EPP no notifican en prod) [ALTA] — EN PROD
 
 **Detectado en T-057** (al calcar la maquinaria del Calendario para `gen_acciones_calendar_for`). La RPC EPP `gen_epp_planificaciones_y_calendar_for` (T-100, `20260523000001_t100_epp_schema.sql`) inserta el `calendar_event` con `reminder_offsets_days = array[14,3,0]` **pero NO inserta ninguna fila en `calendar_event_reminders`**. El cron `process_pending_reminders()` (`20260515095701_notifications_infrastructure.sql`) escanea `calendar_event_reminders WHERE status='pending' AND scheduled_at <= now()` → como no hay filas, **nunca dispara** → **los vencimientos de planificación EPP (renovación 6m, Res SRT 299/11) no generan ninguna notificación Resend/Telegram/Push en prod**. El array `reminder_offsets_days` queda como metadato muerto en el evento.
 
 Contraste: el path TS `createCalendarEventAction` SÍ crea los reminders (vía `computeReminderRows` + insert service-role), por eso los vencimientos creados por formulario (protocolo/RGRL/custom) sí notifican; solo los generados por la **RPC EPP** quedan mudos.
 
 **Fix:** replicar en la RPC EPP el mismo bloque que `gen_acciones_calendar_for` agregó en T-057 (`20260603000001_t057_checklists.sql`): por cada offset, `INSERT INTO calendar_event_reminders (event_id, consultora_id, offset_days, scheduled_at, status)` con `scheduled_at = (fecha_proxima − offset días) a las 12:00 UTC` (= 09:00 ART, espejo de `computeScheduledAtUtc`), omitiendo los que caen en el pasado, `ON CONFLICT (event_id, offset_days) DO NOTHING`. **Prioridad ALTA**: afecta notificaciones reales de un módulo ya en prod. **Verificación**: integration test que cierre una entrega EPP con item no-descartable y asserte que se crearon las filas de `calendar_event_reminders` (hoy faltaría — agregar). Considerar backfill de los eventos EPP ya existentes en prod sin reminders.
+
+**Resuelto #204** (squash `87fb22b`, 2026-06-04). Migración `20260604000002`: redefinición de la RPC (patrón T-057, replica `computeReminderRows` — 12:00 UTC, omite pasado, `ON CONFLICT`) + backfill idempotente. red→green ejecutado en CI (run rojo → verde). `db push`: backfill 45 reminders. Verificación post: `huerfanos_futuros=0`. Smoke OK.
 
 ## T-115 🔜 Hardening: envolver `requireBillingAccess` en try/catch en los módulos que no lo hacen [MEDIA]
 
@@ -114,3 +117,27 @@ Dos guardas no urgentes (no alcanzables por la UI hoy, pero blindan el modelo de
 ## T-116 ✅ Flaky `ClienteForm > DUPLICATE_CUIT` — `asyncUtilTimeout` global (project component) — EN MAIN
 
 Mergeado #201 (`215dc7b`). Flaky pre-existente intermitente: el `waitFor`/`findBy` default de testing-library (1000ms) vencía bajo contención de CPU al correr los 94 archivos del project `component` en paralelo (cadenas RHF+Zod async, p.ej. `ClienteForm` DUPLICATE_CUIT) → fallaba ~1/N runs, verde en aislamiento. **NO** era state pollution (projects `unit`/`component` aislados, `isolate=true`, `setup.ts` trivial) ni de T-061-FU1 (su test es project `unit`, pool aparte). **Fix** (1 archivo): `configure({ asyncUtilTimeout: 5000 })` en `src/tests/setup.ts` (lo carga solo el project component → no afecta unit/integration); sube el techo de TODOS los async utils, los que ya pasaban resuelven al primer intento. **Verificado 5/5 corridas verdes** de la suite completa; el test resuelve en ~400ms. Sin migración.
+
+## T-117 ✅ Asistente IA contextual de EPP (Haiku + tool-calling) — EN PROD
+
+#206 (squash `ba13745`). Módulo `asistente` (`/asistente`, `/api/asistente`). 4 tools sólo-lectura mapeadas 1:1 a queries RLS-aware existentes (`buscar_empleado`, `epp_entregado_a_empleado`, `vencimientos_epp_de_empleado`, `vencimientos_epp_proximos`). Loop multi-turno `tool_choice:auto`, caps (5 iter / 1024 tok / rate-limit 15 min), gateado con `requireMemberWithBilling` (T-115-safe). Cero-DB. Modelo Haiku (env override).
+
+## T-117-FU1 ✅ Robustez del asistente: búsqueda multi-término + fecha en prompt + reintento — EN PROD
+
+#207 (squash `d0cbb79`). `searchEmpleadosForChat` (multi-término AND + accent-insensitive en JS, sin tocar `searchEmpleadosByNombre`); fecha de hoy (TZ AR) inyectada al system prompt; guía de reintento. Cero-DB. Pendiente dormido **T-117-FU2**: ventana de `vencimientos_epp_proximos` configurable (hoy fija 30 días).
+
+## T-119 ✅ Lifecycle de planificaciones EPP: cerrar al reentregar + unicidad + backfill — EN PROD
+
+#208 (squash `1fb740d`). Migración `20260604000003`: la RPC cierra la planif activa previa del mismo `(empleado, item)` al reentregar (dedup por `item_id`, evento→`completed`, reminders skipped) + unique parcial `uq_epp_planif_activa_empleado_item` + backfill. `db push`: 6 planif cerradas, 6 eventos completados; 16→10 activas, 0 duplicados. Smoke OK (lista Roveda limpia).
+
+## T-118 ✅ Sincronización calendario → dominio (trigger AFTER UPDATE) — EN PROD
+
+#209 (squash `bcf8e43`). Migración `20260604000004`: trigger `sync_calendar_event_to_origin` propaga `fecha` + `status` del evento al dominio (`epp_planificaciones` / `acciones_correctivas`) con `WHEN` clause + escritura separada fecha/status + guarda de idempotencia (no-op vs T-119) + backfill solo-fecha. `db push`: 2 planif re-sincronizadas (incluido el Guantes de Roveda 24/11→13/06), 0 desincronizadas. Smoke OK (mover fecha en calendario → reflejado en chat/ficha al instante).
+
+## T-120 🔜 Lifecycle de CAPAs (`acciones_correctivas`): flujo de resolución [ALTA]
+
+Mismo patrón que T-119 pero en checklists. Hoy las CAPAs nacen `'abierta'` y solo se `'anulan'` en cascada; falta marcar `'cerrada'` con evidencia desde la ficha de inspección (+ completar su evento). Nota: T-118 ya habilita cerrarlas completando el evento desde el calendario; T-120 es el cierre CON evidencia.
+
+## T-121 🔜 DORMIDO Hardening: CHECK/trigger de coherencia de `consultora_id` denormalizado [BAJA]
+
+~6 tablas hijas denormalizan `consultora_id` sin validación contra el parent (riesgo latente cross-tenant). Disparador: antes de exponer API pública o multi-instancia.

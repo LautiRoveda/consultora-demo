@@ -12,13 +12,14 @@ Cómo construir el sistema, ticket por ticket, con dependencias claras. La idea:
 
 ## Estado del roadmap
 
-Última actualización: T-038 (2026-05-17).
+Última actualización: 2026-06-04 (tanda de consistencia EPP↔calendario: T-114/117/118/119 + ADR-0015).
 
 - **Sprint 0/1** (T-001..T-018) ✅ ejecutados con la numeración planificada original.
 - **Sprint 2 original** ("Auditoría + Notificaciones + Calendario") ✅ ejecutado con numeración real **T-026..T-037 + T-034** durante el Sprint 3 cronológico real. Ver CLAUDE.md para mapping detallado.
-- **Sprint 3 original** ("Pagos") 🔜 renumerado a T-039..T-046 (no ejecutado).
+- **Sprint 3 original** ("Pagos") ✅ **EJECUTADO** (renumerado T-039..T-046): módulo Pagos en prod — billing gate `requireBillingAccess`, MP Subscriptions (ADR-0008), dunning T-074, trial 14d T-108, `/settings/billing`.
 - **Sprint 4 original** ("Informes core") ✅ ejecutado mayormente durante Sprint 2 real (T-019..T-025) con tipos genéricos en lugar de norma-específicos.
-- **Sprint 5/6/7 originales** (EPP / Checklists / Pulido) 🔜 renumerados (no ejecutados).
+- **Sprint 5/6 originales** (EPP / Checklists) ✅ **ejecutados** (EPP T-100..T-106/T-109/T-114, Checklists T-057..T-061 — en prod, ver `operativo.md`). Sprint 7 ("Pulido") 🔜 sin renumerar.
+- **Tanda de consistencia EPP↔calendario** (2026-06-04, ADR-0015): T-114 (fix reminders EPP), T-117/FU1 (asistente IA EPP), T-119 (lifecycle planificaciones), T-118 (sync calendario→dominio) — todas en prod. **Pagos · EPP · Checklists/Inspecciones · Accidentabilidad/Incidentes** están en prod (ver `CLAUDE.md` + `operativo.md`).
 
 **Source of truth de tickets ejecutados**: `CLAUDE.md`.
 
@@ -111,7 +112,7 @@ Tickets base que dejan el repo listo para construir features.
 
 ---
 
-### Sprint 3 · Pagos + Plan Pro + trial (semana 3-4)
+### Sprint 3 · Pagos + Plan Pro + trial (semana 3-4) ✅ EN PROD
 
 - **T-039 · Migration: subscriptions, invoices, ai_usage_log.**
 - **T-040 · Módulo Pagos: definición de planes y guard de acceso.**
