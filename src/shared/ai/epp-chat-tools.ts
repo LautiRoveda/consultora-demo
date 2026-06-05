@@ -4,7 +4,7 @@ import type { Database } from '@/shared/supabase/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
-import { searchEmpleadosByDni, searchEmpleadosByNombre } from '@/app/(app)/empleados/queries';
+import { searchEmpleadosByDni, searchEmpleadosForChat } from '@/app/(app)/empleados/queries';
 import {
   getEntregasByEmpleado,
   getPlanificacionesActivasByEmpleado,
@@ -139,9 +139,11 @@ export async function dispatchTool(args: {
         const parsed = buscarEmpleadoInput.safeParse(input);
         if (!parsed.success) return fail('input_invalido', parsed.error.issues[0]?.message);
         const query = parsed.data.query.trim();
+        // Sólo dígitos → DNI (prefix match). Si no → búsqueda robusta del chat
+        // (multi-término + accent-insensitive, T-117-FU1).
         const empleados = /^\d+$/.test(query)
           ? await searchEmpleadosByDni(supabase, query)
-          : await searchEmpleadosByNombre(supabase, query);
+          : await searchEmpleadosForChat(supabase, query);
         return ok(
           empleados.map((e) => ({
             id: e.id,

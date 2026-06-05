@@ -69,6 +69,8 @@ let clienteAId: string;
 let clienteBId: string;
 let empleadoAId: string;
 let empleadoBId: string;
+let lautaroId: string; // FU1: nombre+apellido + acentos
+let perezId: string; // FU1: apellido con tilde
 let categoriaAId: string;
 let itemCascoId: string;
 
@@ -151,6 +153,36 @@ beforeAll(async () => {
         apellido: 'Castro',
         dni: '20666666',
         created_by: ownerBId,
+      })
+      .select('id')
+      .single()
+  ).data!.id;
+
+  // FU1: empleados para la búsqueda robusta (nombre+apellido, orden libre, acentos).
+  lautaroId = (
+    await admin
+      .from('empleados')
+      .insert({
+        consultora_id: cAId,
+        cliente_id: clienteAId,
+        nombre: 'Lautaro',
+        apellido: 'Roveda',
+        dni: '30222333',
+        created_by: ownerAId,
+      })
+      .select('id')
+      .single()
+  ).data!.id;
+  perezId = (
+    await admin
+      .from('empleados')
+      .insert({
+        consultora_id: cAId,
+        cliente_id: clienteAId,
+        nombre: 'Juan',
+        apellido: 'Pérez',
+        dni: '27888999',
+        created_by: ownerAId,
       })
       .select('id')
       .single()
@@ -404,5 +436,47 @@ describe('dispatchTool', () => {
       consultoraId: cAId,
     });
     expect(unknown.isError).toBe(true);
+  });
+});
+
+describe('buscar_empleado robusto (T-117-FU1)', () => {
+  async function buscarIds(query: string): Promise<string[]> {
+    await signInAs(emailOwnerA);
+    const { dispatchTool } = await import('@/shared/ai/epp-chat-tools');
+    const supabase = await rlsClient();
+    const res = await dispatchTool({
+      name: 'buscar_empleado',
+      input: { query },
+      supabase,
+      consultoraId: cAId,
+    });
+    expect(res.isError).toBe(false);
+    return (JSON.parse(res.content) as Array<{ id: string }>).map((r) => r.id);
+  }
+
+  it('nombre + apellido juntos, en cualquier orden, encuentran al empleado', async () => {
+    expect(await buscarIds('lautaro roveda')).toContain(lautaroId);
+    expect(await buscarIds('roveda lautaro')).toContain(lautaroId);
+  });
+
+  it('un solo término en mayúsculas encuentra por apellido', async () => {
+    expect(await buscarIds('ROVEDA')).toContain(lautaroId);
+  });
+
+  it('accent-insensitive: "perez" (sin tilde) encuentra a "Pérez"', async () => {
+    expect(await buscarIds('perez')).toContain(perezId);
+  });
+
+  it('DNI (rama dígitos) sigue funcionando', async () => {
+    expect(await buscarIds('30222333')).toContain(lautaroId);
+  });
+
+  it('nombre inexistente → []', async () => {
+    expect(await buscarIds('noexiste zzz')).toEqual([]);
+  });
+
+  it('cross-tenant: el apellido de un empleado de B no aparece logueado como A', async () => {
+    // "Castro" vive en la consultora B; A no debe verlo (RLS) → no aparece en resultados.
+    expect(await buscarIds('castro')).not.toContain(empleadoBId);
   });
 });

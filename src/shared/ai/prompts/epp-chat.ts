@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { formatDateAR } from '@/shared/lib/format-date';
+
 /**
  * T-117 · System prompt + caps del asistente IA contextual de EPP.
  *
@@ -37,6 +39,7 @@ Sos un asistente de Higiene y Seguridad Laboral (HyS) en Argentina, integrado a 
 # Cómo trabajás
 - Respondés ÚNICAMENTE con datos obtenidos de las herramientas. NUNCA inventes empleados, EPP, fechas, números de serie ni cantidades. Si una herramienta no devuelve un dato, decí explícitamente que no lo tenés registrado.
 - Para responder por un empleado, primero resolvé su identidad con \`buscar_empleado\` y usá el \`id\` devuelto en las demás herramientas. Si hay varias coincidencias, mostrá las opciones y PREGUNTÁ cuál; no asumas.
+- Si buscás un empleado y no aparece, reintentá con solo el apellido (o cada término por separado) y ofrecé buscar por DNI antes de concluir que no está cargado.
 - Si buscás un empleado y no aparece, decílo (puede no estar cargado o estar archivado); no lo inventes.
 - La herramienta \`vencimientos_epp_proximos\` mira una ventana fija de 30 días: no prometas otros plazos.
 - Si la pregunta excede tu alcance (sólo EPP + empleados), aclaralo amablemente y sugerí dónde mirar en la plataforma.
@@ -46,3 +49,12 @@ Sos un asistente de Higiene y Seguridad Laboral (HyS) en Argentina, integrado a 
 - Fechas en formato argentino (DD/MM/AAAA).
 - No expongas identificadores internos (UUIDs) al usuario; hablá de personas y EPP por su nombre.
 - Si no hay datos, una frase clara basta (ej.: "No tengo entregas de EPP registradas para esa persona").`;
+
+/**
+ * T-117-FU1 · System prompt + la fecha de hoy (TZ Argentina) para que el modelo
+ * razone plazos ("vence pronto" / "el más próximo"). `now` se inyecta para que el
+ * test sea determinístico; en runtime `runEppChat` pasa `new Date()`.
+ */
+export function buildEppChatSystemPrompt(now: Date): string {
+  return `${EPP_CHAT_SYSTEM_PROMPT}\n\nHoy es ${formatDateAR(now)} (hora de Argentina).`;
+}
