@@ -29,6 +29,7 @@ import { buildCapaRows } from './acciones-capa';
 import { computeFirmaPdfHash } from './hash';
 import {
   getAdjuntoForDelete,
+  getCapaBasics,
   getEjecucionBasics,
   getItemBasics,
   getItemsForVersion,
@@ -41,6 +42,7 @@ import {
   cerrarEjecucionSchema,
   createEjecucionSchema,
   deleteAdjuntoSchema,
+  resolverCapaSchema,
   saveRespuestaSchema,
   uploadAdjuntoSchema,
 } from './schema';
@@ -119,6 +121,17 @@ export type AnularEjecucionResult =
   | InvalidInput
   | AccessFailure
   | DomainFailure<'NOT_FOUND' | 'ALREADY_ANULLED' | 'INTERNAL_ERROR'>;
+
+export type ResolverCapaResult =
+  | {
+      ok: true;
+      capaId: string;
+      /** Presente si la CAPA se cerró pero no se pudo completar su evento/reminders (no-fatal). */
+      calendarWarning?: string;
+    }
+  | InvalidInput
+  | AccessFailure
+  | DomainFailure<'NOT_FOUND' | 'ALREADY_CLOSED' | 'INTERNAL_ERROR'>;
 
 // ============================== Helpers ==============================
 
@@ -923,4 +936,137 @@ export async function anularEjecucionAction(input: unknown): Promise<AnularEjecu
     'anularEjecucionAction: annulled',
   );
   return { ok: true, tombstoneId: tombstone.id };
+}
+
+// ============================== Resolver CAPA (cierre con evidencia · T-120) ==============================
+
+/**
+ * T-120 · Cierre "natural" de una acción correctiva regularizada desde la ficha de
+ * inspección: registra evidencia_cierre + cerrada_por + cerrada_at y completa su
+ * evento de calendario (para que no quede como vencimiento pending).
+ *
+ * AUTH member (no owner como anular): regularizar un hallazgo es operativo; la RLS
+ * acciones_update es member-level.
+ *
+ * ORDEN (no-conflicto vs T-118): se cierra la CAPA PRIMERO, luego se completa el
+ * evento. El trigger T-118 (AFTER UPDATE de calendar_events) verá la CAPA ya
+ * 'cerrada' → guard `estado not in (finales)` = 0 filas = no-op (no pisa
+ * evidencia/cerrada_por). El orden inverso haría que el trigger cierre la CAPA con
+ * cerrada_por NULL y nuestro CAS no registre la evidencia.
+ *
+ * CLIENTES: la CAPA se cierra con el cliente RLS (acciones_update es member-level →
+ * captura auth.uid() en el audit_log). El evento + reminders van por service-role:
+ * el evento lo creó el autor de la inspección y un member ≠ creador NO pasa
+ * calendar_events_update_own_or_owner (UPDATE de 0 filas silencioso vía RLS), y los
+ * reminders están cerrados a authenticated (T-027).
+ *
+ * Completar el evento es best-effort (calendarWarning): la CAPA cerrada es la fuente
+ * de verdad; un fallo de calendario no debe revertirla.
+ */
+export async function resolverCapaAction(input: unknown): Promise<ResolverCapaResult> {
+  const parsed = resolverCapaSchema.safeParse(input);
+  if (!parsed.success) return invalidInput(parsed.error.issues, 'Datos inválidos.');
+
+  const supabase = await createClient();
+  const pre = await requireMemberWithBilling(supabase);
+  if (!pre.ok) return pre;
+
+  const d = parsed.data;
+  const ctx = { userId: pre.ctx.userId, consultoraId: pre.ctx.consultoraId };
+
+  // 1. Cargar la CAPA (RLS → tenant-scoped). null = no existe / cross-tenant.
+  const capa = await getCapaBasics(supabase, d.capaId);
+  if (!capa) return { ok: false, code: 'NOT_FOUND', message: 'Acción correctiva no encontrada.' };
+  if (capa.estado !== 'abierta' && capa.estado !== 'en_progreso') {
+    return {
+      ok: false,
+      code: 'ALREADY_CLOSED',
+      message:
+        capa.estado === 'anulada'
+          ? 'La acción correctiva está anulada y no puede resolverse.'
+          : 'La acción correctiva ya está cerrada.',
+    };
+  }
+
+  // 2. Cerrar la CAPA PRIMERO (cliente RLS → captura actor en audit_log). CAS por
+  //    estado: 0 filas = cierre concurrente (otra pestaña / trigger T-118).
+  const nowIso = new Date().toISOString();
+  const { data: updated, error: updErr } = await supabase
+    .from('acciones_correctivas')
+    .update({
+      estado: 'cerrada',
+      cerrada_at: nowIso,
+      cerrada_por: pre.ctx.userId,
+      evidencia_cierre: d.evidencia_cierre,
+    })
+    .eq('id', d.capaId)
+    .in('estado', ['abierta', 'en_progreso'])
+    .select('id');
+  if (updErr) {
+    logger.error(
+      { ...ctx, capaId: d.capaId, err: updErr.message },
+      'resolverCapaAction: update acciones failed',
+    );
+    return {
+      ok: false,
+      code: 'INTERNAL_ERROR',
+      message: 'No se pudo cerrar la acción correctiva. Reintentá.',
+    };
+  }
+  if (!updated || updated.length === 0) {
+    return {
+      ok: false,
+      code: 'ALREADY_CLOSED',
+      message: 'La acción correctiva ya fue cerrada o anulada.',
+    };
+  }
+
+  // 3. DESPUÉS completar el evento de calendario (best-effort → calendarWarning).
+  //    Service-role obligatorio (ver doc de la función).
+  let calendarWarning: string | undefined;
+  if (capa.calendar_event_id) {
+    const admin = createServiceRoleClient();
+    const { error: evErr } = await admin
+      .from('calendar_events')
+      .update({ status: 'completed', completed_at: nowIso, completed_by: pre.ctx.userId })
+      .eq('id', capa.calendar_event_id)
+      .eq('status', 'pending');
+    if (evErr) {
+      logger.error(
+        { ...ctx, capaId: d.capaId, eventId: capa.calendar_event_id, err: evErr.message },
+        'resolverCapaAction: complete calendar_event failed',
+      );
+      calendarWarning =
+        'La acción se cerró, pero no se pudo completar su vencimiento en el calendario.';
+    } else {
+      const { error: remErr } = await admin
+        .from('calendar_event_reminders')
+        .update({ status: 'skipped' })
+        .eq('event_id', capa.calendar_event_id)
+        .eq('status', 'pending');
+      if (remErr) {
+        logger.error(
+          { ...ctx, capaId: d.capaId, eventId: capa.calendar_event_id, err: remErr.message },
+          'resolverCapaAction: skip reminders failed',
+        );
+        calendarWarning =
+          'La acción se cerró, pero quedaron recordatorios pendientes en el calendario.';
+      }
+    }
+  }
+
+  // 4. Revalidar + log (el audit_log de acciones ya capturó el actor vía RLS).
+  revalidateEjecucion(capa.execution_id);
+  revalidatePath('/calendario');
+  logger.info(
+    {
+      ...ctx,
+      capaId: d.capaId,
+      executionId: capa.execution_id,
+      eventId: capa.calendar_event_id,
+      action: 'resolver_capa',
+    },
+    'resolverCapaAction: resolved',
+  );
+  return { ok: true, capaId: d.capaId, calendarWarning };
 }

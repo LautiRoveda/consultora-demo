@@ -121,6 +121,23 @@ export const anularEjecucionSchema = z.object({
   motivo: z.string().trim().max(2000, { message: 'Máximo 2000 caracteres.' }).optional(),
 });
 
+// ============================== Resolver CAPA (cierre con evidencia · T-120) ==============================
+// Cierre "natural" de una acción correctiva regularizada desde la ficha de inspección.
+// evidencia_cierre OBLIGATORIA (decisión owner): 5–2000 chars; el 2000 es 1:1 con el
+// CHECK evidencia_cierre <= 2000 de T-057. El min 5 espeja el `motivo` de anular.
+
+const EVIDENCIA_CIERRE_MIN = 5;
+const EVIDENCIA_CIERRE_MAX = 2000;
+
+export const resolverCapaSchema = z.object({
+  capaId: uuidField,
+  evidencia_cierre: z
+    .string()
+    .trim()
+    .min(EVIDENCIA_CIERRE_MIN, { message: `Mínimo ${EVIDENCIA_CIERRE_MIN} caracteres.` })
+    .max(EVIDENCIA_CIERRE_MAX, { message: `Máximo ${EVIDENCIA_CIERRE_MAX} caracteres.` }),
+});
+
 // ============================== Tipos inferidos ==============================
 
 export type CreateEjecucionInput = z.infer<typeof createEjecucionSchema>;
@@ -128,3 +145,4 @@ export type SaveRespuestaInput = z.infer<typeof saveRespuestaSchema>;
 export type UploadAdjuntoInput = z.infer<typeof uploadAdjuntoSchema>;
 export type CerrarEjecucionInput = z.infer<typeof cerrarEjecucionSchema>;
 export type AnularEjecucionInput = z.infer<typeof anularEjecucionSchema>;
+export type ResolverCapaInput = z.infer<typeof resolverCapaSchema>;
