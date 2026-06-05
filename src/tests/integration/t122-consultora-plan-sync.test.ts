@@ -201,7 +201,10 @@ describe('T-122 · sync consultoras.plan desde suscripciones (trigger)', () => {
 
     const cons = await getConsultora(c);
     expect(cons.plan).toBe('trial');
-    expect(cons.trial_hasta).toBe(knownTrialHasta); // no clobber.
+    // Comparar por INSTANTE: Postgres serializa timestamptz como '...+00:00' (y
+    // recorta ceros de ms), distinto del '...Z' de toISOString() -> mismo momento.
+    expect(cons.trial_hasta).not.toBeNull();
+    expect(new Date(cons.trial_hasta!).toISOString()).toBe(knownTrialHasta); // no clobber.
   });
 
   it('7. Vigente: evento sobre fila histórica NO degrada la suscripción viva', async () => {
@@ -255,6 +258,7 @@ describe('T-122 · sync consultoras.plan desde suscripciones (trigger)', () => {
 
     const consB = await getConsultora(b);
     expect(consB.plan).toBe('trial');
-    expect(consB.trial_hasta).toBe(knownTrialHasta);
+    expect(consB.trial_hasta).not.toBeNull();
+    expect(new Date(consB.trial_hasta!).toISOString()).toBe(knownTrialHasta); // por instante.
   });
 });
