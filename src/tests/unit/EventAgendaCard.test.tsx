@@ -53,7 +53,6 @@ const completeMock = vi.fn(
     ok: true;
     eventId: string;
     nextEventId: string | null;
-    remindersSkipped: number;
     nextRemindersCreated: number;
     nextRemindersSkippedPast: number;
   }> =>
@@ -61,7 +60,6 @@ const completeMock = vi.fn(
       ok: true,
       eventId: id,
       nextEventId: null,
-      remindersSkipped: 0,
       nextRemindersCreated: 0,
       nextRemindersSkippedPast: 0,
     }),
