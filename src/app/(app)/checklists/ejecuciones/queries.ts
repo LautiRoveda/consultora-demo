@@ -50,6 +50,24 @@ export async function getEjecucionBasics(
   return data ?? null;
 }
 
+export type CapaBasics = Pick<
+  Database['public']['Tables']['acciones_correctivas']['Row'],
+  'id' | 'estado' | 'calendar_event_id' | 'execution_id'
+>;
+
+/**
+ * Cabecera mínima de una acción correctiva (RLS-scoped). `null` = no existe /
+ * cross-tenant. `execution_id` se usa para revalidar la ficha al resolverla (T-120).
+ */
+export async function getCapaBasics(sb: Sb, capaId: string): Promise<CapaBasics | null> {
+  const { data } = await sb
+    .from('acciones_correctivas')
+    .select('id, estado, calendar_event_id, execution_id')
+    .eq('id', capaId)
+    .maybeSingle();
+  return data ?? null;
+}
+
 export type ItemBasics = Pick<TemplateItemRow, 'id' | 'version_id' | 'response_type'>;
 
 /** Tipo + versión de un ítem (para validar que la respuesta calza con el template). */

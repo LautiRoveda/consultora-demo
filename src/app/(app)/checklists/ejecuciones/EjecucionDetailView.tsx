@@ -14,16 +14,20 @@ import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 
+import { CapaResolverButton } from './CapaResolverButton';
 import { EjecucionDetailActions } from './EjecucionDetailActions';
 import { EjecucionEstadoBadge } from './EjecucionEstadoBadge';
 
 const PRIORIDAD_LABELS: Record<string, string> = { alta: 'Alta', media: 'Media', baja: 'Baja' };
+// Claves = enum DB acciones_correctivas.estado (abierta/en_progreso/cerrada/anulada).
 const CAPA_ESTADO_LABELS: Record<string, string> = {
-  pendiente: 'Pendiente',
-  en_curso: 'En curso',
+  abierta: 'Pendiente',
+  en_progreso: 'En progreso',
   cerrada: 'Cerrada',
   anulada: 'Anulada',
 };
+// Estados no-finales: la CAPA se puede resolver (T-120).
+const CAPA_ESTADOS_ABIERTOS = new Set(['abierta', 'en_progreso']);
 
 export type EjecucionDetailViewProps = {
   execution: ChecklistExecutionRow;
@@ -246,6 +250,11 @@ export function EjecucionDetailView({
                         </Link>
                       )}
                     </div>
+                    {esVigente && CAPA_ESTADOS_ABIERTOS.has(capa.estado) && (
+                      <div className="mt-1">
+                        <CapaResolverButton capaId={capa.id} />
+                      </div>
+                    )}
                   </li>
                 );
               })}
