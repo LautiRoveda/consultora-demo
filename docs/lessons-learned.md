@@ -78,6 +78,18 @@ Un cron en este stack es una cadena de cuatro saltos: `pg_cron` (schedule) → `
 
 El merge auto-deploya **solo el código** (webhook EasyPanel, no es job de GitHub Actions → no se ve por `gh`, tarda unos min en rebuildear la imagen ~600MB+Chromium). Las migraciones NO. Si el código mergeado **depende** de un objeto de la migración (FU1: `getEjecucionesForConsultora` lee `checklist_executions_heads`), aplicar la migración a prod **ANTES** del merge: apenas mergeás, el deploy publica el código y si la vista no existe, rompe. Si el código aún no usa el objeto, basta la misma ventana del merge. Gate del `db push`: `migration list --linked` + `db push --linked --dry-run` (diff validado por el orquestador) + OK explícito del owner (es prod), sin `--yes`/`--force` (el prompt se confirma a mano). Contraste con la "Moraleja 1" de T-108 (verificar post-merge): el post-merge sirve de check de drift, pero el ORDEN seguro con auto-deploy es **migración-primero**.
 
+### Numeración de migraciones: contador secuencial por día, no HHMMSS
+
+**Origen**: T-114/T-119. La convención `<YYYYMMDDHHMMSS>_<snake>` se usa como contador secuencial por día (`YYYYMMDD00000N`). Antes de nombrar: `ls supabase/migrations/ | tail`, tomar el siguiente `00000N`. En T-114 la 1ª propuesta colisionó con t061fu1 (mismo `000001`) → cazado en review → renombrada a `000002`.
+
+### Sincronización proyección↔dominio por trigger (fuente de verdad única)
+
+**Origen**: T-118 (auditoría 2026-06-04, ver ADR-0015). `calendar_events` copia fecha/estado del dominio (`epp_planificaciones`/`acciones_correctivas`); editar un lado no sincronizaba el otro. Fix: trigger AFTER UPDATE con WHEN clause + escritura separada + guarda de idempotencia (no-op vs el lifecycle de T-119). Regla: toda fecha/estado proyectada al calendario tiene fuente única sincronizada por trigger.
+
+### Lifecycle: los pendientes generados necesitan un flujo de cierre
+
+**Origen**: T-119 (auditoría, ADR-0015). `epp_planificaciones` y `acciones_correctivas` nacían 'activa'/'abierta' y nunca se cerraban (enum con estados de cierre que el código no seteaba) → acumulación de fantasma. Fix EPP: cerrar la previa al reentregar + unique parcial activas + backfill. Pendiente CAPAs: T-120. Regla: todo pendiente generado tiene un flujo de cierre + (si aplica) unicidad que lo blinde.
+
 ## Tests integration
 
 ### Suite de integración + E2E escribían a prod → contaminación de 14k consultoras
@@ -103,6 +115,14 @@ Limpiar dependientes antes que padres (informes → clientes → users) evita FK
 ### Test assertions sa-east-1 + Promise.all NO confiables
 
 **Origen**: T-047. Test 3 (anon NO ve clientes) ajustada: `error.code === '42501' permission denied for function is_member_of_consultora` porque los helpers T-015 tienen grant `to authenticated, service_role` (NO anon); defensa en profundidad esperada — anon NUNCA debe llegar a evaluar el filtro RLS porque el helper rechaza antes.
+
+### red→green ejecutado en CI (2 commits) cuando no hay Docker local
+
+**Origen**: T-114. El gate 'demo red→green ejecutada' choca sin Docker (integration necesita `supabase start`). Solución: commit 1 = solo el test (sin la migración) → job Integration ROJO real; commit 2 = agrega la migración → VERDE. El squash colapsa. NO sirve 'diferir a CI' sin el commit-1-sin-migración (CI siempre corre la branch completa → siempre verde). Aplicado T-114 #204 (run rojo `26963251304` → verde `26963914133`).
+
+### Búsqueda para LLM: multi-término + accent-insensitive, aislada de los autocompletes
+
+**Origen**: T-117-FU1. `searchEmpleadosByNombre` (ILIKE del string completo en un campo) no matcheaba 'nombre apellido' juntos ni acentos. Para el chat se hizo `searchEmpleadosForChat` (split en tokens + normalize NFD strip diacríticos en JS, sobre el set activo del tenant) SIN tocar la query de autocomplete que usan otros módulos.
 
 ## Tests unit / component
 

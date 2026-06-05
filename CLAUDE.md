@@ -47,11 +47,11 @@ Roadmap por fases en [`docs/technical/10-roadmap.md`](docs/technical/10-roadmap.
 | 2 ✅ | T-019..T-025 informes | [sprint-2.md](docs/sprints/sprint-2.md) |
 | 3 ✅ | T-026..T-037 + T-034 calendario + notificaciones | [sprint-3.md](docs/sprints/sprint-3.md) |
 | 4 🚧 | T-047..T-055 clientes + empleados (Clientes ✅ + Empleados ✅) | [sprint-4.md](docs/sprints/sprint-4.md) |
-| 5 ✅ | T-100..T-106 EPP + T-109 trazabilidad EPP per-empleado + resumen semanal | [sprint-5.md](docs/sprints/sprint-5.md) |
-| 6 🚧 | Incidentes: T-062 módulo ✅ + T-063 UI ✅ + T-063-FU1 pulido ✅ + T-075 link IA ✅ + T-063-FU2 ver anulados ✅. Checklists: T-057 schema ✅ + T-058 backend templates ✅ + T-059 UI editor ✅ (en prod) · T-060/T-061 ejecución pendientes | [operativo.md](docs/sprints/operativo.md) |
+| 5 ✅ | T-100..T-106 EPP + T-109 trazabilidad EPP per-empleado + resumen semanal + **T-114** (fix reminders EPP) | [sprint-5.md](docs/sprints/sprint-5.md) |
+| 6 ✅ | Incidentes: T-062 + T-063 + T-063-FU1 + T-075 link IA + T-063-FU2 ✅. Checklists: T-057..T-059 + T-060/T-061 (lifecycle+runner+cierre+firma+PDF+anular+FU1) ✅ en prod. Consistencia EPP↔calendario: T-114/T-119/T-118 ✅. Asistente IA EPP: T-117/FU1 ✅ | [operativo.md](docs/sprints/operativo.md) |
 | Op | Transversales (T-079 email templates, T-052-FU1/FU2 VPS runbook + monitor, T-111 aislamiento tests + cleanup prod, …) | [operativo.md](docs/sprints/operativo.md) |
 
-**Próximo ticket**: módulo **Accidentabilidad** (libro de incidentes) **completo** y en prod (T-062 + T-063 + T-063-FU1 + T-075 link IA + T-063-FU2 ver anulados). **Checklists**: T-057..T-059 ✅ en prod (schema + backend + UI editor); siguen **T-060** (ejecución con firma) + **T-061** (ejecución mobile). Próximo: por definir — Checklists T-060/T-061 o lo que el owner priorice.
+**Próximo ticket**: **Checklists/Inspecciones** (T-057..T-061 + FU1) ✅ en prod (lifecycle + runner + cierre con firma + PDF + anular). **Tanda de consistencia EPP↔calendario** ✅ en prod (T-114 fix reminders · T-117/FU1 asistente IA · T-119 lifecycle planificaciones · T-118 sync calendario→dominio; ADR-0015). **Pagos** en prod (MP Subscriptions, billing gate, trial 14d). Próximo: **T-120** (lifecycle CAPAs con evidencia) / **RGRL completo** / siguiente módulo — a definir por el owner.
 
 ## RLS / multi-tenancy
 
