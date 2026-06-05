@@ -10,11 +10,11 @@ import { logger } from '@/shared/observability/logger';
 import { getAnthropicClient } from './anthropic';
 import { dispatchTool, EPP_CHAT_TOOLS } from './epp-chat-tools';
 import {
+  buildEppChatSystemPrompt,
   EPP_CHAT_FALLBACK_CAP,
   EPP_CHAT_FALLBACK_NO_TEXT,
   EPP_CHAT_MAX_ITERATIONS,
   EPP_CHAT_MAX_TOKENS,
-  EPP_CHAT_SYSTEM_PROMPT,
 } from './prompts/epp-chat';
 
 /**
@@ -75,6 +75,8 @@ export async function runEppChat(args: {
   // Cast del tool schema: lo declaramos `as const` (literals para los tests) pero
   // el SDK exige `Tool[]` mutable. El runtime es idéntico (mismo patrón epp-suggest).
   const tools = EPP_CHAT_TOOLS as unknown as Anthropic.Tool[];
+  // System prompt con la fecha de hoy (TZ AR) → el modelo razona plazos (FU1).
+  const system = buildEppChatSystemPrompt(new Date());
 
   const messages: Anthropic.MessageParam[] = history.map((m) => ({
     role: m.role,
@@ -90,7 +92,7 @@ export async function runEppChat(args: {
     const response = await client.messages.create({
       model,
       max_tokens: EPP_CHAT_MAX_TOKENS,
-      system: EPP_CHAT_SYSTEM_PROMPT,
+      system,
       messages,
       tools,
       // `auto` (no forzado) → el modelo PUEDE cerrar con end_turn. `disable_parallel`

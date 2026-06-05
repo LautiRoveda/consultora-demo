@@ -119,3 +119,63 @@ export async function searchEmpleadosByDni(
 
   return data ?? [];
 }
+
+/**
+ * Normaliza un string para comparación de búsqueda: lowercase + sin tildes
+ * (NFD + strip de marcas diacríticas combinantes U+0300–U+036F). Se aplica igual
+ * al query y a los campos del empleado, así "Pérez" matchea "perez".
+ */
+function normalizeForSearch(value: string): string {
+  return (
+    value
+      .normalize('NFD')
+      // \p{Diacritic} (ASCII puro, diff-safe) cubre las marcas combinantes Unicode
+      // U+0300–U+036F que produce NFD; evita meter caracteres combinantes literales
+      // en el source (se corrompen al pegar/editar y quedan invisibles en el diff).
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim()
+  );
+}
+
+/**
+ * T-117-FU1 · Búsqueda de empleados para el ASISTENTE IA (NO para autocompletes).
+ * `searchEmpleadosByNombre`/`ByDni` siguen sirviendo al tab Empleados y a la
+ * planilla EPP — no las toques.
+ *
+ * Multi-término: cada palabra del query debe aparecer en nombre O apellido (AND
+ * entre palabras) → "lautaro roveda", "roveda lautaro" y "juan perez" caen igual.
+ * Accent- + case-insensitive (`normalizeForSearch`). Filtra en JS sobre el set
+ * activo del tenant. RLS-aware (cross-tenant → []). Cap 10; mismo shape que las
+ * otras búsquedas (`EmpleadoSummary`).
+ */
+export async function searchEmpleadosForChat(
+  supabase: SupabaseClient<Database>,
+  query: string,
+): Promise<EmpleadoSummary[]> {
+  const normalized = normalizeForSearch(query);
+  // Guard: < 2 chars normalizados → evita match masivo por un token de 1 letra.
+  if (normalized.replace(/\s/g, '').length < 2) return [];
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+
+  // TECHO SILENCIOSO: traemos hasta 500 activos y filtramos en JS. Suficiente para
+  // el MVP (50-300 empleados/tenant). Si un tenant supera 500 activos, la búsqueda
+  // sólo mira los primeros 500 alfabéticos (por apellido, nombre) SIN avisar — ése
+  // es el disparador del FU: RPC con public.unaccent (T-012) + índice funcional.
+  const { data } = await supabase
+    .from('empleados')
+    .select('id, nombre, apellido, dni, cuil, puesto')
+    .is('archived_at', null)
+    .order('apellido', { ascending: true })
+    .order('nombre', { ascending: true })
+    .limit(500);
+  if (!data) return [];
+
+  return data
+    .filter((e) => {
+      const nombre = normalizeForSearch(e.nombre);
+      const apellido = normalizeForSearch(e.apellido);
+      return tokens.every((t) => nombre.includes(t) || apellido.includes(t));
+    })
+    .slice(0, 10);
+}
