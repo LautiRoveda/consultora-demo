@@ -398,7 +398,7 @@ function ImageCard({
             <div className="flex gap-1">
               <Button
                 type="button"
-                size="icon"
+                size="none"
                 variant="ghost"
                 disabled={isFirst || isPending}
                 onClick={() => void onReorder(img.id, 'up')}
@@ -409,7 +409,7 @@ function ImageCard({
               </Button>
               <Button
                 type="button"
-                size="icon"
+                size="none"
                 variant="ghost"
                 disabled={isLast || isPending}
                 onClick={() => void onReorder(img.id, 'down')}
@@ -487,7 +487,7 @@ function DeleteAttachmentButton({
       <AlertDialogTrigger asChild>
         <Button
           type="button"
-          size="icon"
+          size="none"
           variant="ghost"
           disabled={isPending}
           className="text-destructive hover:bg-destructive/10 h-7 w-7"

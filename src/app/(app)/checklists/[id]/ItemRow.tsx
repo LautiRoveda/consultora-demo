@@ -60,7 +60,7 @@ export function ItemRow({ item, index, total, onMove, disabled }: Props) {
             <Button
               type="button"
               variant="ghost"
-              size="icon"
+              size="none"
               className="size-8"
               disabled={disabled}
               aria-label={`Editar ítem «${item.texto}»`}

@@ -35,7 +35,7 @@ export function ReadyToCloseCard({
         {isOwner ? (
           complete ? (
             // T-061b · CTA del owner: cierre con firma.
-            <Button asChild className="min-h-11">
+            <Button asChild>
               <Link href={`/checklists/ejecuciones/${executionId}/cerrar`}>
                 Cerrar y firmar inspección
               </Link>
