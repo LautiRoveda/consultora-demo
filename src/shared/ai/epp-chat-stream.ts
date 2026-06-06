@@ -9,7 +9,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { env } from '@/env';
 import { getAnthropicClient } from '@/shared/ai/anthropic';
 import { toTokens } from '@/shared/ai/epp-chat';
-import { dispatchTool, EPP_CHAT_TOOLS } from '@/shared/ai/epp-chat-tools';
 import {
   buildEppChatSystemPrompt,
   EPP_CHAT_FALLBACK_CAP,
@@ -18,6 +17,7 @@ import {
   EPP_CHAT_MAX_TOKENS,
 } from '@/shared/ai/prompts/epp-chat';
 import { encodeSseEvent, isAbortError, mapAnthropicError } from '@/shared/ai/sse-encode';
+import { CHAT_TOOLS, dispatchTool } from '@/shared/ai/tools/registry';
 import { logger } from '@/shared/observability/logger';
 
 /**
@@ -58,9 +58,10 @@ export function streamEppChat(args: {
   const { messages: history, consultoraId, userId, supabase, signal } = args;
 
   const model = env.ANTHROPIC_CHAT_MODEL;
-  // Cast del tool schema: lo declaramos `as const` (literals para los tests) pero
-  // el SDK exige `Tool[]` mutable. Runtime identico (mismo patron que runEppChat).
-  const tools = EPP_CHAT_TOOLS as unknown as Anthropic.Tool[];
+  // Cast del tool schema: el registry tipa las defs como `ToolDefinition[]` pero el
+  // SDK exige `Tool[]`. Runtime identico. `CHAT_TOOLS` agrega TODOS los modulos
+  // (EPP + transversales + Checklists) sin que el stream conozca cada modulo.
+  const tools = CHAT_TOOLS as unknown as Anthropic.Tool[];
   // System prompt con la fecha de hoy (TZ AR) → el modelo razona plazos.
   const system = buildEppChatSystemPrompt(new Date());
 
