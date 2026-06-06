@@ -61,38 +61,45 @@ export function CalendarMonthView({ month, events, onClickDay, onClickEvent }: P
 
   return (
     <div className="overflow-hidden rounded-md border border-border">
-      <div
-        className="grid grid-cols-7 border-b border-border bg-muted/40"
-        role="row"
-        aria-label="Días de la semana"
-      >
-        {WEEKDAY_LABELS.map((label, i) => (
+      {/* overflow-x-auto + min-w en mobile: con 7 columnas, a <375px las celdas se
+          comprimen a anchos ilegibles. La grilla scrollea horizontal (columnas ~91px) y
+          el header de dias comparte el mismo min-w para alinear al scrollear. */}
+      <div className="overflow-x-auto">
+        <div className="min-w-[640px] sm:min-w-0">
           <div
-            key={i}
-            role="columnheader"
-            className="px-2 py-2 text-center text-xs font-medium text-muted-foreground"
+            className="grid grid-cols-7 border-b border-border bg-muted/40"
+            role="row"
+            aria-label="Días de la semana"
           >
-            {label}
+            {WEEKDAY_LABELS.map((label, i) => (
+              <div
+                key={i}
+                role="columnheader"
+                className="px-2 py-2 text-center text-xs font-medium text-muted-foreground"
+              >
+                {label}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7" role="grid" aria-label="Calendario mensual">
-        {gridDays.map((date) => {
-          const iso = dateToCivilIso(date);
-          const isCurrentMonth = date.getMonth() === month.month - 1;
-          const eventsOfDay = eventsByDay.get(iso) ?? [];
-          return (
-            <CalendarMonthCell
-              key={iso}
-              date={date}
-              eventsOfDay={eventsOfDay}
-              isCurrentMonth={isCurrentMonth}
-              todayIso={todayIso}
-              onClickDay={onClickDay}
-              onClickEvent={onClickEvent}
-            />
-          );
-        })}
+          <div className="grid grid-cols-7" role="grid" aria-label="Calendario mensual">
+            {gridDays.map((date) => {
+              const iso = dateToCivilIso(date);
+              const isCurrentMonth = date.getMonth() === month.month - 1;
+              const eventsOfDay = eventsByDay.get(iso) ?? [];
+              return (
+                <CalendarMonthCell
+                  key={iso}
+                  date={date}
+                  eventsOfDay={eventsOfDay}
+                  isCurrentMonth={isCurrentMonth}
+                  todayIso={todayIso}
+                  onClickDay={onClickDay}
+                  onClickEvent={onClickEvent}
+                />
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
