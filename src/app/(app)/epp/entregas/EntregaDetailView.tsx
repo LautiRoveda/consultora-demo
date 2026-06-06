@@ -26,7 +26,7 @@ export function EntregaDetailView({ entrega, firmaUrl, planificaciones }: Entreg
 
   return (
     <div className="grid gap-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Button asChild variant="ghost" size="sm">
           <Link href="/epp/entregas">← Volver a entregas</Link>
         </Button>
