@@ -87,7 +87,9 @@ export function EntregaDetailView({ entrega, firmaUrl, planificaciones }: Entreg
           <CardTitle className="text-base">Items entregados ({entrega.items.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          {/* Desktop: tabla. En mobile scrollea horizontal (5 columnas); se oculta
+              y se muestra el stack de cards de abajo. */}
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase text-muted-foreground">
                 <tr>
@@ -121,6 +123,40 @@ export function EntregaDetailView({ entrega, firmaUrl, planificaciones }: Entreg
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile: un card por item con los mismos datos/badges/formatos. */}
+          <div className="space-y-3 md:hidden">
+            {entrega.items.map((it) => (
+              <div key={it.id} className="rounded-md border p-3">
+                <div className="font-medium">{it.item_nombre}</div>
+                {it.item_es_descartable && (
+                  <Badge variant="outline" className="mt-1 text-[10px]">
+                    Descartable
+                  </Badge>
+                )}
+                <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                  <div className="flex flex-col">
+                    <dt className="text-xs text-muted-foreground">Cantidad</dt>
+                    <dd>{it.cantidad}</dd>
+                  </div>
+                  <div className="flex flex-col">
+                    <dt className="text-xs text-muted-foreground">Motivo</dt>
+                    <dd>{MOTIVO_LABELS[it.motivo_entrega] ?? it.motivo_entrega}</dd>
+                  </div>
+                  <div className="flex flex-col">
+                    <dt className="text-xs text-muted-foreground">N° serie</dt>
+                    <dd className="font-mono text-xs">{it.numero_serie ?? '—'}</dd>
+                  </div>
+                  <div className="flex flex-col">
+                    <dt className="text-xs text-muted-foreground">Marca / Modelo</dt>
+                    <dd>
+                      {[it.marca_entregada, it.modelo_entregado].filter(Boolean).join(' · ') || '—'}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
