@@ -106,25 +106,25 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'acciones_correctivas_execution_id_fkey';
-            columns: ['execution_id'];
+            foreignKeyName: 'acciones_correctivas_execution_id_consultora_fkey';
+            columns: ['execution_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
-            foreignKeyName: 'acciones_correctivas_execution_id_fkey';
-            columns: ['execution_id'];
+            foreignKeyName: 'acciones_correctivas_execution_id_consultora_fkey';
+            columns: ['execution_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions_heads';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
-            foreignKeyName: 'acciones_correctivas_execution_id_fkey';
-            columns: ['execution_id'];
+            foreignKeyName: 'acciones_correctivas_execution_id_consultora_fkey';
+            columns: ['execution_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions_vigentes';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
             foreignKeyName: 'acciones_correctivas_respuesta_id_fkey';
@@ -263,11 +263,11 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'calendar_event_reminders_event_id_fkey';
-            columns: ['event_id'];
+            foreignKeyName: 'calendar_event_reminders_event_id_consultora_fkey';
+            columns: ['event_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'calendar_events';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
         ];
       };
@@ -792,11 +792,11 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'empleados_cliente_id_fkey';
-            columns: ['cliente_id'];
+            foreignKeyName: 'empleados_cliente_id_consultora_fkey';
+            columns: ['cliente_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'clientes';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
             foreignKeyName: 'empleados_consultora_id_fkey';
@@ -838,18 +838,18 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'empleados_puestos_empleado_id_fkey';
-            columns: ['empleado_id'];
+            foreignKeyName: 'empleados_puestos_empleado_id_consultora_fkey';
+            columns: ['empleado_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'empleados';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
-            foreignKeyName: 'empleados_puestos_puesto_id_fkey';
-            columns: ['puesto_id'];
+            foreignKeyName: 'empleados_puestos_puesto_id_consultora_fkey';
+            columns: ['puesto_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'puestos';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
         ];
       };
@@ -943,18 +943,18 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'epp_entrega_items_entrega_id_fkey';
-            columns: ['entrega_id'];
+            foreignKeyName: 'epp_entrega_items_entrega_id_consultora_fkey';
+            columns: ['entrega_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'epp_entregas';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
-            foreignKeyName: 'epp_entrega_items_item_id_fkey';
-            columns: ['item_id'];
+            foreignKeyName: 'epp_entrega_items_item_id_consultora_fkey';
+            columns: ['item_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'epp_items';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
         ];
       };
@@ -997,11 +997,11 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'epp_entregas_cliente_id_fkey';
-            columns: ['cliente_id'];
+            foreignKeyName: 'epp_entregas_cliente_id_consultora_fkey';
+            columns: ['cliente_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'clientes';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
             foreignKeyName: 'epp_entregas_consultora_id_fkey';
@@ -1011,11 +1011,11 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'epp_entregas_empleado_id_fkey';
-            columns: ['empleado_id'];
+            foreignKeyName: 'epp_entregas_empleado_id_consultora_fkey';
+            columns: ['empleado_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'empleados';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
         ];
       };
@@ -1073,11 +1073,11 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'epp_items_categoria_id_fkey';
-            columns: ['categoria_id'];
+            foreignKeyName: 'epp_items_categoria_id_consultora_fkey';
+            columns: ['categoria_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'epp_categorias';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
             foreignKeyName: 'epp_items_consultora_id_fkey';
@@ -1144,25 +1144,25 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'epp_planificaciones_empleado_id_fkey';
-            columns: ['empleado_id'];
+            foreignKeyName: 'epp_planificaciones_empleado_id_consultora_fkey';
+            columns: ['empleado_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'empleados';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
-            foreignKeyName: 'epp_planificaciones_generado_de_entrega_id_fkey';
-            columns: ['generado_de_entrega_id'];
+            foreignKeyName: 'epp_planificaciones_generado_de_entrega_id_consultora_fkey';
+            columns: ['generado_de_entrega_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'epp_entregas';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
-            foreignKeyName: 'epp_planificaciones_item_id_fkey';
-            columns: ['item_id'];
+            foreignKeyName: 'epp_planificaciones_item_id_consultora_fkey';
+            columns: ['item_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'epp_items';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
         ];
       };
@@ -1209,25 +1209,25 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'execution_adjuntos_execution_id_fkey';
-            columns: ['execution_id'];
+            foreignKeyName: 'execution_adjuntos_execution_id_consultora_fkey';
+            columns: ['execution_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
-            foreignKeyName: 'execution_adjuntos_execution_id_fkey';
-            columns: ['execution_id'];
+            foreignKeyName: 'execution_adjuntos_execution_id_consultora_fkey';
+            columns: ['execution_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions_heads';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
-            foreignKeyName: 'execution_adjuntos_execution_id_fkey';
-            columns: ['execution_id'];
+            foreignKeyName: 'execution_adjuntos_execution_id_consultora_fkey';
+            columns: ['execution_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions_vigentes';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
             foreignKeyName: 'execution_adjuntos_respuesta_id_fkey';
@@ -1281,25 +1281,25 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'execution_firmas_execution_id_fkey';
-            columns: ['execution_id'];
+            foreignKeyName: 'execution_firmas_execution_id_consultora_fkey';
+            columns: ['execution_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
-            foreignKeyName: 'execution_firmas_execution_id_fkey';
-            columns: ['execution_id'];
+            foreignKeyName: 'execution_firmas_execution_id_consultora_fkey';
+            columns: ['execution_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions_heads';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
-            foreignKeyName: 'execution_firmas_execution_id_fkey';
-            columns: ['execution_id'];
+            foreignKeyName: 'execution_firmas_execution_id_consultora_fkey';
+            columns: ['execution_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions_vigentes';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
         ];
       };
@@ -1349,25 +1349,25 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'execution_respuestas_execution_id_fkey';
-            columns: ['execution_id'];
+            foreignKeyName: 'execution_respuestas_execution_id_consultora_fkey';
+            columns: ['execution_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
-            foreignKeyName: 'execution_respuestas_execution_id_fkey';
-            columns: ['execution_id'];
+            foreignKeyName: 'execution_respuestas_execution_id_consultora_fkey';
+            columns: ['execution_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions_heads';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
-            foreignKeyName: 'execution_respuestas_execution_id_fkey';
-            columns: ['execution_id'];
+            foreignKeyName: 'execution_respuestas_execution_id_consultora_fkey';
+            columns: ['execution_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'checklist_executions_vigentes';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
           {
             foreignKeyName: 'execution_respuestas_template_item_id_fkey';
@@ -1603,11 +1603,11 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'informe_attachments_informe_id_fkey';
-            columns: ['informe_id'];
+            foreignKeyName: 'informe_attachments_informe_id_consultora_fkey';
+            columns: ['informe_id', 'consultora_id'];
             isOneToOne: false;
             referencedRelation: 'informes';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'consultora_id'];
           },
         ];
       };
