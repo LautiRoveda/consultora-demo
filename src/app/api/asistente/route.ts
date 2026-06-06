@@ -1,7 +1,6 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { type NextRequest } from 'next/server';
 
-import { runEppChat } from '@/shared/ai/epp-chat';
+import { streamEppChat } from '@/shared/ai/epp-chat-stream';
 import { requireMemberWithBilling } from '@/shared/auth/with-billing';
 import { logger } from '@/shared/observability/logger';
 import { getRateLimiter } from '@/shared/security/rate-limit';
@@ -13,21 +12,22 @@ import { chatBodySchema } from './schema';
  * T-117 · POST /api/asistente
  *
  * Asistente IA contextual de EPP. Recibe `{ messages }` (historial de texto),
- * valida auth + tenant + billing + rate limit, y corre `runEppChat` (Claude Haiku
- * con tool-calling multi-turno sobre queries sólo-lectura RLS-aware).
+ * valida auth + tenant + billing + rate limit, y corre `streamEppChat` (Claude
+ * Haiku con tool-calling multi-turno sobre queries sólo-lectura RLS-aware).
  *
  * Gates clonados de `POST /api/epp/sugerir-epp`, pero con `requireMemberWithBilling`
  * (envuelve billing en try/catch — evita el gap T-115 de `requireBillingAccess`).
  *
- * Streaming-ready: el FU de SSE puede cambiar el `messages.create` final del loop
- * por `messages.stream` (helper `src/shared/ai/stream.ts`) sin tocar este contrato.
+ * T-117-FU3 · Streaming SSE. Los gates corren ACÁ (sincrónicos, antes de abrir el
+ * stream) → siguen siendo HTTP status; el cliente los chequea con `!res.ok`. Todo
+ * lo que falla DESPUÉS del 200 (rate-limit del SDK, timeout, refusal, abort) viaja
+ * como evento SSE `error` desde `streamEppChat` (mismo contrato que informes).
  *
  * Responses:
- *  - 200 OK `{ answer, capped, tokens_used, model }`.
+ *  - 200 OK · body SSE (`event: tool|delta|stop|usage|error|done`).
  *  - 400 INVALID_INPUT · 401 UNAUTHENTICATED · 403 NO_CONSULTORA.
  *  - 402 BILLING_GATED (trial vencido / suscripción).
- *  - 429 RATE_LIMITED (techo por consultora, o IA saturada).
- *  - 500 INTERNAL_ERROR.
+ *  - 429 RATE_LIMITED (techo local por consultora).
  */
 
 // Rate limit por consultora (no por user). El chat es multi-turno (bursty): 15/min
@@ -104,33 +104,26 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  // 6. Chat. Try/catch defensivo — un error de red al SDK no debe filtrarse como
-  // stack trace al cliente.
-  try {
-    const result = await runEppChat({
-      messages: parsedBody.data.messages,
-      consultoraId,
-      supabase,
-    });
-    return Response.json(
-      {
-        answer: result.answer,
-        capped: result.kind === 'iteration_cap_reached',
-        tokens_used: result.tokens,
-        model: result.model,
-      },
-      { status: 200 },
-    );
-  } catch (err) {
-    if (err instanceof Anthropic.RateLimitError) {
-      logger.warn({ consultoraId }, 'asistente_chat_anthropic_rate_limited');
-      return errorResponse(429, 'RATE_LIMITED', 'La IA está saturada. Reintentá en unos segundos.');
-    }
-    logger.error({ err, consultoraId }, 'asistente_chat_unexpected_error');
-    return errorResponse(
-      500,
-      'INTERNAL_ERROR',
-      'Error inesperado generando la respuesta. Reintentá en unos segundos.',
-    );
-  }
+  // 6. Stream. `streamEppChat` NUNCA tira: los errores del SDK (post-200) se
+  // emiten como evento SSE `error` desde dentro del ReadableStream. Por eso acá
+  // no hay try/catch — el 200 con el body SSE ya se devolvió.
+  const stream = streamEppChat({
+    messages: parsedBody.data.messages,
+    consultoraId,
+    userId,
+    supabase,
+    signal: request.signal,
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      // Desactiva buffering en proxies (Nginx/EasyPanel) — sin esto el stream se
+      // entrega de golpe y se pierde el token-por-token.
+      'X-Accel-Buffering': 'no',
+    },
+  });
 }

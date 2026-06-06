@@ -1,21 +1,31 @@
 'use client';
 
 import type { FormEvent, KeyboardEvent } from 'react';
-import { Bot, Loader2, Send, User } from 'lucide-react';
+import { Bot, Loader2, Send, Square, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { parseSseStream } from '@/shared/ai/sse-client';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
+import { Markdown } from '@/shared/ui/markdown';
 import { Textarea } from '@/shared/ui/textarea';
+
+import { toolLabel } from './tool-labels';
 
 /**
  * T-117 · Chat del asistente IA de EPP (client).
  *
  * Stateless: el historial vive en memoria del componente y se manda completo en
- * cada POST a `/api/asistente`. MVP sin streaming — la respuesta llega entera tras
- * el loop de tools del servidor. Errores (402/429/401/…) se mapean a toasts.
+ * cada POST a `/api/asistente`.
+ *
+ * T-117-FU3 · Streaming SSE. La respuesta del assistant aparece token por token
+ * (eventos `delta`), con chips de estado mientras corren las queries de tools
+ * (evento `tool`). Markdown incremental (throttle rAF para no re-parsear por token).
+ * Botón "Detener" para cancelar mid-stream (conserva el parcial). Errores: los
+ * gates (402/429/401/…) llegan como HTTP `!res.ok`; los errores post-200
+ * (rate-limit del SDK, timeout, refusal) como evento SSE `error`.
  */
 
 type Turn = { role: 'user' | 'assistant'; content: string };
@@ -26,16 +36,87 @@ const SUGGESTIONS = [
   '¿Cuándo le vence el EPP a Rodríguez?',
 ];
 
+/** Fallback de flush si rAF pausa (tab en background). En foreground rAF gana. */
+const STREAM_FLUSH_FALLBACK_MS = 250;
+
 export function AsistenteChat() {
   const router = useRouter();
   const [messages, setMessages] = useState<Turn[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  // Texto del answer en progreso (volcado por rAF desde bufferRef) + chip de la
+  // tool corriendo. Ambos transitorios: al `done` el texto se commitea a `messages`.
+  const [streamingText, setStreamingText] = useState('');
+  const [toolChip, setToolChip] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+
+  // Refs para el throttle del stream + cleanup al unmount. Sin el abort en
+  // cleanup, navegar mid-stream filtra el fetch y el SDK sigue gastando tokens.
+  const abortRef = useRef<AbortController | null>(null);
+  const bufferRef = useRef('');
+  const rafIdRef = useRef<number | null>(null);
+  const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+  }, [messages, streamingText, toolChip, loading]);
+
+  // Cleanup al unmount: abort fetch + cancelar rAF/timeout.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      if (timeoutIdRef.current !== null) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
+      }
+    };
+  }, []);
+
+  function scheduleFlush(): void {
+    if (rafIdRef.current !== null) return;
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      if (timeoutIdRef.current !== null) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
+      }
+      setStreamingText(bufferRef.current);
+    });
+    // Fallback: si la pestaña está en background rAF pausa indefinido.
+    if (timeoutIdRef.current === null) {
+      timeoutIdRef.current = setTimeout(() => {
+        timeoutIdRef.current = null;
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
+        }
+        setStreamingText(bufferRef.current);
+      }, STREAM_FLUSH_FALLBACK_MS);
+    }
+  }
+
+  function flushAndStopThrottle(): void {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    if (timeoutIdRef.current !== null) {
+      clearTimeout(timeoutIdRef.current);
+      timeoutIdRef.current = null;
+    }
+    setStreamingText(bufferRef.current);
+  }
+
+  function resetStreamUi(): void {
+    bufferRef.current = '';
+    flushAndStopThrottle(); // setStreamingText('')
+    setToolChip(null);
+  }
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -46,6 +127,12 @@ export function AsistenteChat() {
     setMessages(next);
     setInput('');
     setLoading(true);
+    bufferRef.current = '';
+    setStreamingText('');
+    setToolChip(null);
+
+    const ac = new AbortController();
+    abortRef.current = ac;
 
     try {
       const res = await fetch('/api/asistente', {
@@ -53,31 +140,108 @@ export function AsistenteChat() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         body: JSON.stringify({ messages: next }),
+        signal: ac.signal,
       });
 
+      // Error pre-stream (4xx/5xx con JSON body). Después del 200 el body es SSE.
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { code?: string; message?: string };
-        handleErrorCode(body.code, res.status, body.message);
-        // Revertimos el turno del usuario para que pueda reintentar limpio.
+        handleErrorCode(body.code, body.message, res.status);
+        setMessages(prev);
+        setInput(trimmed);
+        return;
+      }
+      if (!res.body) {
+        toast.error('Error de red', { description: 'Respuesta sin cuerpo. Reintentá.' });
         setMessages(prev);
         setInput(trimmed);
         return;
       }
 
-      const data = (await res.json()) as { answer: string };
-      setMessages([...next, { role: 'assistant', content: data.answer }]);
-    } catch {
+      let errored: { code: string; message: string } | null = null;
+      let answering = false;
+
+      for await (const event of parseSseStream(res.body)) {
+        if (event.type === 'tool') {
+          // Nueva fase de tools: descartamos cualquier texto de answer en progreso
+          // (narración del modelo, si la hubo) y mostramos el chip de estado.
+          const { name } = JSON.parse(event.data) as { name: string };
+          bufferRef.current = '';
+          flushAndStopThrottle();
+          setToolChip(toolLabel(name));
+          answering = false;
+        } else if (event.type === 'delta') {
+          const { text } = JSON.parse(event.data) as { text: string };
+          if (!answering) {
+            answering = true;
+            setToolChip(null); // primer delta → terminó la fase de tools
+          }
+          bufferRef.current += text;
+          scheduleFlush();
+        } else if (event.type === 'error') {
+          errored = JSON.parse(event.data) as { code: string; message: string };
+          break;
+        } else if (event.type === 'done') {
+          break;
+        }
+        // `stop` y `usage` son telemetría server-side — el cliente los ignora.
+      }
+
+      flushAndStopThrottle();
+
+      if (errored) {
+        // STREAM_ABORTED (abort server-side) es silencioso: conservamos el parcial.
+        if (errored.code === 'STREAM_ABORTED') {
+          finalizePartial(next);
+          return;
+        }
+        // Resto de errores intra-stream → toast + revertir el turno para reintentar.
+        handleErrorCode(errored.code, errored.message);
+        setMessages(prev);
+        setInput(trimmed);
+        resetStreamUi();
+        return;
+      }
+
+      // Éxito: commit del buffer como turno assistant.
+      setMessages([...next, { role: 'assistant', content: bufferRef.current }]);
+      bufferRef.current = '';
+      setStreamingText('');
+      setToolChip(null);
+    } catch (err) {
+      // Abort del usuario (botón Detener) o navegación: conservamos el parcial.
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        finalizePartial(next);
+        return;
+      }
       toast.error('Error de red', {
         description: 'No pudimos conectar con el asistente. Reintentá.',
       });
       setMessages(prev);
       setInput(trimmed);
+      resetStreamUi();
     } finally {
       setLoading(false);
+      abortRef.current = null;
     }
   }
 
-  function handleErrorCode(code: string | undefined, status: number, message?: string) {
+  /** Cierra un stream cancelado conservando el texto parcial (si lo hay). */
+  function finalizePartial(next: Turn[]): void {
+    const partial = bufferRef.current;
+    if (partial.trim()) {
+      setMessages([...next, { role: 'assistant', content: partial }]);
+    }
+    bufferRef.current = '';
+    setStreamingText('');
+    setToolChip(null);
+  }
+
+  function stop(): void {
+    abortRef.current?.abort();
+  }
+
+  function handleErrorCode(code: string | undefined, message?: string, status?: number) {
     switch (code) {
       case 'BILLING_GATED':
         toast.error('Suscripción inactiva', {
@@ -93,8 +257,15 @@ export function AsistenteChat() {
         toast.error('Sesión vencida');
         router.push('/login');
         return;
+      case 'CONTENT_FILTER':
+        toast.error('No pude responder eso', {
+          description: message ?? 'Probá reformular la pregunta.',
+        });
+        return;
       default:
-        toast.error('No se pudo responder', { description: message ?? `Error ${status}.` });
+        toast.error('No se pudo responder', {
+          description: message ?? (status ? `Error ${status}.` : undefined),
+        });
     }
   }
 
@@ -111,14 +282,12 @@ export function AsistenteChat() {
   }
 
   const isEmpty = messages.length === 0;
+  // Indicador "Pensando…" sólo en el hueco inicial (antes del primer tool/delta).
+  const showThinking = loading && toolChip === null && streamingText === '';
 
   return (
     <div className="flex flex-col gap-4">
-      <div
-        className="min-h-[320px] space-y-4 rounded-md border p-4"
-        aria-live="polite"
-        aria-busy={loading}
-      >
+      <div className="min-h-[320px] space-y-4 rounded-md border p-4" aria-busy={loading}>
         {isEmpty && !loading && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
@@ -141,11 +310,20 @@ export function AsistenteChat() {
           </div>
         )}
 
-        {messages.map((m, i) => (
-          <MessageBubble key={i} role={m.role} content={m.content} />
-        ))}
+        {/* Turnos confirmados: región live polite → cada turno nuevo se anuncia
+            UNA vez (no token por token). El preview en progreso queda afuera. */}
+        <div className="space-y-4" aria-live="polite">
+          {messages.map((m, i) => (
+            <MessageBubble key={i} role={m.role} content={m.content} />
+          ))}
+        </div>
 
-        {loading && (
+        {/* Preview en progreso (fuera de la región live para no spamear al SR). */}
+        {streamingText !== '' && <MessageBubble role="assistant" content={streamingText} />}
+
+        {toolChip !== null && <ToolStatus label={toolChip} />}
+
+        {showThinking && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             Pensando…
@@ -170,10 +348,17 @@ export function AsistenteChat() {
           disabled={loading}
           className="resize-none"
         />
-        <Button type="submit" size="icon" disabled={loading || input.trim().length === 0}>
-          <Send className="h-4 w-4" aria-hidden />
-          <span className="sr-only">Enviar</span>
-        </Button>
+        {loading ? (
+          <Button type="button" variant="outline" size="icon" onClick={stop}>
+            <Square className="h-4 w-4" aria-hidden />
+            <span className="sr-only">Detener</span>
+          </Button>
+        ) : (
+          <Button type="submit" size="icon" disabled={input.trim().length === 0}>
+            <Send className="h-4 w-4" aria-hidden />
+            <span className="sr-only">Enviar</span>
+          </Button>
+        )}
       </form>
     </div>
   );
@@ -194,11 +379,28 @@ function MessageBubble({ role, content }: { role: Turn['role']; content: string 
       </div>
       <div
         className={cn(
-          'max-w-[80%] rounded-md px-3 py-2 text-sm whitespace-pre-wrap',
-          isUser ? 'bg-primary text-primary-foreground' : 'bg-muted',
+          'max-w-[80%] rounded-md px-3 py-2 text-sm',
+          isUser ? 'bg-primary text-primary-foreground whitespace-pre-wrap' : 'bg-muted',
         )}
       >
-        {content}
+        {isUser ? content : <Markdown content={content} />}
+      </div>
+    </div>
+  );
+}
+
+function ToolStatus({ label }: { label: string }) {
+  return (
+    <div className="flex gap-3">
+      <div
+        className="bg-muted text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+        aria-hidden
+      >
+        <Bot className="h-4 w-4" />
+      </div>
+      <div className="bg-muted text-muted-foreground flex items-center gap-2 rounded-md px-3 py-2 text-sm">
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        {label}
       </div>
     </div>
   );
