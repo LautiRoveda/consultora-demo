@@ -334,7 +334,7 @@ export function CerrarInspeccionForm({
                   onChange={(empty) => setFirmaIsEmpty(empty)}
                   ariaLabel="Pad de firma del matriculado para cerrar la inspección"
                 />
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-muted-foreground text-xs">
                     Firmá con el dedo (mobile) o el mouse.
                   </p>
