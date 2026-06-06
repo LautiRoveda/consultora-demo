@@ -189,7 +189,7 @@ EasyPanel v2.30.0 Self-Hosted no expone Auto Deploy ni webhook URL custom en la 
 
 ### T-022.5-FU3 · Revisitar Auto Deploy en upgrade EasyPanel
 
-**Status**: open follow-up.
+**Status**: ✅ RESUELTO. **Resuelto (anotado 2026-06-06):** el Auto Deploy quedó habilitado vía webhook GitHub → EasyPanel; el push a `main` dispara redeploy automático del código. Ver `docs/technical/06-deployment.md` §"Flow de deploy" + la lección "EasyPanel Auto Deploy via GitHub webhook" en `docs/lessons-learned.md`. El contexto histórico de abajo (por qué se aceptó deploy manual en su momento, y los 2 approaches automáticos que fallaron en v2.30.0) queda como registro — la decisión original NO se reescribe.
 
 **Contexto**: EasyPanel v2.30.0 Self-Hosted no expone Auto Deploy ni webhook URL en UI. Probamos en este PR 2 approaches automáticos antes de aceptar deploy manual:
 

@@ -136,7 +136,7 @@ EasyPanel mantiene historial de deploys. Para volver a uno anterior:
 
 ### EasyPanel GitHub connection (Source)
 
-EasyPanel necesita acceso al repo para fetchear el código en cada click "Implementar". La conexión es **Source** del Service (vía Personal Access Token o GitHub App connection, según versión de EasyPanel). NO confundir con Auto Deploy — eso no está expuesto en v2.30.0.
+EasyPanel necesita acceso al repo para fetchear el código en cada click "Implementar". La conexión es **Source** del Service (vía Personal Access Token o GitHub App connection, según versión de EasyPanel). NO confundir con el Auto Deploy: la **Source connection** (PAT) es el acceso al repo; el **Auto Deploy** (webhook GitHub → EasyPanel, habilitado en T-022.5-FU3) es lo que dispara el rebuild al merge. Ambos deben estar OK para que el deploy automático funcione.
 
 1. GitHub → Settings → Developer settings → Personal access tokens → generar token nuevo con scope mínimo (`repo:status` + `contents:read` para repos privados; `public_repo` si fuera público).
 2. Revocar token viejo en GitHub.

@@ -102,6 +102,10 @@ El merge auto-deploya **solo el código** (webhook EasyPanel, no es job de GitHu
 
 **Origen**: T-124. Quitar un valor muerto depende de cómo está modelado: si es `text` + `CHECK in (…)` (ej. `calendar_event_reminders.status`), un `ALTER … DROP CONSTRAINT` + re-add sin el valor lo quita en una línea; si es un enum `TYPE` (ej. `estado_suscripcion`), no hay `DROP VALUE` → recrear el tipo entero es pesado → se REDOCUMENTA en vez de quitar. Y la asimetría: se QUITA el valor si es dato sin lógica (`failed`, que nunca se escribía); se REDOCUMENTA si tiene scaffolding/feature vivo (`archived` = soft-delete diseñado-no-implementado, con label + botones TS). Guard al estrechar un CHECK: `raise exception` si quedan filas con el valor a remover (mensaje legible antes de que el `ADD CONSTRAINT` falle solo).
 
+### Skew PostgREST local↔prod en `pnpm db:types`
+
+**Origen**: T-126. Prod corre PostgREST 14.5; la imagen de Supabase local (`supabase start`) es 14.x → al regenerar `src/shared/supabase/types.ts` con `pnpm db:types`, la versión local **reintroduce** el bloque `__InternalSupabase` que el gate de drift de CI (`gen types --local` + `git diff`) rechaza. Workaround manual: hand-edit del archivo (mismo recurso que en T-061-FU1). Fix de raíz pendiente (FU en `operativo.md`): bumpear la imagen local a 14.5, o stripear ese bloque en el script `db:types`.
+
 ## Tests integration
 
 ### Suite de integración + E2E escribían a prod → contaminación de 14k consultoras
@@ -222,6 +226,10 @@ Para acciones que afectan multiple paths: revalidar el path canónico + cualquie
 
 **Origen**: T-122 (auditoría ADR-0015, clase A en billing; misma forma que T-118 calendario→dominio). `consultoras.plan` / `trial_hasta` son un cache denormalizado de `suscripciones.estado`, pero ningún write path lo mantenía (el webhook MP updatea `suscripciones`, no `consultoras`) → una consultora que paga quedaba `plan='trial'` para siempre → el badge del sidebar mentía y el cron de dunning le mandaba "tu trial vence" a un cliente que paga. Fix: trigger `AFTER INSERT OR UPDATE OF estado` que recomputa el cache desde el estado VIGENTE de la consultora (`EXISTS` sobre TODAS sus suscripciones, no la fila `NEW`, para no degradar por un evento stale sobre una fila histórica) + guard `is distinct from` (idempotente, no churnea `updated_at`) + backfill promote-only. Regla: todo cache denormalizado necesita un productor único (trigger) que lo mantenga en la misma transacción que la fuente.
 
+### Persistencia client-driven (Option C): el cliente persiste lo que muestra
+
+**Origen**: T-126 (chat del asistente). **Aplicable a**: cualquier feature de streaming donde el output renderizado ES lo que hay que persistir. La route de streaming (`POST /api/asistente`) NO escribe en DB — devuelve el SSE y listo; el cliente, en el punto de commit (stream `done`, o abort con parcial), llama a una server action (`persistChatTurnAction`) con el turno exacto que mostró. Ventaja: el orquestador/route quedan intactos (sin acoplar persistencia al loop de tool-calling) y se persiste exactamente lo visible. La server action sigue siendo RLS-aware (per-user): aunque el contenido venga del cliente, el write solo entra en la conversación propia del user. Las tablas son append-only (mensajes sin UPDATE/DELETE).
+
 ## UI patterns
 
 ### Card density del list view: placeholders `—` literal
@@ -285,6 +293,10 @@ Cuando un componente client (Collapsible+useMediaQuery+useState) tiene que rende
 **Origen**: T-061-FU1 (checklists). **Aplicable a**: cualquier listado "ver anulados" sobre el modelo de supersession `corrige_id` + tombstone.
 
 Anular inserta un **tombstone hijo** (`anulacion=true`, `corrige_id`→original) que **NO** copia el snapshot/respuestas/firma — esos viven en el registro original. La vista `_heads` devuelve el **tombstone** como head de la cadena (el original queda superseded por su hijo). Si el listado de anulados linkea a `row.id` (el tombstone), el detalle busca datos por `execution_id=tombstone.id` → **pantalla vacía**. **Fix**: linkear las filas anuladas a `corrige_id` (el original), cuyo detalle ya renderiza todo + banner "anulada" (tiene hijo tombstone → `esVigente=false`). Incidentes (T-063-FU2) lo resuelve distinto: su `HistorialTimeline` sigue `corrige_id` desde el detalle del propio tombstone. **Moraleja**: al calcar el patrón `_heads`/"ver anulados" de otro módulo, resolver primero **de dónde salen los datos del detalle** del tombstone — no asumir que el head trae el contenido.
+
+### Responsive híbrido `h-11 md:pointer-fine:h-9` + footgun de tailwind-merge
+
+**Origen**: T-127 Tanda 1. **Aplicable forward**: sizing de cualquier primitivo compartido (Button, Input, Select, …). Target táctil 44px en mobile/touch, compacto en desktop con mouse: clase híbrida `h-11 md:pointer-fine:h-9` (variante `pointer-fine` = dispositivos con puntero preciso). **Footgun**: `tailwind-merge` (el `cn()` de shadcn) colapsa clases de la misma familia y "se come" la altura híbrida cuando el primitivo ya trae una `h-*` por default → agregar un `size="none"` (sin `h-*` propio) en el primitivo para que la clase híbrida del caller gane. Dialog/AlertDialog: `max-h` + scroll interno para que el contenido largo no desborde en pantallas chicas. Tandas 2-7 (tablas→cards, nav móvil, forms, calendario, chat, tipografía) pendientes — ver `operativo.md`.
 
 ## Operativo / VPS
 
@@ -469,3 +481,7 @@ Tablas regulatorias HyS (Res SRT) cargadas como `const` TypeScript en `src/share
 **Audit observabilidad**: log de `informe_content_generated` ahora incluye `srtBlocks: number` (0 ó 1) — útil para verificar en logs productivos que el cache hit del 2do breakpoint se está dando cuando se espera.
 
 **Origen del patrón**: [ADR-0013](adr/0013-srt-tables-en-prompt-ia.md).
+
+### Registry de tools del asistente (name→handler + guardia anti-duplicados)
+
+**Origen**: T-125. **Aplicable forward**: sumar módulos al asistente IA. En vez de un `switch(name)` que crece con cada tool, un **registry** `Map<string, ToolEntry>` (`src/shared/ai/tools/registry.ts`) ensamblado de listas por módulo (`epp-tools.ts` + `common-tools.ts` + `checklists-tools.ts`). `CHAT_TOOLS` (las definitions para Anthropic) y `TOOL_REGISTRY` (name→handler) se derivan de la MISMA lista, así no se desincronizan. `dispatchTool()` hace lookup O(1) y **nunca tira** (envuelve todo error / nombre desconocido en `DispatchToolResult` → el loop de tool-calling lo recibe como `tool_result` y sigue). **Guardia anti-duplicados** al cargar el módulo: `if (TOOL_REGISTRY.size !== ALL_ENTRIES.length) throw` — si dos módulos registran el mismo nombre, rompe al import (no en runtime silencioso). Sumar un módulo = agregar su lista de `ToolEntry` + spread en el registry; cero cambios al orquestador.
