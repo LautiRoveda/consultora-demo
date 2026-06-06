@@ -209,13 +209,29 @@ export type GetEjecucionesOptions = {
    * `estado` ('anulada' en los tombstones) para que la UI badgee los anulados.
    */
   includeAnuladas?: boolean;
+  /**
+   * T-125: filtros opcionales (pushdown a Postgres) para el asistente IA. La page
+   * sólo pasa `includeAnuladas` → comportamiento intacto. OJO: filtrar
+   * `estado='anulada'` sin `includeAnuladas` da [] (la vista vigentes no las tiene);
+   * el caller debe combinar `estado='anulada'` con `includeAnuladas=true`.
+   */
+  clienteId?: string;
+  estado?: 'borrador' | 'cerrada' | 'anulada';
+  /** YYYY-MM-DD; filtra `fecha_inspeccion >=`. */
+  fechaDesde?: string;
+  /** YYYY-MM-DD; filtra `fecha_inspeccion <=`. */
+  fechaHasta?: string;
+  /** Tope de filas (la page no lo pasa → sin límite). */
+  limit?: number;
 };
 
 /**
  * Listado de ejecuciones del tenant. Por default lee de
  * `checklist_executions_vigentes` (head no anulada); con `includeAnuladas` lee de
  * `checklist_executions_heads` (head de cada cadena, anuladas incluidas). RLS
- * filtra cross-tenant. Mismo patrón que `getIncidentes` (T-063-FU2).
+ * filtra cross-tenant. Mismo patrón que `getIncidentes` (T-063-FU2). Los filtros
+ * opcionales (T-125) se aplican ANTES de `order`/`limit` (PostgREST: los filtros
+ * van sobre el FilterBuilder, las transforms al final).
  */
 export async function getEjecucionesForConsultora(
   sb: Sb,
@@ -224,7 +240,14 @@ export async function getEjecucionesForConsultora(
   const source = opts.includeAnuladas
     ? 'checklist_executions_heads'
     : 'checklist_executions_vigentes';
-  const { data } = await sb.from(source).select('*').order('created_at', { ascending: false });
+  let query = sb.from(source).select('*');
+  if (opts.clienteId) query = query.eq('cliente_id', opts.clienteId);
+  if (opts.estado) query = query.eq('estado', opts.estado);
+  if (opts.fechaDesde) query = query.gte('fecha_inspeccion', opts.fechaDesde);
+  if (opts.fechaHasta) query = query.lte('fecha_inspeccion', opts.fechaHasta);
+  let finalQuery = query.order('created_at', { ascending: false });
+  if (opts.limit != null) finalQuery = finalQuery.limit(opts.limit);
+  const { data } = await finalQuery;
   return data ?? [];
 }
 
@@ -413,4 +436,90 @@ export async function getEjecucionForDetail(
     isEjecucionVigente(sb, base.execution),
   ]);
   return { ...base, acciones, esVigente };
+}
+
+// ====================== CAPAs de toda la consultora (T-125) ======================
+
+/** Estados "pendientes" por default; alinean con el WHERE del índice parcial. */
+const CAPA_ESTADOS_PENDIENTES = ['abierta', 'en_progreso'] as const;
+
+export type GetCapasOptions = {
+  /**
+   * Estados a incluir. Default: pendientes (abierta + en_progreso) → el path usa
+   * `idx_acciones_abiertas_fecha(consultora_id, fecha_compromiso) WHERE estado IN
+   * ('abierta','en_progreso')`. Otros estados hacen seq scan (raro, acotado).
+   */
+  estados?: string[];
+  clienteId?: string;
+  prioridad?: 'baja' | 'media' | 'alta';
+  /** YYYY-MM-DD; filtra `fecha_compromiso >=`. */
+  fechaDesde?: string;
+  /** YYYY-MM-DD; filtra `fecha_compromiso <=`. */
+  fechaHasta?: string;
+  /** Tope de filas. Default 50. */
+  limit?: number;
+};
+
+export type CapaForConsultora = {
+  id: string;
+  descripcion: string;
+  prioridad: string;
+  estado: string;
+  /** YYYY-MM-DD. */
+  fecha_compromiso: string;
+  cliente_id: string | null;
+  /** Razón social del cliente, resuelta en 2 pasos. null si la CAPA no tiene cliente. */
+  cliente_razon_social: string | null;
+  execution_id: string;
+};
+
+/**
+ * CAPAs (acciones_correctivas) de TODA la consultora con filtros, ordenadas por
+ * `fecha_compromiso ASC`. Para el asistente IA ("¿qué CAPAs vencen pronto / están
+ * vencidas?"). RLS-scoped (cross-tenant → []). Resuelve el nombre del cliente en
+ * 2 pasos (un IN(...) a `clientes`), igual que `getAccionesForExecution` resuelve
+ * `calendar_events`. NO requiere migración: el índice parcial existente cubre el
+ * path default. Filtros antes de `order`/`limit` (PostgREST FilterBuilder).
+ */
+export async function getCapasForConsultora(
+  sb: Sb,
+  opts: GetCapasOptions = {},
+): Promise<CapaForConsultora[]> {
+  const estados = opts.estados ?? [...CAPA_ESTADOS_PENDIENTES];
+  const limit = opts.limit ?? 50;
+
+  let query = sb
+    .from('acciones_correctivas')
+    .select('id, descripcion, prioridad, estado, fecha_compromiso, cliente_id, execution_id')
+    .in('estado', estados);
+  if (opts.clienteId) query = query.eq('cliente_id', opts.clienteId);
+  if (opts.prioridad) query = query.eq('prioridad', opts.prioridad);
+  if (opts.fechaDesde) query = query.gte('fecha_compromiso', opts.fechaDesde);
+  if (opts.fechaHasta) query = query.lte('fecha_compromiso', opts.fechaHasta);
+
+  const { data: capas } = await query.order('fecha_compromiso', { ascending: true }).limit(limit);
+  const rows = capas ?? [];
+
+  const clienteIds = [
+    ...new Set(rows.map((r) => r.cliente_id).filter((x): x is string => x != null)),
+  ];
+  const razonByClienteId = new Map<string, string>();
+  if (clienteIds.length > 0) {
+    const { data: clientes } = await sb
+      .from('clientes')
+      .select('id, razon_social')
+      .in('id', clienteIds);
+    for (const c of clientes ?? []) razonByClienteId.set(c.id, c.razon_social);
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    descripcion: r.descripcion,
+    prioridad: r.prioridad,
+    estado: r.estado,
+    fecha_compromiso: r.fecha_compromiso,
+    cliente_id: r.cliente_id,
+    cliente_razon_social: r.cliente_id ? (razonByClienteId.get(r.cliente_id) ?? null) : null,
+    execution_id: r.execution_id,
+  }));
 }

@@ -390,6 +390,58 @@ describe('POST /api/asistente (streaming SSE)', () => {
     expect(toolResults.map((b) => b.tool_use_id)).toEqual(['toolu_1']);
   });
 
+  it('1b. tool de Checklists (capas_pendientes) ruteada por el registry end-to-end', async () => {
+    // T-125: prueba que una tool de OTRO módulo (Checklists) se rutea por el registry
+    // a través del route. La consultora A no tiene CAPAs → la tool devuelve [] (no error)
+    // y el modelo cierra con texto. Lo que importa: el chip de la tool nueva llega.
+    await signInAs(emailOwnerA);
+    mockMessagesStream
+      .mockReturnValueOnce(
+        makeChatStreamMock({
+          kind: 'tool',
+          tools: [{ id: 'toolu_capa', name: 'capas_pendientes', input: {} }],
+          inputTokens: 300,
+          outputTokens: 20,
+        }),
+      )
+      .mockReturnValueOnce(
+        makeChatStreamMock({
+          kind: 'text',
+          chunks: ['No tenés CAPAs pendientes registradas.'],
+          inputTokens: 320,
+          outputTokens: 18,
+        }),
+      );
+
+    const { POST } = await import('@/app/api/asistente/route');
+    const res = await POST(
+      makeReq({ messages: [{ role: 'user', content: '¿Qué CAPAs tengo pendientes?' }] }),
+    );
+    expect(res.status).toBe(200);
+
+    const events = await consumeStream(res);
+    const toolEv = events.find((e) => e.type === 'tool');
+    expect(toolEv).toBeDefined();
+    expect(JSON.parse(toolEv!.data)).toEqual({ name: 'capas_pendientes' });
+    expect(answerText(events)).toBe('No tenés CAPAs pendientes registradas.');
+
+    // El tool_result que se mandó al 2º turno NO es error (query válida, lista vacía).
+    const secondMessages = mockMessagesStream.mock.calls[1]![0].messages as Array<{
+      role: string;
+      content: unknown;
+    }>;
+    const toolResults = secondMessages.flatMap((m) =>
+      Array.isArray(m.content)
+        ? (m.content as Array<{ type: string; is_error?: boolean; content?: string }>).filter(
+            (b) => b.type === 'tool_result',
+          )
+        : [],
+    );
+    expect(toolResults).toHaveLength(1);
+    expect(toolResults[0]!.is_error).toBe(false);
+    expect(toolResults[0]!.content).toBe('[]');
+  });
+
   it('2. cap de iteraciones: tool_use infinito → delta(fallback) + stop iteration_cap_reached', async () => {
     await signInAs(emailOwnerA);
     mockMessagesStream.mockReturnValue(
