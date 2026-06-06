@@ -6,19 +6,29 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { EPP_CHAT_MAX_HISTORY_MESSAGES } from '@/app/api/asistente/schema';
 import { parseSseStream } from '@/shared/ai/sse-client';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
 import { Markdown } from '@/shared/ui/markdown';
 import { Textarea } from '@/shared/ui/textarea';
 
+import { persistChatTurnAction } from './actions';
+import { type Turn } from './schema';
 import { toolLabel } from './tool-labels';
 
 /**
  * T-117 · Chat del asistente IA de EPP (client).
  *
- * Stateless: el historial vive en memoria del componente y se manda completo en
- * cada POST a `/api/asistente`.
+ * El turno en curso vive en memoria del componente y el historial se manda en cada
+ * POST a `/api/asistente` (capeado a EPP_CHAT_MAX_HISTORY_MESSAGES).
+ *
+ * T-126 · Persistencia (Option C). El componente se siembra con `initialMessages`
+ * (mensajes de una conversación reabierta) e `initialConversacionId`. Cada turno
+ * committeado (done -> answer completo; abort con parcial -> parcial) se guarda vía
+ * `persistChatTurnAction` con el contenido EXACTO que se muestra. En error
+ * intra-stream / abort sin texto NO se persiste (la UI ya revierte / no muestra
+ * respuesta). Best-effort: 1 reintento + toast sutil si falla.
  *
  * T-117-FU3 · Streaming SSE. La respuesta del assistant aparece token por token
  * (eventos `delta`), con chips de estado mientras corren las queries de tools
@@ -27,8 +37,6 @@ import { toolLabel } from './tool-labels';
  * gates (402/429/401/…) llegan como HTTP `!res.ok`; los errores post-200
  * (rate-limit del SDK, timeout, refusal) como evento SSE `error`.
  */
-
-type Turn = { role: 'user' | 'assistant'; content: string };
 
 const SUGGESTIONS = [
   '¿A quién le vence el EPP en los próximos 30 días?',
@@ -39,9 +47,15 @@ const SUGGESTIONS = [
 /** Fallback de flush si rAF pausa (tab en background). En foreground rAF gana. */
 const STREAM_FLUSH_FALLBACK_MS = 250;
 
-export function AsistenteChat() {
+export function AsistenteChat({
+  initialMessages = [],
+  initialConversacionId = null,
+}: {
+  initialMessages?: Turn[];
+  initialConversacionId?: string | null;
+} = {}) {
   const router = useRouter();
-  const [messages, setMessages] = useState<Turn[]>([]);
+  const [messages, setMessages] = useState<Turn[]>(initialMessages);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   // Texto del answer en progreso (volcado por rAF desde bufferRef) + chip de la
@@ -56,6 +70,9 @@ export function AsistenteChat() {
   const bufferRef = useRef('');
   const rafIdRef = useRef<number | null>(null);
   const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // T-126 · id de la conversación actual (null = nueva). Ref para leerlo fresco
+  // dentro de `send`/`persistTurn` sin re-render; se setea al primer turno persistido.
+  const conversacionIdRef = useRef<string | null>(initialConversacionId);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -139,7 +156,10 @@ export function AsistenteChat() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ messages: next }),
+        // T-126 R7: capeamos el historial al límite del route (Zod). Reabrir una
+        // conversación con >20 mensajes y enviar excedería el cap -> 400 -> revert.
+        // La persistencia es turno-a-turno, no la afecta este recorte de contexto.
+        body: JSON.stringify({ messages: next.slice(-EPP_CHAT_MAX_HISTORY_MESSAGES) }),
         signal: ac.signal,
       });
 
@@ -192,7 +212,7 @@ export function AsistenteChat() {
       if (errored) {
         // STREAM_ABORTED (abort server-side) es silencioso: conservamos el parcial.
         if (errored.code === 'STREAM_ABORTED') {
-          finalizePartial(next);
+          finalizePartial(next, trimmed);
           return;
         }
         // Resto de errores intra-stream → toast + revertir el turno para reintentar.
@@ -204,14 +224,17 @@ export function AsistenteChat() {
       }
 
       // Éxito: commit del buffer como turno assistant.
-      setMessages([...next, { role: 'assistant', content: bufferRef.current }]);
+      const answer = bufferRef.current;
+      setMessages([...next, { role: 'assistant', content: answer }]);
       bufferRef.current = '';
       setStreamingText('');
       setToolChip(null);
+      // T-126: persistimos el turno EXACTO que mostramos (user + answer).
+      void persistTurn(trimmed, answer);
     } catch (err) {
       // Abort del usuario (botón Detener) o navegación: conservamos el parcial.
       if (err instanceof DOMException && err.name === 'AbortError') {
-        finalizePartial(next);
+        finalizePartial(next, trimmed);
         return;
       }
       toast.error('Error de red', {
@@ -227,14 +250,53 @@ export function AsistenteChat() {
   }
 
   /** Cierra un stream cancelado conservando el texto parcial (si lo hay). */
-  function finalizePartial(next: Turn[]): void {
+  function finalizePartial(next: Turn[], userText: string): void {
     const partial = bufferRef.current;
     if (partial.trim()) {
       setMessages([...next, { role: 'assistant', content: partial }]);
+      // T-126: el parcial mostrado se persiste igual que un answer completo.
+      void persistTurn(userText, partial);
     }
     bufferRef.current = '';
     setStreamingText('');
     setToolChip(null);
+  }
+
+  /**
+   * T-126 · Persiste un turno (user + assistant) vía server action, en los puntos
+   * de commit del cliente. Best-effort: 1 reintento, toast sutil si falla (sin
+   * revertir lo mostrado). Al crear una conversación nueva, sincroniza la URL
+   * (`?c=<id>`) y refresca el sidebar.
+   */
+  async function persistTurn(userText: string, assistantText: string): Promise<void> {
+    const assistant = assistantText.trim();
+    if (!assistant) return; // nada que guardar (no debería pasar: se llama con texto)
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await persistChatTurnAction({
+          conversacionId: conversacionIdRef.current,
+          userMessage: userText,
+          assistantMessage: assistant,
+        });
+        if (res.ok) {
+          const wasNew = conversacionIdRef.current === null;
+          conversacionIdRef.current = res.conversacionId;
+          if (wasNew) {
+            // URL reload-safe + sidebar con la conversación nueva. El remount por
+            // cambio de `key` re-hidrata desde la DB (mismo contenido) -> imperceptible.
+            router.replace(`/asistente?c=${res.conversacionId}`, { scroll: false });
+            router.refresh();
+          }
+          return;
+        }
+      } catch {
+        // Reintenta una vez (fallo de red transitorio).
+      }
+    }
+    toast.error('No se pudo guardar', {
+      description: 'El mensaje se mostró pero no quedó guardado. Reintentá más tarde.',
+    });
   }
 
   function stop(): void {

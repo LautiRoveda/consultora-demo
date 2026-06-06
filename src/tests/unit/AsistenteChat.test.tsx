@@ -16,17 +16,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AsistenteChat } from '@/app/(app)/asistente/asistente-client';
 
-const { pushMock, toastErrorMock } = vi.hoisted(() => ({
+const { pushMock, replaceMock, refreshMock, toastErrorMock, persistMock } = vi.hoisted(() => ({
   pushMock: vi.fn(),
+  replaceMock: vi.fn(),
+  refreshMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  persistMock: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: pushMock, replace: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({ push: pushMock, replace: replaceMock, refresh: refreshMock, back: vi.fn() }),
 }));
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: toastErrorMock, info: vi.fn(), warning: vi.fn() },
+}));
+
+// T-126 · el chat persiste cada turno vía server action — la mockeamos (es
+// 'use server' + server-only; el cliente sólo consume su resultado).
+vi.mock('@/app/(app)/asistente/actions', () => ({
+  persistChatTurnAction: persistMock,
+  archiveChatConversacionAction: vi.fn(),
 }));
 
 const SUGGESTION = '¿Qué EPP se le entregó a Pérez?';
@@ -70,6 +80,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   fetchMock = vi.fn();
   vi.stubGlobal('fetch', fetchMock);
+  persistMock.mockResolvedValue({ ok: true, conversacionId: 'conv-default' });
   // rAF síncrono → el flush del throttle ocurre al instante (test determinista).
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
     cb(0);
@@ -241,5 +252,132 @@ describe('AsistenteChat (streaming)', () => {
       expect(screen.queryByRole('button', { name: 'Detener' })).not.toBeInTheDocument(),
     );
     abortSpy.mockRestore();
+  });
+});
+
+describe('AsistenteChat · persistencia (T-126)', () => {
+  it('persiste el turno al done y, si es conversación nueva, sincroniza URL + refresh', async () => {
+    persistMock.mockResolvedValueOnce({ ok: true, conversacionId: 'conv-1' });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse([
+        ['delta', { text: 'Hola, ' }],
+        ['delta', { text: 'mundo.' }],
+        ['done', {}],
+      ]),
+    );
+
+    render(<AsistenteChat />);
+    fireEvent.click(screen.getByText(SUGGESTION));
+
+    await waitFor(() => expect(persistMock).toHaveBeenCalledTimes(1));
+    expect(persistMock).toHaveBeenCalledWith({
+      conversacionId: null,
+      userMessage: SUGGESTION,
+      assistantMessage: 'Hola, mundo.',
+    });
+    // Conversación nueva → URL reload-safe + sidebar refrescado.
+    await waitFor(() =>
+      expect(replaceMock).toHaveBeenCalledWith('/asistente?c=conv-1', { scroll: false }),
+    );
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it('persiste el texto parcial en STREAM_ABORTED', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sseResponse([
+        ['delta', { text: 'respuesta parcial' }],
+        ['error', { code: 'STREAM_ABORTED', message: 'Generación cancelada.' }],
+      ]),
+    );
+
+    render(<AsistenteChat />);
+    fireEvent.click(screen.getByText(SUGGESTION));
+
+    await waitFor(() =>
+      expect(persistMock).toHaveBeenCalledWith({
+        conversacionId: null,
+        userMessage: SUGGESTION,
+        assistantMessage: 'respuesta parcial',
+      }),
+    );
+  });
+
+  it('NO persiste en error intra-stream (RATE_LIMITED): la UI revierte', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sseResponse([
+        ['delta', { text: 'parcial' }],
+        ['error', { code: 'RATE_LIMITED', message: 'saturada' }],
+      ]),
+    );
+
+    render(<AsistenteChat />);
+    fireEvent.click(screen.getByText(SUGGESTION));
+
+    await waitFor(() =>
+      expect(toastErrorMock).toHaveBeenCalledWith('Demasiadas consultas', expect.anything()),
+    );
+    expect(persistMock).not.toHaveBeenCalled();
+  });
+
+  it('NO persiste en gate pre-stream (402)', async () => {
+    fetchMock.mockResolvedValueOnce(
+      errorResponse(402, { code: 'BILLING_GATED', message: 'Renová tu plan.' }),
+    );
+
+    render(<AsistenteChat />);
+    fireEvent.click(screen.getByText(SUGGESTION));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
+    expect(persistMock).not.toHaveBeenCalled();
+  });
+
+  it('NO persiste en abort sin texto (no hubo answer)', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sseResponse([['error', { code: 'STREAM_ABORTED', message: 'Generación cancelada.' }]]),
+    );
+
+    render(<AsistenteChat />);
+    fireEvent.click(screen.getByText(SUGGESTION));
+
+    // El stream se consumió y loading terminó (vuelve el botón Enviar).
+    await screen.findByRole('button', { name: 'Enviar' });
+    expect(persistMock).not.toHaveBeenCalled();
+  });
+
+  it('siembra initialMessages y reusa initialConversacionId (sin tocar la URL)', async () => {
+    persistMock.mockResolvedValueOnce({ ok: true, conversacionId: 'conv-existing' });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse([
+        ['delta', { text: 'ok' }],
+        ['done', {}],
+      ]),
+    );
+
+    render(
+      <AsistenteChat
+        initialConversacionId="conv-existing"
+        initialMessages={[
+          { role: 'user', content: 'pregunta previa' },
+          { role: 'assistant', content: 'respuesta previa' },
+        ]}
+      />,
+    );
+    // Mensajes sembrados desde la conversación reabierta.
+    expect(screen.getByText('respuesta previa')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Escribí tu pregunta'), {
+      target: { value: 'nueva pregunta' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    await waitFor(() =>
+      expect(persistMock).toHaveBeenCalledWith({
+        conversacionId: 'conv-existing',
+        userMessage: 'nueva pregunta',
+        assistantMessage: 'ok',
+      }),
+    );
+    // Conversación ya existente → no se reescribe la URL.
+    expect(replaceMock).not.toHaveBeenCalled();
   });
 });
