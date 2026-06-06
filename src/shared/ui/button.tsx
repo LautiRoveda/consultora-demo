@@ -20,14 +20,25 @@ const buttonVariants = cva(
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-9 px-4 py-2 has-[>svg]:px-3',
+        // T-127 Tanda 1 · Touch-first: 44px (h-11/size-11) por defecto; compacta a la
+        // densidad de escritorio SOLO en pantalla ancha (md) Y puntero fino (mouse),
+        // via `md:pointer-fine:`. Así una tablet táctil a >=md sigue en 44px (su puntero
+        // es coarse) y el default falla del lado accesible. En táctil default/sm/lg
+        // colapsan a 44px de alto (difieren en padding/fuente) — es el resultado buscado.
+        default: 'h-11 px-4 py-2 has-[>svg]:px-3 md:pointer-fine:h-9',
+        sm: 'h-11 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5 md:pointer-fine:h-8',
+        lg: 'h-11 rounded-md px-6 has-[>svg]:px-4 md:pointer-fine:h-10',
+        icon: 'size-11 md:pointer-fine:size-9',
+        'icon-sm': 'size-11 md:pointer-fine:size-8',
+        'icon-lg': 'size-11 md:pointer-fine:size-10',
+        // xs / icon-xs NO crecen: uso INLINE (dentro de badge/chip/celda) donde el target
+        // real lo da el contenedor. No usar como botón suelto.
         xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: 'h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5',
-        lg: 'h-10 rounded-md px-6 has-[>svg]:px-4',
-        icon: 'size-9',
         'icon-xs': "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
-        'icon-sm': 'size-8',
-        'icon-lg': 'size-10',
+        // Sin dimensiones inyectadas: el caller controla todo via className. Necesario
+        // donde un override plano de tamaño dejaría "filtrar" el `md:pointer-fine:*` del
+        // variant (tailwind-merge no dedupea entre modifiers) y reaparecer en desktop.
+        none: '',
       },
     },
     defaultVariants: {
