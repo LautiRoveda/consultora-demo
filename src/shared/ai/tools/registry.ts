@@ -4,6 +4,8 @@ import type { DispatchToolResult, ToolDefinition, ToolEntry } from '@/shared/ai/
 import type { Database } from '@/shared/supabase/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { CHECKLIST_TOOL_ENTRIES } from '@/shared/ai/tools/checklists-tools';
+import { COMMON_TOOL_ENTRIES } from '@/shared/ai/tools/common-tools';
 import { EPP_TOOL_ENTRIES } from '@/shared/ai/tools/epp-tools';
 import { fail } from '@/shared/ai/tools/tool-result';
 import { logger } from '@/shared/observability/logger';
@@ -23,9 +25,13 @@ import { logger } from '@/shared/observability/logger';
  * recortan; nunca tiran al caller (lo envuelve este try/catch).
  */
 
-// Orden de registro = orden en que el modelo ve las tools. Spread de cada módulo;
-// otros módulos (Checklists, transversales) se suman acá en su tanda.
-const ALL_ENTRIES: ToolEntry[] = [...EPP_TOOL_ENTRIES];
+// Orden de registro = orden en que el modelo ve las tools. Spread de cada módulo.
+// EPP primero (preserva el orden previo); luego las transversales y Checklists.
+const ALL_ENTRIES: ToolEntry[] = [
+  ...EPP_TOOL_ENTRIES,
+  ...COMMON_TOOL_ENTRIES,
+  ...CHECKLIST_TOOL_ENTRIES,
+];
 
 /** Definiciones para la API de Anthropic (el stream las castea a `Anthropic.Tool[]`). */
 export const CHAT_TOOLS: ToolDefinition[] = ALL_ENTRIES.map((e) => e.definition);
