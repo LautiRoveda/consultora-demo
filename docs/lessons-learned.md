@@ -88,7 +88,19 @@ El merge auto-deploya **solo el código** (webhook EasyPanel, no es job de GitHu
 
 ### Lifecycle: los pendientes generados necesitan un flujo de cierre
 
-**Origen**: T-119 (auditoría, ADR-0015). `epp_planificaciones` y `acciones_correctivas` nacían 'activa'/'abierta' y nunca se cerraban (enum con estados de cierre que el código no seteaba) → acumulación de fantasma. Fix EPP: cerrar la previa al reentregar + unique parcial activas + backfill. Pendiente CAPAs: T-120. Regla: todo pendiente generado tiene un flujo de cierre + (si aplica) unicidad que lo blinde.
+**Origen**: T-119 (auditoría, ADR-0015). `epp_planificaciones` y `acciones_correctivas` nacían 'activa'/'abierta' y nunca se cerraban (enum con estados de cierre que el código no seteaba) → acumulación de fantasma. Fix EPP: cerrar la previa al reentregar + unique parcial activas + backfill. CAPAs: T-120 ✅ (`resolverCapaAction`, cierre con evidencia). Regla: todo pendiente generado tiene un flujo de cierre + (si aplica) unicidad que lo blinde.
+
+### FK compuesta para coherencia de tenant denormalizado
+
+**Origen**: T-121 (auditoría ADR-0015, clase D-RingA). El `consultora_id` denormalizado en ~12 tablas hijas (fast-path de RLS, evita el join al parent) no tenía enforcement: un INSERT mal hecho o una RPC futura con bug podía plantar un hijo con el `consultora_id` de OTRO tenant → la RLS del hijo confía en su columna denormalizada → fuga cross-tenant. Fix declarativo (sin trigger): FK COMPUESTA `hijo.(<fk>, consultora_id) → parent.(id, consultora_id)`, que Postgres garantiza estructuralmente (`hijo.consultora_id = parent.consultora_id`). Requiere una `unique (id, consultora_id)` en el parent (destino del FK compuesto; Postgres exige UNIQUE CONSTRAINT, no índice suelto). Alcance Ring A: 17 FK + 9 uniques sobre ownership NOT-NULL (ambos lados `consultora_id NOT NULL` → cero gaps). Ring C (system rows con `consultora_id NULL`) NO se protege con `MATCH SIMPLE`: un NULL en la columna compuesta pasa el check → queda dormido (T-121-FU).
+
+### Drop de constraint por resolución dinámica, no por nombre default
+
+**Origen**: T-121 / T-124. Para reemplazar una constraint (FK simple → compuesto en T-121; CHECK inline en T-124) NO hardcodear el nombre default (`<tabla>_<col>_fkey`): puede diferir del real. Resolver el `conname` real desde `pg_constraint` (por `conrelid`/`confrelid`/columna, o por `pg_get_constraintdef ilike`) y `drop` vía `execute format`. Si no se encuentra → `raise exception` (NO `drop … if exists` silencioso, que dejaría la constraint vieja conviviendo con la nueva). Reaplicable limpio bajo `db reset`.
+
+### Quitar valor de enum: text+CHECK trivial, enum TYPE pesado
+
+**Origen**: T-124. Quitar un valor muerto depende de cómo está modelado: si es `text` + `CHECK in (…)` (ej. `calendar_event_reminders.status`), un `ALTER … DROP CONSTRAINT` + re-add sin el valor lo quita en una línea; si es un enum `TYPE` (ej. `estado_suscripcion`), no hay `DROP VALUE` → recrear el tipo entero es pesado → se REDOCUMENTA en vez de quitar. Y la asimetría: se QUITA el valor si es dato sin lógica (`failed`, que nunca se escribía); se REDOCUMENTA si tiene scaffolding/feature vivo (`archived` = soft-delete diseñado-no-implementado, con label + botones TS). Guard al estrechar un CHECK: `raise exception` si quedan filas con el valor a remover (mensaje legible antes de que el `ADD CONSTRAINT` falle solo).
 
 ## Tests integration
 
@@ -119,6 +131,8 @@ Limpiar dependientes antes que padres (informes → clientes → users) evita FK
 ### red→green ejecutado en CI (2 commits) cuando no hay Docker local
 
 **Origen**: T-114. El gate 'demo red→green ejecutada' choca sin Docker (integration necesita `supabase start`). Solución: commit 1 = solo el test (sin la migración) → job Integration ROJO real; commit 2 = agrega la migración → VERDE. El squash colapsa. NO sirve 'diferir a CI' sin el commit-1-sin-migración (CI siempre corre la branch completa → siempre verde). Aplicado T-114 #204 (run rojo `26963251304` → verde `26963914133`).
+
+**Nota T-123 (trigger AFTER roba el count)**: cuando el fix es un trigger `AFTER UPDATE`, corre ANTES del código de la action que (antes) hacía el mismo trabajo → ese código ve 0 filas. En T-123 `skip_reminders_on_event_final` skipea los reminders antes de que `complete/cancelCalendarEventAction` los skipee → el `remindersSkipped` que la action devolvía leía 0 → se quitó (count muerto post-trigger). Al testear un trigger que duplica lógica de app, asertar el ESTADO FINAL (filas `skipped`), no el count que devuelve la action.
 
 ### Búsqueda para LLM: multi-término + accent-insensitive, aislada de los autocompletes
 
@@ -199,6 +213,14 @@ Cuando un helper debe comportarse distinto según el tipo activo (5 tipos de inf
 ### revalidatePath strategy
 
 Para acciones que afectan multiple paths: revalidar el path canónico + cualquier path donde la row aparezca embedded. `revalidatePath` de ruta inexistente es no-op silent en Next.js → forward-compat para cuando otro ticket cree el detail/tab view. Ejemplo T-053: `revalidatePath('/empleados/${id}')` + `revalidatePath('/clientes/${cliente_id}')` aunque ninguno existe al merge de T-053.
+
+### Gate leak: una `cancelada` sin `cancelar_en` daba acceso
+
+**Origen**: T-124. `getBillingStatus` (`src/shared/billing/access.ts`) bloqueaba una suscripción `cancelada` solo si `cancelar_en < now()`; una `cancelada` con `cancelar_en NULL` (churn real: MP la canceló por falta de pago, sin período de gracia stampeado) caía a `ok:true` → acceso filtrado. El leak estaba TESTEADO como `ok` (el test afirmaba el bug). Fix: `if (!cancelarEn || cancelarEn < now)` bloquea de inmediato; el test se invirtió a `ok:false`. La capa estructural la cierra el churn reaper (T-124, cron diario) que flipa esas filas a `expirada` y, vía el trigger T-122, recomputa `consultoras.plan='trial'`. Moraleja: un gate con rama "período venció" debe tratar el `NULL` del deadline como "sin gracia" (bloquea), no como "gracia infinita" (abre).
+
+### Cache denormalizado: fuente única + sync por trigger
+
+**Origen**: T-122 (auditoría ADR-0015, clase A en billing; misma forma que T-118 calendario→dominio). `consultoras.plan` / `trial_hasta` son un cache denormalizado de `suscripciones.estado`, pero ningún write path lo mantenía (el webhook MP updatea `suscripciones`, no `consultoras`) → una consultora que paga quedaba `plan='trial'` para siempre → el badge del sidebar mentía y el cron de dunning le mandaba "tu trial vence" a un cliente que paga. Fix: trigger `AFTER INSERT OR UPDATE OF estado` que recomputa el cache desde el estado VIGENTE de la consultora (`EXISTS` sobre TODAS sus suscripciones, no la fila `NEW`, para no degradar por un evento stale sobre una fila histórica) + guard `is distinct from` (idempotente, no churnea `updated_at`) + backfill promote-only. Regla: todo cache denormalizado necesita un productor único (trigger) que lo mantenga en la misma transacción que la fuente.
 
 ## UI patterns
 
@@ -321,6 +343,10 @@ Dev local Windows/macOS necesita `CHROMIUM_PATH` apuntando a Chrome instalado �
 ### Service Worker (Web Push) sin caching para MVP
 
 **Origen**: T-034 (decisión 5 + 10). Safari/iOS NO MVP — llegan en Fase 3 con PWA installable. SW estático `public/sw.js` (~50 líneas, scope default `/`) con handler `push` + `notificationclick` only. Sin install handler ni caching. VAPID keys generadas localmente con `npx web-push generate-vapid-keys` UNA VEZ — nunca regenerar productivo: invalida todas las subs existentes porque Push Service asocia public key al endpoint en subscribe.
+
+### Management API de Supabase para queries de catálogo en prod sin psql
+
+**Origen**: T-124. **Aplicable forward**: verificación read-only post-`db push` de objetos que PostgREST NO expone (`cron.job`, `pg_proc`, `pg_constraint`, `pg_type`). El cliente supabase-js / REST solo ve tablas de `public` con grants; para confirmar que un cron quedó scheduleado, que una función tiene el `prosrc` esperado o que un CHECK se estrechó, usar la Management API `POST /v1/projects/{ref}/database/query` con el access-token (SQL read-only). Extiende la receta `db-push-prod-verify-recipe` (tsx + service-role para objetos de `public`): para el catálogo del sistema, Management API. Sin Docker/psql local.
 
 ## Security
 
