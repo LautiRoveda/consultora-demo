@@ -57,7 +57,7 @@ Sos mi tech lead y orquestador. Yo (Lautaro) soy el puente entre vos y Claude Co
 | PDF           | Puppeteer + Chromium-alpine, singleton browser, idle timeout 5min    |
 | Observability | Sentry `@sentry/nextjs` + pino logger                                |
 | Hosting       | VPS Hostinger Ubuntu 24.04 + EasyPanel v2.30.0 + Docker multi-stage  |
-| CI/CD         | GitHub Actions + deploy manual click en EasyPanel post-merge         |
+| CI/CD         | GitHub Actions + Auto Deploy EasyPanel (webhook GitHub) al merge a `main`; migraciones aparte via `db push` |
 | Tests         | Vitest 3 (unit/component/integration) + Playwright chromium          |
 
 - **Supabase project:** `blijipnixnikaguojjee` en región `sa-east-1`.
@@ -133,7 +133,7 @@ Sos mi tech lead y orquestador. Yo (Lautaro) soy el puente entre vos y Claude Co
 
 - VPS sobre Vercel: decisión T-022.5. Razón: `max_tokens` cap 4096 por Vercel Hobby 10s timeout era bloqueante para outputs Claude largos. VPS sin timeout cap.
 - Vercel queda como hot-backup pausado hasta `2026-06-09` (4 semanas post-cutover). Después decommission.
-- Deploy manual click: EasyPanel self-hosted CE no expone Auto Deploy en UI. Tras cada merge a `main`: EasyPanel → Service `consultora-demo` → "Implementar". GitHub Actions deploy job removido del `ci.yml`.
+- Auto-deploy del CÓDIGO: el merge a `main` dispara redeploy automático (webhook GitHub → EasyPanel, habilitado en T-022.5-FU3). Las migraciones NO auto-aplican — van por `supabase db push --linked` aparte, con diff validado + OK del owner, en la misma ventana del merge (orden migración-primero si el código depende de ellas). Fallback de deploy: click "Implementar" en EasyPanel UI. (GitHub Actions no tiene job de deploy: el código lo publica el webhook de EasyPanel.)
 - `INTERNAL_BASE_URL` ya **no es necesario** post T-023-FU2: `resolveInternalBaseUrl` devuelve loopback IPv4 `http://127.0.0.1:${PORT ?? '3000'}` por default en `NODE_ENV=production`. La env var queda como override opcional (testing/staging). Post-deploy de T-023-FU2 se puede remover de EasyPanel.
 
 ### Modelo IA

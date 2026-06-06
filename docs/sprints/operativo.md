@@ -154,6 +154,26 @@ Mergeado #201 (`215dc7b`). Flaky pre-existente intermitente: el `waitFor`/`findB
 
 #214 (squash `bca1ce8`). Migración `20260605000003` + fix de gate (`src/shared/billing/access.ts`). **Reaper** `process_subscription_churn()` (cron diario `0 3 * * *`, SQL puro) flipa una `cancelada`-vencida (`cancelar_en NULL` = churn MP por falta de pago, o `cancelar_en < now()` = gracia vencida) → `expirada`; el UPDATE dispara T-122 → recomputa `consultoras.plan='trial'`. **Gate fix** cierra el LEAK real: una `cancelada` con `cancelar_en NULL` caía a `ok:true` → ahora `if (!cancelarEn || cancelarEn < now)` bloquea (`SUBSCRIPTION_CANCELLED`); el test del leak se invirtió a `ok:false`. **Enums**: `calendar_event_reminders.status='failed'` REMOVido del CHECK (nunca se escribía; el fallo vive en `notification_log`) + espejo TS `REMINDER_STATUS_VALUES`; `estado_suscripcion` (`expirada` activado por el reaper, `trial` reservado) e `informes.status='archived'` (soft-delete diseñado-no-implementado, KEEP) redocumentados. Backfill 0.
 
+## T-117-FU3 ✅ Asistente: streaming SSE + render markdown + tests del cliente — EN PROD
+
+#217 (squash `511049f`). El chat del asistente pasa a **Server-Sent Events**: orquestador `streamEppChat` (`src/shared/ai/epp-chat-stream.ts`) emite eventos `delta` (token a token) / `tool` (nombre de la tool en curso) / `stop` / `usage` / `error` / `done`; encode en `src/shared/ai/sse-encode.ts`, parser isomórfico `src/shared/ai/sse-client.ts`. Los errores **post-200** (rate-limit, timeout, refusal, abort) viajan como evento SSE `error`, nunca HTTP 5xx. Render **markdown** en el cliente con `react-markdown` + `remarkGfm` + `rehype-sanitize` (`src/shared/ui/markdown.tsx`, sanitiza `<script>`/`on*`/`javascript:`). Cliente (`asistente-client.tsx`): throttle de re-render por `requestAnimationFrame` + fallback 250ms para tabs en background, botón "detener" vía `AbortController`. **Tests del cliente**: `src/tests/unit/ai-sse-client.test.ts` (fragmentación / CRLF / unicode) + `markdown.test.tsx` (bold/listas/tablas/sanitización). Cierra el pendiente "render markdown en el chat" que figuraba en CLAUDE.md.
+
+## T-125 ✅ Asistente multi-módulo: registry de tools + Checklists/Inspecciones — EN PROD
+
+#218 (squash `06a1a5f`). Reemplaza el `switch(name)` por un **registry** `Map<string, ToolEntry>` (`src/shared/ai/tools/registry.ts`) ensamblado de listas por módulo (`epp-tools.ts` + `common-tools.ts` + `checklists-tools.ts`); `dispatchTool()` hace lookup O(1) y **nunca tira** (envuelve todo error en `DispatchToolResult`). **Guardia anti-duplicados** al cargar el módulo: `if (TOOL_REGISTRY.size !== ALL_ENTRIES.length) throw`. Tools nuevas (read-only, RLS-aware): `buscar_cliente` (common) + `listar_inspecciones` / `inspeccion_detalle` / `capas_pendientes` (Checklists). Query nueva `getCapasForConsultora` en `src/app/(app)/checklists/ejecuciones/queries.ts`. System prompt ampliado a EPP + inspecciones + CAPAs. Cero-DB.
+
+## T-126 ✅ Persistencia del chat del asistente (conversaciones + RLS) — EN PROD
+
+#219 (squash `c620701`). Migración `20260606000001_t126_chat_persistence.sql`: tablas `chat_conversaciones` + `chat_mensajes` (detalle en `docs/technical/03-data-model.md` → "Asistente IA · chat"). **Persistencia client-driven (Option C)**: la route SSE (`/api/asistente`) **NO escribe** en DB — el cliente persiste el turno que mostró vía `persistChatTurnAction` (crea la conversación si `conversacionId=null`, inserta user+assistant en un statement → `seq` consecutivo; título derivado del 1er mensaje ≤80c) → route/orquestador intactos. UI de historial: sidebar `ConversacionList` + selección por `?c=<id>` + archivar (`archiveChatConversacionAction`, soft-delete `archived_at`). **RLS per-user** (`user_id = auth.uid()` + `is_member_of_consultora`): dos members de la misma consultora NO se ven los chats entre sí. Tests: `persist-chat-turn-action.test.ts` + `chat-persistence-rls.test.ts`. **Orden de deploy**: la migración se aplicó (`db push`) ANTES del merge (el código depende de las tablas) — gate migración-primero.
+
+> **Notas operativas (T-126):**
+> - **Integration NO contra prod (linked)** — durante T-126 la suite de integration se corrió contra el linked (=prod) y dejó consultoras orphan inertes, imborrables por el `audit_log` RESTRICT. Reincidente de la lección T-111: integration va a CI (Supabase local efímero) o local con Docker, **nunca** al linked. Ya hay memoria del tema.
+> - **Mount Windows→sandbox** — una branch nueva sin commits propios (HEAD==main) se ve desde el sandbox del orquestador como "No commits yet / todo A". Es vista del mount, no corrupción del repo.
+
+## T-127 Tanda 1 ✅ Responsive de primitivos compartidos — EN MAIN
+
+#220 (squash `9916f50`). Patrón híbrido **`h-11 md:pointer-fine:h-9`** en los primitivos compartidos (44px táctil en mobile/touch / compacto en desktop+mouse) + `size="none"` en Button para esquivar el **footgun de tailwind-merge** (el merge "se comía" la altura híbrida) + Dialog/AlertDialog con `max-h` + scroll interno. Solo CSS/clases, sin lógica. **Tandas 2-7 pendientes** (ver FU al final).
+
 ## T-117-FU2 🔜 DORMIDO
 
 Ventana de `vencimientos_epp_proximos` configurable (hoy fija en 30 días). Disparador: pedido de producto / primer cliente que la necesite distinta.
@@ -168,4 +188,20 @@ Estabilizar `checklists-ejecuciones.spec.ts:100` (`EXEC_NOT_DRAFT`, race entre e
 
 ## doc-drift 🔜
 
-`docs/technical/03-data-model.md` stale: menciona la tabla `establecimientos` fantasma (dropeada en T-052) y policies pre-T-015 (subqueries inline a `consultora_members` en vez de los helpers). Sync pendiente (sibling de T-076).
+`docs/technical/03-data-model.md` stale: menciona la tabla `establecimientos` fantasma (dropeada en T-052) y policies pre-T-015 (subqueries inline a `consultora_members` en vez de los helpers). Sync pendiente (sibling de T-076). _En este doc-sync solo se AGREGÓ la sección "Asistente IA · chat" (T-126); la staleness vieja sigue pendiente._
+
+## T-127 responsive · tandas 2-7 🔜 DORMIDO
+
+Continuación del responsive (T-127 Tanda 1 ✅ cerró los primitivos). Pendiente: tablas→cards · navegación móvil (hamburguesa en la landing + `TabsNav`) · formularios densos · calendario móvil · chat · pulido de tipografía/densidad. El owner sigue cuando quiera.
+
+## T-126 producto 🔜 DORMIDO
+
+Mejoras de producto sobre la persistencia del chat: renombrar/buscar conversaciones · RPC transaccional `create + insert` (hoy son 2 statements desde la action) · títulos de conversación generados por IA.
+
+## Skew PostgREST local↔prod (`db:types`) 🔜
+
+Prod corre PostgREST 14.5; la imagen de Supabase local es 14.x → `pnpm db:types` reintroduce el bloque `__InternalSupabase` que el gate `gen types --local` (drift de CI) rechaza. Fix de raíz: bumpear la imagen de Supabase local a 14.5, o stripear ese bloque en el script `db:types`. Detectado en T-126.
+
+## Doc-sync · limpiar refs Vercel pre-T-022.5 en docs de planning 🔜
+
+El claim de deploy quedó alineado en este sync (`PROJECT-CONTEXT.md` + `06-deployment.md` + nota de resolución en ADR-0007). Queda staleness Vercel-host **anterior** a T-022.5 en docs de planning, NO tocada por decisión del owner: `docs/technical/00-skills-y-stack.md` (Hosting=Vercel + "deploy automático a Vercel", L38/49/150/160/168), `docs/technical/01-principles.md:48`, `docs/technical/05-branch-protection.md §198-204`. Sibling del doc-drift de data-model y de T-076.

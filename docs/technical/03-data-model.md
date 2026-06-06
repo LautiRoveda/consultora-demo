@@ -677,6 +677,70 @@ create policy ai_usage_consultora on ai_usage_log for select
   using (consultora_id in (select consultora_id from consultora_users where user_id = auth.uid() and rol = 'admin'));
 ```
 
+### Asistente IA · chat (T-126)
+
+Persistencia del chat del asistente IA. Implementado en T-126 — fuente de verdad:
+`supabase/migrations/20260606000001_t126_chat_persistence.sql`. Particularidades vs el resto del
+schema: **RLS per-user** (no tenant-shared — dos members de la misma consultora NO se ven los chats
+entre sí), **FK compuesta Ring A** (T-121), `seq` identity como tiebreaker de orden, **soft-delete**
+(`archived_at`), **sin audit trigger** (dato UX-privado, no dominio de compliance HyS), mensajes
+**append-only** (sin policies UPDATE/DELETE → solo INSERT + borrado por cascade de la conversación).
+
+```sql
+create table public.chat_conversaciones (
+  id            uuid primary key default gen_random_uuid(),
+  consultora_id uuid not null references public.consultoras(id) on delete cascade,
+  user_id       uuid not null references auth.users(id) on delete cascade,
+  titulo        text not null check (length(trim(titulo)) between 1 and 120),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  archived_at   timestamptz,                          -- soft delete (archivar desde el historial)
+  unique (id, consultora_id)                          -- destino del FK compuesto (Ring A, T-121)
+);
+
+create table public.chat_mensajes (
+  id              uuid primary key default gen_random_uuid(),
+  conversacion_id uuid not null,
+  consultora_id   uuid not null,
+  user_id         uuid not null,
+  role            text not null check (role in ('user', 'assistant')),
+  content         text not null check (length(content) between 1 and 8000),
+  created_at      timestamptz not null default now(),
+  seq             bigint generated always as identity, -- tiebreaker: user+assistant comparten created_at
+  -- FK COMPUESTA Ring A (T-121): garantiza que consultora_id del mensaje == el de su conversación.
+  foreign key (conversacion_id, consultora_id)
+    references public.chat_conversaciones (id, consultora_id) on delete cascade
+);
+
+alter table public.chat_conversaciones enable row level security;
+alter table public.chat_mensajes        enable row level security;
+
+-- RLS PER-USER en ambas: el dueño del chat es el user, no la consultora.
+create policy chat_conversaciones_select_own on public.chat_conversaciones for select
+  using (public.is_member_of_consultora(consultora_id) and user_id = auth.uid());
+create policy chat_conversaciones_insert_own on public.chat_conversaciones for insert
+  with check (public.is_member_of_consultora(consultora_id) and user_id = auth.uid());
+create policy chat_conversaciones_update_own on public.chat_conversaciones for update
+  using (public.is_member_of_consultora(consultora_id) and user_id = auth.uid())
+  with check (public.is_member_of_consultora(consultora_id) and user_id = auth.uid());
+-- sin DELETE policy: hard-delete solo via cascade de la consultora.
+
+create policy chat_mensajes_select_own on public.chat_mensajes for select
+  using (public.is_member_of_consultora(consultora_id) and user_id = auth.uid());
+create policy chat_mensajes_insert_own on public.chat_mensajes for insert
+  with check (
+    public.is_member_of_consultora(consultora_id) and user_id = auth.uid()
+    and exists (select 1 from public.chat_conversaciones c
+                where c.id = conversacion_id and c.user_id = auth.uid())
+  );
+-- sin UPDATE/DELETE: mensajes append-only (inmutabilidad efectiva por ausencia de policy).
+```
+
+**Persistencia client-driven (Option C):** la route de streaming (`POST /api/asistente`) NO escribe
+en estas tablas — el cliente persiste el turno que mostró vía la server action `persistChatTurnAction`
+(`src/app/(app)/asistente/actions.ts`); el orquestador/route quedan intactos. Detalle del flujo en
+la entrada de T-126 en `docs/sprints/operativo.md`.
+
 ### Tablas de fases siguientes (placeholders)
 
 Estas tablas se incluyen vacías desde el principio para que la base las soporte sin migración disruptiva cuando llegue su fase. Ver detalle completo en sus migraciones específicas.
