@@ -1,9 +1,10 @@
 import 'server-only';
 
 import type { AiErrorCode, AiUsage } from '@/shared/ai/types';
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 
 import { getAnthropicClient } from '@/shared/ai/anthropic';
+import { encodeSseEvent, isAbortError, mapAnthropicError } from '@/shared/ai/sse-encode';
 import { logger } from '@/shared/observability/logger';
 
 /**
@@ -83,7 +84,6 @@ export function streamAnthropicMessage(
   },
 ): ReadableStream<Uint8Array> {
   const { signal, callbacks, ctx } = options;
-  const encoder = new TextEncoder();
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -98,24 +98,10 @@ export function streamAnthropicMessage(
       let model = '';
       let closed = false;
 
-      function encodeEvent(ev: StreamEvent): Uint8Array {
-        const payload =
-          ev.type === 'delta'
-            ? { text: ev.text }
-            : ev.type === 'usage'
-              ? ev.usage
-              : ev.type === 'stop'
-                ? { reason: ev.reason }
-                : ev.type === 'error'
-                  ? { code: ev.code, message: ev.message }
-                  : {};
-        return encoder.encode(`event: ${ev.type}\ndata: ${JSON.stringify(payload)}\n\n`);
-      }
-
       function enqueue(ev: StreamEvent): void {
         if (closed) return;
         try {
-          controller.enqueue(encodeEvent(ev));
+          controller.enqueue(encodeSseEvent(ev));
           if (ev.type === 'delta') {
             bytesEmitted += ev.text.length;
             chunksEmitted += 1;
@@ -236,7 +222,7 @@ export function streamAnthropicMessage(
           });
           return;
         }
-        const mapped = mapAnthropicError(err, ctx);
+        const mapped = mapAnthropicError(err, ctx, { domain: 'informe' });
         enqueue(mapped);
         close();
       }
@@ -247,54 +233,4 @@ export function streamAnthropicMessage(
       // No-op: ya cerramos via signal.aborted o via close() arriba.
     },
   });
-}
-
-function isAbortError(err: unknown): boolean {
-  if (err instanceof Anthropic.APIUserAbortError) return true;
-  if (err instanceof Error && err.name === 'AbortError') return true;
-  return false;
-}
-
-function mapAnthropicError(
-  err: unknown,
-  ctx: StreamContext,
-): { type: 'error'; code: StreamErrorCode; message: string } {
-  if (err instanceof Anthropic.RateLimitError) {
-    logger.warn(ctx, 'anthropic_rate_limited');
-    return {
-      type: 'error',
-      code: 'RATE_LIMITED',
-      message: 'La IA está saturada. Probá en unos minutos.',
-    };
-  }
-  if (err instanceof Anthropic.APIConnectionTimeoutError) {
-    logger.warn(ctx, 'anthropic_timeout');
-    return {
-      type: 'error',
-      code: 'TIMEOUT',
-      message: 'La IA tardó demasiado. Intentá de nuevo.',
-    };
-  }
-  if (err instanceof Anthropic.AuthenticationError) {
-    logger.error(ctx, 'anthropic_auth_failed');
-    return {
-      type: 'error',
-      code: 'INTERNAL_ERROR',
-      message: 'Hubo un error generando el informe. Reintentá en unos minutos.',
-    };
-  }
-  if (err instanceof Anthropic.APIError) {
-    logger.error({ ...ctx, status: err.status }, 'anthropic_api_error');
-    return {
-      type: 'error',
-      code: 'INTERNAL_ERROR',
-      message: 'La IA falló. Intentá de nuevo.',
-    };
-  }
-  logger.error({ ...ctx, err: String(err) }, 'anthropic_unexpected_error');
-  return {
-    type: 'error',
-    code: 'INTERNAL_ERROR',
-    message: 'Hubo un error inesperado generando el informe.',
-  };
 }

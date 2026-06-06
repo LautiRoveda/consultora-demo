@@ -5,8 +5,8 @@ import { formatDateAR } from '@/shared/lib/format-date';
 /**
  * T-117 · System prompt + caps del asistente IA contextual de EPP.
  *
- * Usado por `runEppChat` ([src/shared/ai/epp-chat.ts]) vía Claude Haiku 4.5 con
- * tool-calling multi-turno (NO forzado). El modelo recibe la pregunta + historial
+ * Usado por `streamEppChat` ([src/shared/ai/epp-chat-stream.ts]) vía Claude Haiku
+ * 4.5 con tool-calling multi-turno (NO forzado). El modelo recibe la pregunta + historial
  * y decide qué tool (sólo-lectura) llamar; las tools corren las queries existentes
  * con el `supabase` RLS-aware del usuario → aislamiento por consultora garantizado.
  *
@@ -53,7 +53,7 @@ Sos un asistente de Higiene y Seguridad Laboral (HyS) en Argentina, integrado a 
 /**
  * T-117-FU1 · System prompt + la fecha de hoy (TZ Argentina) para que el modelo
  * razone plazos ("vence pronto" / "el más próximo"). `now` se inyecta para que el
- * test sea determinístico; en runtime `runEppChat` pasa `new Date()`.
+ * test sea determinístico; en runtime `streamEppChat` pasa `new Date()`.
  */
 export function buildEppChatSystemPrompt(now: Date): string {
   return `${EPP_CHAT_SYSTEM_PROMPT}\n\nHoy es ${formatDateAR(now)} (hora de Argentina).`;
