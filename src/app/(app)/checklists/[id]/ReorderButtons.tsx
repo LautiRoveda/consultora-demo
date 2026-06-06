@@ -27,7 +27,7 @@ export function ReorderButtons({ index, total, label, onMove, disabled = false }
       <Button
         type="button"
         variant="ghost"
-        size="icon"
+        size="none"
         className="size-7"
         disabled={disabled || isFirst}
         aria-label={`Subir «${label}»`}
@@ -38,7 +38,7 @@ export function ReorderButtons({ index, total, label, onMove, disabled = false }
       <Button
         type="button"
         variant="ghost"
-        size="icon"
+        size="none"
         className="size-7"
         disabled={disabled || isLast}
         aria-label={`Bajar «${label}»`}

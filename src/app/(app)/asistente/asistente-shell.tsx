@@ -153,7 +153,7 @@ function ConversacionItem({
       <Button
         type="button"
         variant="ghost"
-        size="icon"
+        size="none"
         className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
         onClick={() => void onArchive()}
         disabled={archiving}

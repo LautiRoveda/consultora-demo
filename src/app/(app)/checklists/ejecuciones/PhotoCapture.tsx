@@ -141,7 +141,6 @@ export function PhotoCapture({
           type="button"
           variant="outline"
           size="sm"
-          className="min-h-11"
           onClick={() => inputRef.current?.click()}
           disabled={disabled || busy}
         >

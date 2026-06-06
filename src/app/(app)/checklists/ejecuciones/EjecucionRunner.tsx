@@ -154,7 +154,6 @@ export function EjecucionRunner({
         <Button
           type="button"
           variant="outline"
-          className="min-h-11"
           onClick={() => goTo(sectionIndex - 1)}
           disabled={isFirst}
         >
@@ -163,12 +162,7 @@ export function EjecucionRunner({
         <span className="text-muted-foreground text-xs">
           {sectionIndex + 1} / {sections.length}
         </span>
-        <Button
-          type="button"
-          className="min-h-11"
-          onClick={() => goTo(sectionIndex + 1)}
-          disabled={isLast}
-        >
+        <Button type="button" onClick={() => goTo(sectionIndex + 1)} disabled={isLast}>
           Siguiente →
         </Button>
       </div>

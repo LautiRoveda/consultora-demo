@@ -114,7 +114,7 @@ export function ReminderOffsetsInput({
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                size="none"
                 onClick={() => remove(offset)}
                 className="h-4 w-4 hover:bg-transparent"
                 aria-label={`Quitar recordatorio ${offset} días`}
@@ -144,7 +144,8 @@ export function ReminderOffsetsInput({
           }}
           placeholder="Días"
           disabled={disabled || atCap}
-          className="h-8 w-24 text-sm"
+          // T-127: alinea con el botón "Agregar" (size="sm"): 44px en táctil, h-8 en desktop.
+          className="w-24 md:pointer-fine:h-8"
           aria-label="Días antes del vencimiento"
         />
         <Button

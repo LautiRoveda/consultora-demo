@@ -69,7 +69,7 @@ export function SectionCard({ section, index, total, onMoveSection, sectionsBusy
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                size="none"
                 className="size-8"
                 aria-label={`Editar sección «${section.titulo}»`}
               >

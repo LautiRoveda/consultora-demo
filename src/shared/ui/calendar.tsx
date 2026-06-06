@@ -26,7 +26,9 @@ function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn(
-        'group/calendar bg-background p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent',
+        // T-127 Tanda 1 · celdas de 44px en táctil (firmar/elegir fecha con el dedo);
+        // compacta a 32px solo en desktop+mouse. El día/nav heredan --cell-size.
+        'group/calendar bg-background p-3 [--cell-size:--spacing(11)] md:pointer-fine:[--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent',
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className,
@@ -45,12 +47,16 @@ function Calendar({
           defaultClassNames.nav,
         ),
         button_previous: cn(
-          buttonVariants({ variant: buttonVariant }),
+          // size: 'none' evita que el `md:pointer-fine:size-9` del variant default se
+          // filtre (tailwind-merge) sobre el `size-(--cell-size)` que gobierna el botón.
+          buttonVariants({ variant: buttonVariant, size: 'none' }),
           'size-(--cell-size) p-0 select-none aria-disabled:opacity-50',
           defaultClassNames.button_previous,
         ),
         button_next: cn(
-          buttonVariants({ variant: buttonVariant }),
+          // size: 'none' evita que el `md:pointer-fine:size-9` del variant default se
+          // filtre (tailwind-merge) sobre el `size-(--cell-size)` que gobierna el botón.
+          buttonVariants({ variant: buttonVariant, size: 'none' }),
           'size-(--cell-size) p-0 select-none aria-disabled:opacity-50',
           defaultClassNames.button_next,
         ),
@@ -158,7 +164,9 @@ function CalendarDayButton({
     <Button
       ref={ref}
       variant="ghost"
-      size="icon"
+      // size: 'none' → el className (`size-auto w-full min-w-(--cell-size)`) gobierna el
+      // tamaño del día; evita el leak del `md:pointer-fine:size-9` del size="icon".
+      size="none"
       data-day={day.date.toLocaleDateString()}
       data-selected-single={
         modifiers.selected &&

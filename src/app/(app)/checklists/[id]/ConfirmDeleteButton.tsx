@@ -53,7 +53,7 @@ export function ConfirmDeleteButton({ entityLabel, name, ariaLabel, onDelete }: 
         <Button
           type="button"
           variant="ghost"
-          size="icon"
+          size="none"
           className="size-8 text-muted-foreground hover:text-destructive"
           disabled={isPending}
           aria-label={ariaLabel}

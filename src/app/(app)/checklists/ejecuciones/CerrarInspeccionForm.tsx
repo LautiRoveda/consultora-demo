@@ -374,7 +374,7 @@ export function CerrarInspeccionForm({
                 )}
               </div>
 
-              <Button type="submit" className="min-h-11" disabled={isPending || firmaIsEmpty}>
+              <Button type="submit" disabled={isPending || firmaIsEmpty}>
                 {isPending ? 'Cerrando…' : 'Cerrar y firmar inspección'}
               </Button>
             </form>
