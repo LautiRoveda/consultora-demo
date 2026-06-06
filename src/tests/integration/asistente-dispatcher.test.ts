@@ -292,7 +292,7 @@ async function rlsClient() {
 describe('dispatchTool', () => {
   it('1. buscar_empleado por nombre → empleado real, sin cuil', async () => {
     await signInAs(emailOwnerA);
-    const { dispatchTool } = await import('@/shared/ai/epp-chat-tools');
+    const { dispatchTool } = await import('@/shared/ai/tools/registry');
     const supabase = await rlsClient();
 
     const res = await dispatchTool({
@@ -316,7 +316,7 @@ describe('dispatchTool', () => {
 
   it('2. buscar_empleado por DNI (numérico) → empleado real', async () => {
     await signInAs(emailOwnerA);
-    const { dispatchTool } = await import('@/shared/ai/epp-chat-tools');
+    const { dispatchTool } = await import('@/shared/ai/tools/registry');
     const supabase = await rlsClient();
 
     const res = await dispatchTool({
@@ -332,7 +332,7 @@ describe('dispatchTool', () => {
 
   it('3. epp_entregado_a_empleado → entrega real, sin ids internos', async () => {
     await signInAs(emailOwnerA);
-    const { dispatchTool } = await import('@/shared/ai/epp-chat-tools');
+    const { dispatchTool } = await import('@/shared/ai/tools/registry');
     const supabase = await rlsClient();
 
     const res = await dispatchTool({
@@ -355,7 +355,7 @@ describe('dispatchTool', () => {
 
   it('4. vencimientos_epp_de_empleado → planificación real, sin calendar_event_id', async () => {
     await signInAs(emailOwnerA);
-    const { dispatchTool } = await import('@/shared/ai/epp-chat-tools');
+    const { dispatchTool } = await import('@/shared/ai/tools/registry');
     const supabase = await rlsClient();
 
     const res = await dispatchTool({
@@ -375,7 +375,7 @@ describe('dispatchTool', () => {
 
   it('5. vencimientos_epp_proximos → empleado con pendientes, sin ids', async () => {
     await signInAs(emailOwnerA);
-    const { dispatchTool } = await import('@/shared/ai/epp-chat-tools');
+    const { dispatchTool } = await import('@/shared/ai/tools/registry');
     const supabase = await rlsClient();
 
     const res = await dispatchTool({
@@ -395,7 +395,7 @@ describe('dispatchTool', () => {
 
   it('6. cross-tenant: empleado_id de otra consultora → vacío', async () => {
     await signInAs(emailOwnerA);
-    const { dispatchTool } = await import('@/shared/ai/epp-chat-tools');
+    const { dispatchTool } = await import('@/shared/ai/tools/registry');
     const supabase = await rlsClient();
 
     const entregas = await dispatchTool({
@@ -418,7 +418,7 @@ describe('dispatchTool', () => {
 
   it('7. input inválido / tool desconocida → isError, sin tirar', async () => {
     await signInAs(emailOwnerA);
-    const { dispatchTool } = await import('@/shared/ai/epp-chat-tools');
+    const { dispatchTool } = await import('@/shared/ai/tools/registry');
     const supabase = await rlsClient();
 
     const badInput = await dispatchTool({
@@ -442,7 +442,7 @@ describe('dispatchTool', () => {
 describe('buscar_empleado robusto (T-117-FU1)', () => {
   async function buscarIds(query: string): Promise<string[]> {
     await signInAs(emailOwnerA);
-    const { dispatchTool } = await import('@/shared/ai/epp-chat-tools');
+    const { dispatchTool } = await import('@/shared/ai/tools/registry');
     const supabase = await rlsClient();
     const res = await dispatchTool({
       name: 'buscar_empleado',
