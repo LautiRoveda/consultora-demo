@@ -134,10 +134,38 @@ Mergeado #201 (`215dc7b`). Flaky pre-existente intermitente: el `waitFor`/`findB
 
 #209 (squash `bcf8e43`). Migración `20260604000004`: trigger `sync_calendar_event_to_origin` propaga `fecha` + `status` del evento al dominio (`epp_planificaciones` / `acciones_correctivas`) con `WHEN` clause + escritura separada fecha/status + guarda de idempotencia (no-op vs T-119) + backfill solo-fecha. `db push`: 2 planif re-sincronizadas (incluido el Guantes de Roveda 24/11→13/06), 0 desincronizadas. Smoke OK (mover fecha en calendario → reflejado en chat/ficha al instante).
 
-## T-120 🔜 Lifecycle de CAPAs (`acciones_correctivas`): flujo de resolución [ALTA]
+## T-120 ✅ Lifecycle de CAPAs (`acciones_correctivas`): resolución con evidencia — EN PROD
 
-Mismo patrón que T-119 pero en checklists. Hoy las CAPAs nacen `'abierta'` y solo se `'anulan'` en cascada; falta marcar `'cerrada'` con evidencia desde la ficha de inspección (+ completar su evento). Nota: T-118 ya habilita cerrarlas completando el evento desde el calendario; T-120 es el cierre CON evidencia.
+#212 (squash `7884f70`). Cero-DB. `resolverCapaAction` (member, patrón CAPA-primero: flip a `'cerrada'` vía RLS con el cliente user-scoped + evento→`completed`/reminders skipped con service-role; no-conflicto con el trigger T-118) + `CapaResolverButton` (cierre con evidencia desde la ficha de inspección) + fix `CAPA_ESTADO_LABELS`. Cierra la clase B-CAPAs de ADR-0015 (T-119 cerró B-EPP; T-118 ya permitía cerrarla completando el evento desde el calendario — T-120 es el cierre CON evidencia).
 
-## T-121 🔜 DORMIDO Hardening: CHECK/trigger de coherencia de `consultora_id` denormalizado [BAJA]
+## T-121 ✅ Coherencia `consultora_id` denormalizado (FK compuestas Ring A) + `audit_consultoras` — EN PROD
 
-~6 tablas hijas denormalizan `consultora_id` sin validación contra el parent (riesgo latente cross-tenant). Disparador: antes de exponer API pública o multi-instancia.
+#215 (squash `1d2a7db`). Migraciones `20260605000004` (9 `unique (id, consultora_id)` en los parents + 17 FK COMPUESTAS `hijo.(<fk>, consultora_id) → parent.(id, consultora_id)` que reemplazan los FK simples preservando el `ON DELETE`; drop dinámico del `conname` real desde `pg_constraint`, aborta si no lo encuentra; guard pre-conteo fail-fast) + `20260605000005` (`audit_consultoras()` AFTER INSERT/UPDATE → `audit_log`, molde `audit_calendar_events`, SIN rama DELETE porque el hard-delete de consultoras es imposible — `audit_log` ON DELETE RESTRICT + inmutable). Guard 0 mismatches / 328 filas escaneadas. Cierra la clase D-RingA de ADR-0015. Alcance Ring A core: ownership NOT-NULL, ambos lados `consultora_id NOT NULL` (cero gaps de `MATCH SIMPLE`); Ring B/C → T-121-FU dormido.
+
+## T-122 ✅ Sync `consultoras.plan` ↔ suscripciones (trigger) + backfill — EN PROD
+
+#211 (squash `84b3ddc`). Migración `20260605000001`: trigger `sync_consultora_plan_from_suscripcion` (`AFTER INSERT OR UPDATE OF estado` en `suscripciones`) recomputa `consultoras.plan`/`trial_hasta` vía `EXISTS` sobre el estado VIGENTE de la consultora (suscripción en `activa`/`morosa`/`cancelada` → `plan='pro'` + `trial_hasta=NULL`; resto → `trial`), guard `is distinct from` idempotente + backfill promote-only + comments corregidos. Fuente única (ADR-0015 clase A en billing, misma forma que T-118). Cierra el drift del cache `plan` (una consultora que pagaba quedaba `trial` para siempre → badge del sidebar miente + dunning espurio). Backfill prod 0 (sin pagos reales todavía).
+
+## T-123 ✅ Trigger skip reminders al finalizar evento (backstop estructural) — EN PROD
+
+#213 (squash `2e5acda`). Migración `20260605000002`: trigger `skip_reminders_on_event_final` (`AFTER UPDATE OF status`, `WHEN old.status='pending' AND new.status IN ('completed','cancelled')`) skipea los reminders `pending` del evento al finalizarlo — fuente ESTRUCTURAL del skip, cubre todo camino (action/RPC/SQL directo/futuro). `security definer` (los reminders tienen UPDATE default-deny para authenticated). Como corre ANTES del skip explícito de `complete/cancelCalendarEventAction`, ese skip veía 0 filas → se quitó el `remindersSkipped` (count muerto post-trigger, no usado por la UI). Los otros 3 skips explícitos (anularEjecucion, resolverCapa T-120, RPC T-119) quedan redundantes inofensivos (idempotentes, sin count asertado). No-conflicto con T-118 (tablas disjuntas). Backfill 0.
+
+## T-124 ✅ Churn reaper + cierra leak gate `cancelada` + limpieza enums muertos — EN PROD
+
+#214 (squash `bca1ce8`). Migración `20260605000003` + fix de gate (`src/shared/billing/access.ts`). **Reaper** `process_subscription_churn()` (cron diario `0 3 * * *`, SQL puro) flipa una `cancelada`-vencida (`cancelar_en NULL` = churn MP por falta de pago, o `cancelar_en < now()` = gracia vencida) → `expirada`; el UPDATE dispara T-122 → recomputa `consultoras.plan='trial'`. **Gate fix** cierra el LEAK real: una `cancelada` con `cancelar_en NULL` caía a `ok:true` → ahora `if (!cancelarEn || cancelarEn < now)` bloquea (`SUBSCRIPTION_CANCELLED`); el test del leak se invirtió a `ok:false`. **Enums**: `calendar_event_reminders.status='failed'` REMOVido del CHECK (nunca se escribía; el fallo vive en `notification_log`) + espejo TS `REMINDER_STATUS_VALUES`; `estado_suscripcion` (`expirada` activado por el reaper, `trial` reservado) e `informes.status='archived'` (soft-delete diseñado-no-implementado, KEEP) redocumentados. Backfill 0.
+
+## T-117-FU2 🔜 DORMIDO
+
+Ventana de `vencimientos_epp_proximos` configurable (hoy fija en 30 días). Disparador: pedido de producto / primer cliente que la necesite distinta.
+
+## T-121-FU 🔜 DORMIDO
+
+Coherencia Ring B (FK nullable / `SET NULL` / self-ref) + Ring C (template tree / system rows con `consultora_id NULL`, donde `MATCH SIMPLE` NO garantiza la igualdad — un NULL en la columna compuesta pasa el check). Censo completo en el plan de T-121. Disparador: antes de exponer API pública / multi-instancia.
+
+## Flaky E2E 🔜
+
+Estabilizar `checklists-ejecuciones.spec.ts:100` (`EXEC_NOT_DRAFT`, race entre el click "No cumple" y el toast). Flaky conocido, rescatado por retry ("1 flaky" en main); guardado en memoria como known-flake. Re-correr el job antes de investigar si E2E sale rojo solo por este test.
+
+## doc-drift 🔜
+
+`docs/technical/03-data-model.md` stale: menciona la tabla `establecimientos` fantasma (dropeada en T-052) y policies pre-T-015 (subqueries inline a `consultora_members` en vez de los helpers). Sync pendiente (sibling de T-076).
