@@ -1,6 +1,11 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: '14.5';
+  };
   graphql_public: {
     Tables: {
       [_ in never]: never;
@@ -350,6 +355,85 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'calendar_events';
             referencedColumns: ['id'];
+          },
+        ];
+      };
+      chat_conversaciones: {
+        Row: {
+          archived_at: string | null;
+          consultora_id: string;
+          created_at: string;
+          id: string;
+          titulo: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          archived_at?: string | null;
+          consultora_id: string;
+          created_at?: string;
+          id?: string;
+          titulo: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          consultora_id?: string;
+          created_at?: string;
+          id?: string;
+          titulo?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'chat_conversaciones_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      chat_mensajes: {
+        Row: {
+          consultora_id: string;
+          content: string;
+          conversacion_id: string;
+          created_at: string;
+          id: string;
+          role: string;
+          seq: number;
+          user_id: string;
+        };
+        Insert: {
+          consultora_id: string;
+          content: string;
+          conversacion_id: string;
+          created_at?: string;
+          id?: string;
+          role: string;
+          seq?: never;
+          user_id: string;
+        };
+        Update: {
+          consultora_id?: string;
+          content?: string;
+          conversacion_id?: string;
+          created_at?: string;
+          id?: string;
+          role?: string;
+          seq?: never;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'chat_mensajes_conversacion_fkey';
+            columns: ['conversacion_id', 'consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'chat_conversaciones';
+            referencedColumns: ['id', 'consultora_id'];
           },
         ];
       };
