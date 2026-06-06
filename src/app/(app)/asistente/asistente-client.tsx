@@ -362,7 +362,9 @@ export function AsistenteChat({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="justify-start text-left"
+                  // h-auto + whitespace-normal: el Button base trae whitespace-nowrap → en mobile
+                  // las suggestions largas desbordaban; ahora wrappean a varias líneas.
+                  className="h-auto justify-start whitespace-normal text-left"
                   onClick={() => void send(s)}
                 >
                   {s}
@@ -441,7 +443,9 @@ function MessageBubble({ role, content }: { role: Turn['role']; content: string 
       </div>
       <div
         className={cn(
-          'max-w-[80%] rounded-md px-3 py-2 text-sm',
+          // min-w-0 + break-words: en mobile un token largo sin espacios (URL/serial) desbordaba
+          // la página; max-w sube a 90% en pantallas chicas para aprovechar el ancho.
+          'min-w-0 max-w-[90%] break-words rounded-md px-3 py-2 text-sm sm:max-w-[80%]',
           isUser ? 'bg-primary text-primary-foreground whitespace-pre-wrap' : 'bg-muted',
         )}
       >
