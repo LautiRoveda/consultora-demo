@@ -11,8 +11,8 @@
  *    setea created_by/asignado_por = owner, e idempotencia en el re-run.
  *
  * service-role admin: NO testeamos RLS. runId namespacing + cleanup en orden FK.
- * El backfill se invoca con un cliente sin genéricos porque la función es nueva y
- * los tipos NO se regeneran en fase A (db:types va en fase B).
+ * El backfill se invoca con un cliente sin genéricos para castear el jsonb de
+ * retorno a un tipo propio sin pelear con el tipo `Json` del rpc tipado.
  *
  * Correr local (Supabase efímero, requiere Docker):
  *   pnpm test:integration src/tests/integration/t129-puestos-label-backfill.test.ts
@@ -36,8 +36,8 @@ if (!url || !serviceKey) {
 const admin = createSbClient<Database>(url, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
-// Cliente SIN genéricos: la función del backfill no está en los tipos generados
-// (db:types se regenera recién en fase A→B), así que el rpc tipado la rechazaría.
+// Cliente SIN genéricos: el rpc devuelve `any`, así casteamos el jsonb de retorno
+// a BackfillResult sin pelear con el tipo `Json` del rpc tipado.
 const adminRpc = createSbClient(url, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
@@ -99,14 +99,12 @@ async function assignPuesto(
   puestoId: string,
   asignadoAt: string,
 ): Promise<void> {
-  const { error } = await admin
-    .from('empleados_puestos')
-    .insert({
-      empleado_id: empleadoId,
-      puesto_id: puestoId,
-      consultora_id: cId,
-      asignado_at: asignadoAt,
-    });
+  const { error } = await admin.from('empleados_puestos').insert({
+    empleado_id: empleadoId,
+    puesto_id: puestoId,
+    consultora_id: cId,
+    asignado_at: asignadoAt,
+  });
   if (error) throw new Error(`assign ${empleadoId}->${puestoId}: ${JSON.stringify(error)}`);
 }
 

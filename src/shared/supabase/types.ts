@@ -2682,6 +2682,10 @@ export type Database = {
       };
     };
     Functions: {
+      backfill_empleados_puestos_from_legacy: {
+        Args: { p_consultora_id?: string };
+        Returns: Json;
+      };
       clone_system_template: {
         Args: {
           p_consultora_id: string;
