@@ -38,7 +38,7 @@ export const EPP_TOOL_ENTRIES: ToolEntry[] = [
     definition: {
       name: 'buscar_empleado',
       description:
-        'Busca empleados de la consultora por nombre/apellido o por DNI. Si el texto son sólo dígitos se busca por DNI (mín. 3 dígitos); si no, por nombre o apellido (mín. 2 letras). Devuelve hasta 10 coincidencias activas con id, nombre, apellido, dni y puesto. Usá el `id` devuelto para las demás herramientas. Si hay varias coincidencias, preguntá al usuario cuál antes de continuar; nunca asumas.',
+        'Busca empleados de la consultora por nombre/apellido o por DNI. Si el texto son sólo dígitos se busca por DNI (mín. 3 dígitos); si no, por nombre o apellido (mín. 2 letras). Devuelve hasta 10 coincidencias activas con id, nombre, apellido y dni. Usá el `id` devuelto para las demás herramientas. Si hay varias coincidencias, preguntá al usuario cuál antes de continuar; nunca asumas.',
       input_schema: {
         type: 'object',
         properties: {
@@ -67,7 +67,6 @@ export const EPP_TOOL_ENTRIES: ToolEntry[] = [
           nombre: e.nombre,
           apellido: e.apellido,
           dni: e.dni,
-          puesto: e.puesto,
         })),
       );
     },
