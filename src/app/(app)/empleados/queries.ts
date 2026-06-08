@@ -9,13 +9,14 @@ export type EmpleadoRow = Database['public']['Tables']['empleados']['Row'];
 
 /**
  * Shape devuelto por `searchEmpleadosByNombre` y `searchEmpleadosByDni`.
- * 6 fields (id + datos visibles del dropdown) para evitar fetch N+1 al click
+ * 5 fields (id + datos visibles del dropdown) para evitar fetch N+1 al click
  * en autocompletes futuros (T-055 tab Empleados + T-058 EPP planilla).
+ *
+ * T-129: el puesto NO va en el summary — se derivó a `getEmpleadoPuestosLabel`
+ * (catálogo) y los consumidores que lo necesitan lo piden aparte. Los
+ * autocompletes desambiguan por nombre + DNI.
  */
-export type EmpleadoSummary = Pick<
-  EmpleadoRow,
-  'id' | 'nombre' | 'apellido' | 'dni' | 'cuil' | 'puesto'
->;
+export type EmpleadoSummary = Pick<EmpleadoRow, 'id' | 'nombre' | 'apellido' | 'dni' | 'cuil'>;
 
 export type GetEmpleadosByClienteOptions = {
   includeArchived?: boolean;
@@ -64,6 +65,35 @@ export async function getEmpleadoById(
 }
 
 /**
+ * T-129 · Label canónico de los puestos del empleado desde el CATÁLOGO
+ * (`empleados_puestos` → `puestos`), reemplazo de la columna legacy
+ * `empleados.puesto`. Devuelve los nombres VIGENTES (excluye archivados)
+ * concatenados con ", " (más reciente primero por `asignado_at`), o `null` si
+ * el empleado no tiene puestos activos asignados.
+ *
+ * Single-empleado: los consumers (informe de accidente + planilla EPP) son de a
+ * uno → 1 query por llamada, sin N+1. RLS filtra cross-tenant. Cap 20 (empleado
+ * típico tiene 1-3 puestos). Sin dedupe: el índice único parcial del catálogo
+ * impide dos puestos activos con el mismo nombre por consultora.
+ */
+export async function getEmpleadoPuestosLabel(
+  supabase: SupabaseClient<Database>,
+  empleadoId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('empleados_puestos')
+    .select('asignado_at, puestos!inner(nombre, archived_at)')
+    .eq('empleado_id', empleadoId)
+    .order('asignado_at', { ascending: false })
+    .limit(20);
+
+  if (!data) return null;
+
+  const nombres = data.filter((r) => r.puestos.archived_at === null).map((r) => r.puestos.nombre);
+  return nombres.length ? nombres.join(', ') : null;
+}
+
+/**
  * Autocomplete por apellido o nombre. Pre-requisito de T-055 (tab Empleados)
  * y T-058 (EPP planilla Res 299/11).
  *
@@ -84,7 +114,7 @@ export async function searchEmpleadosByNombre(
 
   const { data } = await supabase
     .from('empleados')
-    .select('id, nombre, apellido, dni, cuil, puesto')
+    .select('id, nombre, apellido, dni, cuil')
     .is('archived_at', null)
     .or(`apellido.ilike.%${escaped}%,nombre.ilike.%${escaped}%`)
     .order('apellido', { ascending: true })
@@ -111,7 +141,7 @@ export async function searchEmpleadosByDni(
 
   const { data } = await supabase
     .from('empleados')
-    .select('id, nombre, apellido, dni, cuil, puesto')
+    .select('id, nombre, apellido, dni, cuil')
     .is('archived_at', null)
     .ilike('dni', `${digits}%`)
     .order('dni', { ascending: true })
@@ -164,7 +194,7 @@ export async function searchEmpleadosForChat(
   // es el disparador del FU: RPC con public.unaccent (T-012) + índice funcional.
   const { data } = await supabase
     .from('empleados')
-    .select('id, nombre, apellido, dni, cuil, puesto')
+    .select('id, nombre, apellido, dni, cuil')
     .is('archived_at', null)
     .order('apellido', { ascending: true })
     .order('nombre', { ascending: true })

@@ -169,7 +169,7 @@ export function EppPlanillaTemplate({
             </div>
             <div className="pdf-field">
               <dt>Puesto</dt>
-              <dd>{empleado?.puesto ?? '—'}</dd>
+              <dd>{entrega.puestos_label ?? '—'}</dd>
             </div>
             <div className="pdf-field">
               <dt>Fecha ingreso</dt>

@@ -13,7 +13,7 @@ import { createClient } from '@/shared/supabase/server';
 import { mapIncidenteToAccidenteMetadata } from '@/shared/templates/accidente/from-incidente';
 
 import { getClienteById } from '../clientes/queries';
-import { getEmpleadoById } from '../empleados/queries';
+import { getEmpleadoPuestosLabel } from '../empleados/queries';
 import { createInformeAction } from '../informes/actions';
 import { getIncidenteById } from './queries';
 import {
@@ -554,11 +554,17 @@ export async function generarInvestigacionIaAction(
       message: 'No se pudo cargar el cliente del incidente. Reintentá en unos minutos.',
     };
   }
-  const empleado = incidente.empleado_id
-    ? await getEmpleadoById(supabase, incidente.empleado_id)
+  // T-129: el puesto afectado sale de los puestos del catálogo (concatenados),
+  // no de la columna legacy `empleados.puesto`.
+  const puestoAfectado = incidente.empleado_id
+    ? await getEmpleadoPuestosLabel(supabase, incidente.empleado_id)
     : null;
 
-  const { metadata, titulo } = mapIncidenteToAccidenteMetadata({ incidente, cliente, empleado });
+  const { metadata, titulo } = mapIncidenteToAccidenteMetadata({
+    incidente,
+    cliente,
+    puestoAfectado,
+  });
 
   // Reuso de createInformeAction: crea el informe + persiste metadata (no
   // bloqueante) + devuelve redirectTo = /informes/{id}/editar.

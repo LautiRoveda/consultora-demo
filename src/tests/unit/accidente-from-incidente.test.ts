@@ -35,20 +35,20 @@ function makeIncidente(overrides: Partial<Incidente> = {}): Incidente {
 }
 
 describe('mapIncidenteToAccidenteMetadata · contrato schema', () => {
-  it('el resultado pasa accidenteMetadataSchema (con cliente + empleado)', () => {
+  it('el resultado pasa accidenteMetadataSchema (con cliente + puesto)', () => {
     const { metadata } = mapIncidenteToAccidenteMetadata({
       incidente: makeIncidente(),
       cliente,
-      empleado: { puesto: 'Operario de prensa' },
+      puestoAfectado: 'Operario de prensa',
     });
     expect(accidenteMetadataSchema.safeParse(metadata).success).toBe(true);
   });
 
-  it('pasa el schema aun sin empleado ni hora ni lugar (defaults)', () => {
+  it('pasa el schema aun sin puesto ni hora ni lugar (defaults)', () => {
     const { metadata } = mapIncidenteToAccidenteMetadata({
       incidente: makeIncidente({ hora: null, lugar_especifico: null, dias_perdidos: null }),
       cliente,
-      empleado: null,
+      puestoAfectado: null,
     });
     expect(accidenteMetadataSchema.safeParse(metadata).success).toBe(true);
   });
@@ -59,7 +59,7 @@ describe('mapIncidenteToAccidenteMetadata · gravedad libro → template', () =>
     const { metadata } = mapIncidenteToAccidenteMetadata({
       incidente: makeIncidente({ gravedad: 'mortal' }),
       cliente,
-      empleado: null,
+      puestoAfectado: null,
     });
     expect(metadata.gravedad).toBe('grave_mortal');
   });
@@ -69,14 +69,14 @@ describe('mapIncidenteToAccidenteMetadata · gravedad libro → template', () =>
       mapIncidenteToAccidenteMetadata({
         incidente: makeIncidente({ gravedad: 'grave' }),
         cliente,
-        empleado: null,
+        puestoAfectado: null,
       }).metadata.gravedad,
     ).toBe('grave');
     expect(
       mapIncidenteToAccidenteMetadata({
         incidente: makeIncidente({ gravedad: 'leve' }),
         cliente,
-        empleado: null,
+        puestoAfectado: null,
       }).metadata.gravedad,
     ).toBe('leve');
   });
@@ -88,14 +88,14 @@ describe('mapIncidenteToAccidenteMetadata · campos derivados', () => {
       mapIncidenteToAccidenteMetadata({
         incidente: makeIncidente({ hora: null }),
         cliente,
-        empleado: null,
+        puestoAfectado: null,
       }).metadata.hora_accidente,
     ).toBe('00:00');
     expect(
       mapIncidenteToAccidenteMetadata({
         incidente: makeIncidente({ hora: '08:05:00' }),
         cliente,
-        empleado: null,
+        puestoAfectado: null,
       }).metadata.hora_accidente,
     ).toBe('08:05');
   });
@@ -104,7 +104,7 @@ describe('mapIncidenteToAccidenteMetadata · campos derivados', () => {
     const { metadata } = mapIncidenteToAccidenteMetadata({
       incidente: makeIncidente({ lugar_especifico: null }),
       cliente,
-      empleado: { puesto: null },
+      puestoAfectado: null,
     });
     expect(metadata.lugar_especifico).toBe('A determinar');
     expect(metadata.puesto_afectado).toBe('A determinar');
@@ -115,21 +115,21 @@ describe('mapIncidenteToAccidenteMetadata · campos derivados', () => {
       mapIncidenteToAccidenteMetadata({
         incidente: makeIncidente({ dias_perdidos: 300 }),
         cliente,
-        empleado: null,
+        puestoAfectado: null,
       }).metadata.dias_baja_estimados,
     ).toBe(300);
     expect(
       mapIncidenteToAccidenteMetadata({
         incidente: makeIncidente({ dias_perdidos: 366 }),
         cliente,
-        empleado: null,
+        puestoAfectado: null,
       }).metadata.dias_baja_estimados,
     ).toBeUndefined();
     expect(
       mapIncidenteToAccidenteMetadata({
         incidente: makeIncidente({ dias_perdidos: null }),
         cliente,
-        empleado: null,
+        puestoAfectado: null,
       }).metadata.dias_baja_estimados,
     ).toBeUndefined();
   });
@@ -138,7 +138,7 @@ describe('mapIncidenteToAccidenteMetadata · campos derivados', () => {
     const { metadata } = mapIncidenteToAccidenteMetadata({
       incidente: makeIncidente({ descripcion: 'Caída desde andamio a 2 metros.' }),
       cliente,
-      empleado: null,
+      puestoAfectado: null,
     });
     expect(metadata.descripcion_inicial).toBe('Caída desde andamio a 2 metros.');
     expect(metadata.tipo_lesion).toEqual(['otros']);
@@ -150,7 +150,7 @@ describe('mapIncidenteToAccidenteMetadata · campos derivados', () => {
     const { titulo } = mapIncidenteToAccidenteMetadata({
       incidente: makeIncidente({ fecha: '2026-05-11' }),
       cliente,
-      empleado: null,
+      puestoAfectado: null,
     });
     expect(titulo).toBe('Investigación de accidente — Talleres Metalúrgicos SA — 2026-05-11');
   });

@@ -309,8 +309,10 @@ describe('dispatchTool', () => {
       nombre: 'Pepe',
       apellido: 'Pereira',
       dni: '20444444',
-      puesto: 'Soldador',
     });
+    // T-129: buscar_empleado ya no expone puesto (aunque la columna legacy esté
+    // poblada en el insert) — desambigua por nombre + DNI.
+    expect(found).not.toHaveProperty('puesto');
     expect(res.content).not.toContain('cuil');
   });
 

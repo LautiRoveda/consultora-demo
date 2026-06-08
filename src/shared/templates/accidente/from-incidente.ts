@@ -15,6 +15,10 @@ import type { AccidenteMetadata, Gravedad } from './schema';
  * NOTA: la metadata es no-bloqueante en `createInformeAction` (si no validara, el
  * informe igual se crea vacío) — por eso preferimos defaults que validen a dejar
  * el form en blanco.
+ *
+ * T-129: `puesto_afectado` deriva de los puestos del CATÁLOGO del empleado
+ * (concatenados) — lo resuelve el call site con `getEmpleadoPuestosLabel` y lo
+ * pasa acá como `puestoAfectado`, ya no se lee la columna legacy `empleados.puesto`.
  */
 
 type IncidenteForMapping = Pick<
@@ -25,7 +29,6 @@ type ClienteForMapping = Pick<
   Database['public']['Tables']['clientes']['Row'],
   'razon_social' | 'cuit' | 'domicilio'
 >;
-type EmpleadoForMapping = Pick<Database['public']['Tables']['empleados']['Row'], 'puesto'> | null;
 
 /** Placeholder editable para campos requeridos sin fuente en el incidente. */
 const A_DETERMINAR = 'A determinar';
@@ -50,9 +53,10 @@ function orPlaceholder(value: string | null | undefined, min: number): string {
 export function mapIncidenteToAccidenteMetadata(args: {
   incidente: IncidenteForMapping;
   cliente: ClienteForMapping;
-  empleado: EmpleadoForMapping;
+  /** Puestos del catálogo del empleado, concatenados (T-129). `null` si no tiene. */
+  puestoAfectado: string | null;
 }): { metadata: AccidenteMetadata; titulo: string } {
-  const { incidente, cliente, empleado } = args;
+  const { incidente, cliente, puestoAfectado } = args;
 
   // gravedad siempre presente para tipo='accidente' (CHECK SQL + guard de la
   // action); el fallback es inalcanzable pero mantiene el map total.
@@ -72,7 +76,7 @@ export function mapIncidenteToAccidenteMetadata(args: {
     fecha_accidente: incidente.fecha,
     hora_accidente: incidente.hora ? incidente.hora.slice(0, 5) : '00:00',
     lugar_especifico: orPlaceholder(incidente.lugar_especifico, 3),
-    puesto_afectado: orPlaceholder(empleado?.puesto, 2),
+    puesto_afectado: orPlaceholder(puestoAfectado, 2),
     // — lesión (sin fuente directa en el incidente -> defaults a completar) —
     tipo_lesion: ['otros'],
     partes_cuerpo_afectadas: ['otros'],

@@ -61,7 +61,8 @@ export default async function EmpleadoDetallePage({ params }: { params: Promise<
   ]);
 
   const hasContacto = !!(empleado.email || empleado.telefono);
-  const hasLaboral = !!(empleado.puesto || empleado.fecha_ingreso || empleado.fecha_nacimiento);
+  // T-129: el puesto ya no se muestra acá (lo cubre PuestosCard, catálogo).
+  const hasLaboral = !!(empleado.fecha_ingreso || empleado.fecha_nacimiento);
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -122,9 +123,6 @@ export default async function EmpleadoDetallePage({ params }: { params: Promise<
             <CardTitle>Laboral</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
-            {empleado.puesto && (
-              <Field label="Puesto" value={empleado.puesto} className="md:col-span-2" />
-            )}
             {empleado.fecha_ingreso && (
               <Field label="Fecha de ingreso" value={formatCivilDateEs(empleado.fecha_ingreso)} />
             )}
