@@ -26,11 +26,16 @@ import { loginViaUI } from './helpers/auth-flows';
 const createdUserIds: string[] = [];
 const createdClienteIds: string[] = [];
 const createdEmpleadoIds: string[] = [];
+const createdPuestoIds: string[] = [];
 
 test.afterEach(async () => {
-  // Orden FK: empleados → clientes → users (lesson T-050).
+  // Orden FK: empleados (cascade empleados_puestos) → puestos → clientes →
+  // users (lesson T-050 + T-128).
   for (const id of createdEmpleadoIds.splice(0)) {
     await adminClient.from('empleados').delete().eq('id', id);
+  }
+  for (const id of createdPuestoIds.splice(0)) {
+    await adminClient.from('puestos').delete().eq('id', id);
   }
   for (const id of createdClienteIds.splice(0)) {
     await adminClient.from('clientes').delete().eq('id', id);
@@ -97,7 +102,18 @@ test.describe('Empleados · CRUD (T-054)', () => {
     await page.getByPlaceholder('Pérez').fill(apellido);
     // DNI con puntos — el action normaliza pre-DB.
     await page.getByPlaceholder('12345678', { exact: true }).fill('12.345.678');
-    await page.getByPlaceholder('Operario de máquinas').fill('Operario E2E');
+
+    // T-128 · Puesto = catálogo. La consultora es nueva (catálogo vacío) → usamos
+    // el flujo "Crear puesto nuevo" inline (el user es owner). Tras crear, queda
+    // seleccionado y la action sincroniza join + puente `empleados.puesto`.
+    const puestoNombre = `Operario E2E ${Date.now().toString(36)}`;
+    await page.getByLabel('Buscar puesto').click();
+    await page.getByRole('button', { name: /Crear puesto nuevo/i }).click();
+    await page.getByPlaceholder('Operario de máquinas').fill(puestoNombre);
+    await page.getByPlaceholder('ruido, caída de altura, químico').fill('ruido, mecánico');
+    await page.getByRole('button', { name: /Crear y seleccionar/i }).click();
+    // Chip del puesto seleccionado.
+    await expect(page.getByText(puestoNombre)).toBeVisible({ timeout: 10_000 });
 
     await page.getByRole('button', { name: /Crear empleado/i }).click();
 
@@ -118,12 +134,31 @@ test.describe('Empleados · CRUD (T-054)', () => {
     expect(row.nombre).toBe('Juan');
     expect(row.apellido).toBe(apellido);
     expect(row.dni).toBe('12345678');
-    expect(row.puesto).toBe('Operario E2E');
+    // Puente: `empleados.puesto` = nombre del puesto del catálogo.
+    expect(row.puesto).toBe(puestoNombre);
     expect(row.consultora_id).toBe(consultoraId);
     expect(row.created_by).toBe(userId);
+
+    // T-128 · el puesto se creó en el catálogo y quedó asignado en el join.
+    const { data: puestoRow } = await adminClient
+      .from('puestos')
+      .select('id, riesgos_asociados')
+      .eq('consultora_id', consultoraId)
+      .eq('nombre', puestoNombre)
+      .single();
+    expect(puestoRow).not.toBeNull();
+    createdPuestoIds.push(puestoRow!.id);
+    expect(puestoRow!.riesgos_asociados).toEqual(['ruido', 'mecánico']);
+
+    const { data: joinRows } = await adminClient
+      .from('empleados_puestos')
+      .select('puesto_id')
+      .eq('empleado_id', row.id);
+    expect(joinRows).toHaveLength(1);
+    expect(joinRows![0]!.puesto_id).toBe(puestoRow!.id);
   });
 
-  test('editar empleado: admin INSERT fixture → /editar → cambiar puesto → submit + DB updated', async ({
+  test('editar empleado: empleado con puesto del catálogo → cambiar a otro → join + puente actualizados', async ({
     page,
   }) => {
     test.setTimeout(60_000);
@@ -147,7 +182,22 @@ test.describe('Empleados · CRUD (T-054)', () => {
     const clienteId = insertedCliente!.id;
     createdClienteIds.push(clienteId);
 
-    const originalPuesto = `Original ${Date.now().toString(36)}`;
+    // T-128 · dos puestos del catálogo: P1 (asignado) y P2 (destino del cambio).
+    const suffix = Date.now().toString(36);
+    const p1Nombre = `Soldador ${suffix}`;
+    const p2Nombre = `Operario ${suffix}`;
+    const { data: p1 } = await adminClient
+      .from('puestos')
+      .insert({ consultora_id: consultoraId, nombre: p1Nombre, created_by: userId })
+      .select('id')
+      .single();
+    const { data: p2 } = await adminClient
+      .from('puestos')
+      .insert({ consultora_id: consultoraId, nombre: p2Nombre, created_by: userId })
+      .select('id')
+      .single();
+    createdPuestoIds.push(p1!.id, p2!.id);
+
     const { data: insertedEmpleado } = await adminClient
       .from('empleados')
       .insert({
@@ -156,7 +206,7 @@ test.describe('Empleados · CRUD (T-054)', () => {
         nombre: 'Juana',
         apellido: 'Editora',
         dni: '23456789',
-        puesto: originalPuesto,
+        puesto: p1Nombre, // puente inicial coherente con el join
         created_by: userId,
       })
       .select('id')
@@ -164,26 +214,46 @@ test.describe('Empleados · CRUD (T-054)', () => {
     const empleadoId = insertedEmpleado!.id;
     createdEmpleadoIds.push(empleadoId);
 
+    // Asignación inicial (join) a P1 — simula lo que dejaría el alta vía form.
+    await adminClient.from('empleados_puestos').insert({
+      empleado_id: empleadoId,
+      puesto_id: p1!.id,
+      consultora_id: consultoraId,
+      asignado_por: userId,
+    });
+
     await loginViaUI(page, email, password);
     await page.goto(`/empleados/${empleadoId}/editar`);
     await expect(page.getByRole('heading', { name: 'Editar empleado' })).toBeVisible();
 
-    const puestoInput = page.getByPlaceholder('Operario de máquinas');
-    await expect(puestoInput).toHaveValue(originalPuesto);
+    // El selector muestra P1 pre-seleccionado (chip).
+    await expect(page.getByText(p1Nombre)).toBeVisible();
 
-    const nuevoPuesto = `Editado ${Date.now().toString(36)}`;
-    await puestoInput.fill(nuevoPuesto);
+    // Cambiar a P2: abrir búsqueda → filtrar → elegir.
+    await page.getByRole('button', { name: 'Cambiar' }).click();
+    await page.getByLabel('Buscar puesto').fill('Operario');
+    await page.getByRole('option', { name: new RegExp(p2Nombre) }).click();
+    await expect(page.getByText(p2Nombre)).toBeVisible();
+
     await page.getByRole('button', { name: /Guardar cambios/i }).click();
 
     await expect(page).toHaveURL(new RegExp(`/empleados/${empleadoId}$`), { timeout: 10_000 });
-    await expect(page.getByText(nuevoPuesto)).toBeVisible();
 
+    // Puente actualizado a P2.
     const { data: updated } = await adminClient
       .from('empleados')
       .select('puesto')
       .eq('id', empleadoId)
       .single();
-    expect(updated?.puesto).toBe(nuevoPuesto);
+    expect(updated?.puesto).toBe(p2Nombre);
+
+    // Join reemplazado: ahora apunta solo a P2 (P1 removido).
+    const { data: joinRows } = await adminClient
+      .from('empleados_puestos')
+      .select('puesto_id')
+      .eq('empleado_id', empleadoId);
+    expect(joinRows).toHaveLength(1);
+    expect(joinRows![0]!.puesto_id).toBe(p2!.id);
   });
 
   test('archive + desarchive flow: AlertDialog confirm → list filter → toggle archivados', async ({

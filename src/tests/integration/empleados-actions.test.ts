@@ -18,7 +18,7 @@
  *    searchEmpleadosByDni (prefix match digits-only, min 3 chars).
  *
  * Setup SECUENCIAL (lesson T-047 — Promise.all sa-east-1 flaky).
- * Cleanup ORDEN FK (lesson T-050): empleados → clientes → users.
+ * Cleanup ORDEN FK (lesson T-050): empleados → puestos → clientes → users.
  *
  * Correr local: `set -a && source .env.local && set +a && pnpm test:integration`.
  */
@@ -183,6 +183,13 @@ afterAll(async () => {
   // Cleanup robusto por consultora_id del runId (no solo tracked IDs).
   await admin
     .from('empleados')
+    .delete()
+    .in('consultora_id', [cAId, cBId])
+    .then(() => {});
+  // T-128 · empleados_puestos cascada al borrar empleados; los puestos seedeados
+  // se limpian por consultora_id.
+  await admin
+    .from('puestos')
     .delete()
     .in('consultora_id', [cAId, cBId])
     .then(() => {});
@@ -403,12 +410,23 @@ describe('updateEmpleadoAction', () => {
     await signInAs(emailMemberA);
     const { createEmpleadoAction, updateEmpleadoAction } =
       await import('@/app/(app)/empleados/actions');
+    // T-128 · el puesto del empleado es el del catálogo: seedeamos uno y lo
+    // pasamos por `puesto_id`. createEmpleadoAction asigna el join y escribe el
+    // puente `empleados.puesto` = nombre.
+    const puestoNombre = `Operario ${runId}`;
+    const { data: puesto } = await admin
+      .from('puestos')
+      .insert({ consultora_id: cAId, nombre: puestoNombre, created_by: ownerAId })
+      .select('id')
+      .single();
+    expect(puesto).not.toBeNull();
+
     const created = await createEmpleadoAction({
       cliente_id: clienteAId,
       nombre: 'Carlos',
       apellido: 'Original',
       dni: nextDni(),
-      puesto: 'Operario',
+      puesto_id: puesto!.id,
     });
     expect(created.ok).toBe(true);
     if (!created.ok) return;
@@ -426,7 +444,7 @@ describe('updateEmpleadoAction', () => {
       .single();
     expect(empleado).toMatchObject({
       apellido: 'Renombrado',
-      puesto: 'Operario', // intacto, no estaba en el patch
+      puesto: puestoNombre, // puente intacto: el patch de apellido no lo toca
     });
 
     const { data: auditRows } = await admin
