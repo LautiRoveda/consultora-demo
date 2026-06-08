@@ -137,7 +137,6 @@ beforeAll(async () => {
         nombre: 'Pepe',
         apellido: 'Pereira',
         dni: '20444444',
-        puesto: 'Soldador',
         created_by: ownerAId,
       })
       .select('id')

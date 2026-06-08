@@ -66,10 +66,9 @@ export async function getEmpleadoById(
 
 /**
  * T-129 · Label canónico de los puestos del empleado desde el CATÁLOGO
- * (`empleados_puestos` → `puestos`), reemplazo de la columna legacy
- * `empleados.puesto`. Devuelve los nombres VIGENTES (excluye archivados)
- * concatenados con ", " (más reciente primero por `asignado_at`), o `null` si
- * el empleado no tiene puestos activos asignados.
+ * (`empleados_puestos` → `puestos`). Devuelve los nombres VIGENTES (excluye
+ * archivados) concatenados con ", " (más reciente primero por `asignado_at`), o
+ * `null` si el empleado no tiene puestos activos asignados.
  *
  * Single-empleado: los consumers (informe de accidente + planilla EPP) son de a
  * uno → 1 query por llamada, sin N+1. RLS filtra cross-tenant. Cap 20 (empleado

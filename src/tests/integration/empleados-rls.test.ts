@@ -179,7 +179,6 @@ beforeAll(async () => {
       apellido: 'Fixture',
       dni: empleadoFixtureDni,
       cuil: '20-30123456-9',
-      puesto: 'Operario',
       created_by: ownerAId,
     })
     .select('id')
@@ -561,7 +560,7 @@ describe('empleados constraints', () => {
 });
 
 describe('empleados audit_log', () => {
-  it('13. INSERT escribe audit_log row con shape esperado (7 fields en after_data)', async () => {
+  it('13. INSERT escribe audit_log row con shape esperado (6 fields en after_data)', async () => {
     const { data: target, error: eIns } = await admin
       .from('empleados')
       .insert({
@@ -571,7 +570,6 @@ describe('empleados audit_log', () => {
         apellido: 'Insert',
         dni: makeDni(),
         cuil: '20-99999999-0',
-        puesto: 'Soldador',
         fecha_ingreso: '2024-01-15',
         fecha_nacimiento: '1980-06-20', // NO va al payload INSERT
         email: 'audit@example.com', // NO va al payload INSERT
@@ -602,7 +600,6 @@ describe('empleados audit_log', () => {
     expect(after.apellido).toBe('Insert');
     expect(after.dni).toBeTypeOf('string');
     expect(after.cuil).toBe('20-99999999-0');
-    expect(after.puesto).toBe('Soldador');
     expect(after.fecha_ingreso).toBe('2024-01-15');
     // Defensivo: payload INSERT NO incluye los campos no-listados.
     expect(after.fecha_nacimiento).toBeUndefined();

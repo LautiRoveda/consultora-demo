@@ -89,7 +89,6 @@ function makeEmpleado(over: Partial<EmpleadoRow> = {}): EmpleadoRow {
     cuil: null,
     email: null,
     telefono: null,
-    puesto: null,
     fecha_ingreso: null,
     fecha_nacimiento: null,
     notas: null,
@@ -224,7 +223,7 @@ describe('EmpleadoForm · selector de puesto (T-128)', () => {
         empleadoId={EMPLEADO_ID}
         clienteId={CLIENTE_ID}
         clienteRazonSocial="Acme"
-        initialValues={makeEmpleado({ puesto: 'Soldador' })}
+        initialValues={makeEmpleado()}
         catalogoPuestos={[PUESTO_SOLDADOR, PUESTO_OPERARIO]}
         canCrearPuesto
         puestoAsignadoId={null}

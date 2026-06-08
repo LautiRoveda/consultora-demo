@@ -24,10 +24,10 @@ const DNI_UNIQUE_INDEX = 'idx_empleados_consultora_cliente_dni';
 
 // ============ Discriminated unions ============
 
-// `puestoWarning`: el empleado se creó/editó OK y el puente `empleados.puesto`
-// quedó seteado, pero el INSERT al join `empleados_puestos` falló (caso raro,
-// transitorio). El form avisa con toast.warning y el user puede re-asignar desde
-// la ficha. NO es un error fatal — `ok` sigue siendo `true` (T-128).
+// `puestoWarning`: el empleado se creó/editó OK, pero el INSERT al join
+// `empleados_puestos` falló (caso raro, transitorio) → el empleado quedó sin el
+// puesto asignado. El form avisa con toast.warning y el user puede re-asignar
+// desde la ficha. NO es un error fatal — `ok` sigue siendo `true` (T-128).
 export type CreateEmpleadoResult =
   | { ok: true; empleadoId: string; puestoWarning?: true }
   | {
@@ -223,11 +223,10 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
   }
 
   // T-128 · `puesto_id` (uuid del catálogo) NO es columna de `empleados` —
-  // lo sacamos del spread del INSERT. Si viene, resolvemos el nombre ANTES de
-  // crear el empleado (puesto inválido/ajeno/archivado → no creamos orphan) y
-  // lo escribimos como puente en la col legacy `empleados.puesto`.
+  // lo sacamos del spread del INSERT. Si viene, validamos ANTES de crear el
+  // empleado (puesto inválido/ajeno/archivado → no creamos orphan); la
+  // asignación vive en el join `empleados_puestos` (más abajo).
   const { puesto_id, ...rest } = parsed.data;
-  let bridgeNombre: string | undefined;
   if (puesto_id) {
     const puesto = await resolveActivePuestoForTenant(supabase, puesto_id);
     if (!puesto) {
@@ -238,7 +237,6 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
         message: 'El puesto elegido no está disponible. Actualizá la página y reintentá.',
       };
     }
-    bridgeNombre = puesto.nombre;
   }
 
   const normalizedDni = normalizeDni(rest.dni);
@@ -250,7 +248,6 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
       ...rest,
       dni: normalizedDni,
       ...(normalizedCuil !== undefined ? { cuil: normalizedCuil } : {}),
-      ...(bridgeNombre !== undefined ? { puesto: bridgeNombre } : {}),
       consultora_id: consultora.id,
       created_by: user.id,
     })
@@ -302,12 +299,11 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
     };
   }
 
-  // Sincronía-puente ↔ join estructurado: el puente (`empleados.puesto`) ya
-  // quedó atómico con el INSERT. El join `empleados_puestos` es el único write
-  // separado. Falla con prob ~0 (puesto pre-validado activo+tenant,
-  // consultora_id del contexto, asignado_por=self, PK fresca). Si igual falla,
-  // NO es fatal: el empleado existe con el puente seteado → ok:true +
-  // puestoWarning, y el user re-asigna desde la ficha (T-128).
+  // Join estructurado `empleados_puestos`: la asignación del puesto es un write
+  // separado del INSERT del empleado. Falla con prob ~0 (puesto pre-validado
+  // activo+tenant, consultora_id del contexto, asignado_por=self, PK fresca). Si
+  // igual falla, NO es fatal: el empleado ya existe → ok:true + puestoWarning, y
+  // el user re-asigna el puesto desde la ficha (T-128).
   let puestoWarning = false;
   if (puesto_id) {
     const { error: joinError } = await supabase.from('empleados_puestos').insert({
@@ -325,7 +321,7 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
           empleadoId: data.id,
           puesto_id,
         },
-        'createEmpleadoAction: join insert failed (puente seteado, asignación pendiente)',
+        'createEmpleadoAction: join insert failed (empleado creado, asignación de puesto pendiente)',
       );
       puestoWarning = true;
     }
@@ -411,8 +407,8 @@ export async function updateEmpleadoAction(
   }
 
   // T-128 · `puesto_id` (uuid del catálogo) NO es columna de `empleados` —
-  // fuera del payload del UPDATE. Decidimos el puente (`empleados.puesto`) + el
-  // plan de sync del join ANTES de mutar.
+  // fuera del payload del UPDATE. Decidimos el plan de sync del join
+  // `empleados_puestos` ANTES de mutar.
   const { puesto_id, ...rest } = patchParsed.data;
   const payload: EmpleadoUpdate = { ...rest };
   if (typeof payload.dni === 'string') {
@@ -423,9 +419,9 @@ export async function updateEmpleadoAction(
   }
 
   // El form solo manda `puesto_id` cuando cambió (diffPatch). Espejo single:
-  // 0/1 puesto del catálogo → reemplaza join + sincroniza puente; ≥2 puestos →
-  // read-only (la ficha es la fuente de la gestión multi), no tocamos joins NI
-  // puente. Re-check server-side defensivo ante página stale.
+  // 0/1 puesto del catálogo → reemplaza el join; ≥2 puestos → read-only (la
+  // ficha es la fuente de la gestión multi), no tocamos joins. Re-check
+  // server-side defensivo ante página stale.
   type JoinPlan = { action: 'none' } | { action: 'clear' } | { action: 'set'; puestoId: string };
   let joinPlan: JoinPlan = { action: 'none' };
   let asignadosCount = 0;
@@ -437,7 +433,7 @@ export async function updateEmpleadoAction(
     asignadosCount = joins?.length ?? 0;
 
     if (asignadosCount >= 2) {
-      // read-only ≥2: no tocar joins NI puente.
+      // read-only ≥2: no tocar joins.
     } else if (puesto_id) {
       const puesto = await resolveActivePuestoForTenant(supabase, puesto_id);
       if (!puesto) {
@@ -448,17 +444,16 @@ export async function updateEmpleadoAction(
           message: 'El puesto elegido no está disponible. Actualizá la página y reintentá.',
         };
       }
-      payload.puesto = puesto.nombre; // puente atómico con el UPDATE
       joinPlan = { action: 'set', puestoId: puesto.id };
     } else {
-      // limpiar (puesto_id === null): quitar la asignación y el puente.
-      payload.puesto = null;
+      // limpiar (puesto_id === null): quitar la asignación del join.
       joinPlan = { action: 'clear' };
     }
   }
 
-  // UPDATE empleado (puente incluido) — solo si hay algo que escribir. Con el
-  // selector read-only ≥2 y sin otros cambios, el payload puede quedar vacío.
+  // UPDATE empleado — solo si hay algo que escribir. Con el selector read-only
+  // ≥2 (o un cambio de solo-puesto, que ahora vive en el join) y sin otros
+  // cambios, el payload puede quedar vacío.
   if (Object.keys(payload).length > 0) {
     const { data, error } = await supabase
       .from('empleados')
@@ -534,7 +529,7 @@ export async function updateEmpleadoAction(
           empleadoId,
           puesto_id: joinPlan.puestoId,
         },
-        'updateEmpleadoAction: join insert failed (puente seteado, asignación pendiente)',
+        'updateEmpleadoAction: join insert failed (asignación de puesto pendiente)',
       );
       puestoWarning = true;
     } else if (asignadosCount === 1) {
@@ -555,7 +550,7 @@ export async function updateEmpleadoAction(
             empleadoId,
             puesto_id: joinPlan.puestoId,
           },
-          'updateEmpleadoAction: join replace delete failed (puente seteado, puesto previo residual)',
+          'updateEmpleadoAction: join replace delete failed (puesto previo residual)',
         );
         puestoWarning = true;
       }
@@ -569,7 +564,7 @@ export async function updateEmpleadoAction(
     if (delError) {
       logger.error(
         { err: delError, userId: user.id, consultoraId: consultora.id, empleadoId },
-        'updateEmpleadoAction: join clear failed (puente limpiado, asignación residual)',
+        'updateEmpleadoAction: join clear failed (asignación residual)',
       );
       puestoWarning = true;
     }

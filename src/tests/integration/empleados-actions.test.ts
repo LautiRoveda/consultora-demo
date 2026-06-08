@@ -411,8 +411,8 @@ describe('updateEmpleadoAction', () => {
     const { createEmpleadoAction, updateEmpleadoAction } =
       await import('@/app/(app)/empleados/actions');
     // T-128 · el puesto del empleado es el del catálogo: seedeamos uno y lo
-    // pasamos por `puesto_id`. createEmpleadoAction asigna el join y escribe el
-    // puente `empleados.puesto` = nombre.
+    // pasamos por `puesto_id`. createEmpleadoAction asigna el join
+    // `empleados_puestos`.
     const puestoNombre = `Operario ${runId}`;
     const { data: puesto } = await admin
       .from('puestos')
@@ -439,13 +439,18 @@ describe('updateEmpleadoAction', () => {
 
     const { data: empleado } = await admin
       .from('empleados')
-      .select('apellido, puesto')
+      .select('apellido')
       .eq('id', created.empleadoId)
       .single();
-    expect(empleado).toMatchObject({
-      apellido: 'Renombrado',
-      puesto: puestoNombre, // puente intacto: el patch de apellido no lo toca
-    });
+    expect(empleado).toMatchObject({ apellido: 'Renombrado' });
+
+    // El patch de apellido no toca la asignación de puesto en el join.
+    const { data: joinRow } = await admin
+      .from('empleados_puestos')
+      .select('puesto_id')
+      .eq('empleado_id', created.empleadoId)
+      .single();
+    expect(joinRow?.puesto_id).toBe(puesto!.id);
 
     const { data: auditRows } = await admin
       .from('audit_log')

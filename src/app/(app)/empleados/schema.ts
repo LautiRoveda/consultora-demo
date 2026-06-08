@@ -42,11 +42,10 @@ const telefonoField = z
   .min(TELEFONO_MIN, { message: `Mínimo ${TELEFONO_MIN} caracteres.` })
   .max(TELEFONO_MAX, { message: `Máximo ${TELEFONO_MAX} caracteres.` });
 
-// T-128 · El "puesto" del empleado pasa a ser el del catálogo estructurado
-// (tabla `puestos`, vía join `empleados_puestos`). El form envía `puesto_id`
-// (uuid del catálogo); la action resuelve el nombre y lo escribe como puente en
-// la col legacy `empleados.puesto` hasta que T-129 la elimine. El texto libre
-// ya no es un input válido.
+// T-128 · El "puesto" del empleado es el del catálogo estructurado (tabla
+// `puestos`, vía join `empleados_puestos`). El form envía `puesto_id` (uuid del
+// catálogo); la action valida y materializa la asignación en `empleados_puestos`.
+// El texto libre ya no es un input válido.
 const puestoIdField = z.string().uuid({ message: 'Puesto inválido.' });
 
 const notasField = z

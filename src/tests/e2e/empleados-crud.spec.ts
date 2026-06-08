@@ -105,7 +105,7 @@ test.describe('Empleados · CRUD (T-054)', () => {
 
     // T-128 · Puesto = catálogo. La consultora es nueva (catálogo vacío) → usamos
     // el flujo "Crear puesto nuevo" inline (el user es owner). Tras crear, queda
-    // seleccionado y la action sincroniza join + puente `empleados.puesto`.
+    // seleccionado y la action asigna el join `empleados_puestos`.
     const puestoNombre = `Operario E2E ${Date.now().toString(36)}`;
     await page.getByLabel('Buscar puesto').click();
     await page.getByRole('button', { name: /Crear puesto nuevo/i }).click();
@@ -126,7 +126,7 @@ test.describe('Empleados · CRUD (T-054)', () => {
     // DB sanity.
     const { data: rows } = await adminClient
       .from('empleados')
-      .select('id, nombre, apellido, dni, puesto, cliente_id, consultora_id, created_by')
+      .select('id, nombre, apellido, dni, cliente_id, consultora_id, created_by')
       .eq('cliente_id', clienteId);
     expect(rows).toHaveLength(1);
     const row = rows![0]!;
@@ -134,8 +134,6 @@ test.describe('Empleados · CRUD (T-054)', () => {
     expect(row.nombre).toBe('Juan');
     expect(row.apellido).toBe(apellido);
     expect(row.dni).toBe('12345678');
-    // Puente: `empleados.puesto` = nombre del puesto del catálogo.
-    expect(row.puesto).toBe(puestoNombre);
     expect(row.consultora_id).toBe(consultoraId);
     expect(row.created_by).toBe(userId);
 
@@ -158,7 +156,7 @@ test.describe('Empleados · CRUD (T-054)', () => {
     expect(joinRows![0]!.puesto_id).toBe(puestoRow!.id);
   });
 
-  test('editar empleado: empleado con puesto del catálogo → cambiar a otro → join + puente actualizados', async ({
+  test('editar empleado: empleado con puesto del catálogo → cambiar a otro → join actualizado', async ({
     page,
   }) => {
     test.setTimeout(60_000);
@@ -206,7 +204,6 @@ test.describe('Empleados · CRUD (T-054)', () => {
         nombre: 'Juana',
         apellido: 'Editora',
         dni: '23456789',
-        puesto: p1Nombre, // puente inicial coherente con el join
         created_by: userId,
       })
       .select('id')
@@ -239,15 +236,7 @@ test.describe('Empleados · CRUD (T-054)', () => {
 
     await expect(page).toHaveURL(new RegExp(`/empleados/${empleadoId}$`), { timeout: 10_000 });
 
-    // Puente actualizado a P2.
-    const { data: updated } = await adminClient
-      .from('empleados')
-      .select('puesto')
-      .eq('id', empleadoId)
-      .single();
-    expect(updated?.puesto).toBe(p2Nombre);
-
-    // Join reemplazado: ahora apunta solo a P2 (P1 removido).
+    // Join reemplazado a P2: ahora apunta solo a P2 (P1 removido).
     const { data: joinRows } = await adminClient
       .from('empleados_puestos')
       .select('puesto_id')
