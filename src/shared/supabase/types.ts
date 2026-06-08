@@ -827,7 +827,6 @@ export type Database = {
           id: string;
           nombre: string;
           notas: string | null;
-          puesto: string | null;
           telefono: string | null;
           updated_at: string;
         };
@@ -846,7 +845,6 @@ export type Database = {
           id?: string;
           nombre: string;
           notas?: string | null;
-          puesto?: string | null;
           telefono?: string | null;
           updated_at?: string;
         };
@@ -865,7 +863,6 @@ export type Database = {
           id?: string;
           nombre?: string;
           notas?: string | null;
-          puesto?: string | null;
           telefono?: string | null;
           updated_at?: string;
         };
@@ -2682,10 +2679,6 @@ export type Database = {
       };
     };
     Functions: {
-      backfill_empleados_puestos_from_legacy: {
-        Args: { p_consultora_id?: string };
-        Returns: Json;
-      };
       clone_system_template: {
         Args: {
           p_consultora_id: string;

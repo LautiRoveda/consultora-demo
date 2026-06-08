@@ -263,7 +263,7 @@ export function EmpleadoForm(props: Props) {
   function handleResult(result: ActionResult, verb: 'created' | 'updated') {
     if (result.ok) {
       if (result.puestoWarning) {
-        // Empleado guardado + puente seteado, pero el join falló (caso raro).
+        // Empleado guardado, pero el join al catálogo falló (caso raro).
         toast.warning(verb === 'created' ? 'Empleado creado' : 'Cambios guardados', {
           description: 'No pudimos vincular el puesto al catálogo. Asignalo desde la ficha.',
         });
