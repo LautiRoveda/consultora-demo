@@ -1,4 +1,14 @@
-import { Calendar, FileText, UserCheck, Users } from 'lucide-react';
+import {
+  Bot,
+  Calendar,
+  ClipboardCheck,
+  FileText,
+  HardHat,
+  ListChecks,
+  ShieldAlert,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
 
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
@@ -30,6 +40,36 @@ const QUICK_LINKS = [
     description: 'Empleados por cliente con tracking.',
   },
   {
+    href: '/epp',
+    icon: HardHat,
+    title: 'EPP',
+    description: 'Catálogo, entregas y padrón de EPP.',
+  },
+  {
+    href: '/asistente',
+    icon: Bot,
+    title: 'Asistente',
+    description: 'Consultá tus datos en lenguaje natural.',
+  },
+  {
+    href: '/checklists',
+    icon: ClipboardCheck,
+    title: 'Checklists',
+    description: 'Plantillas de inspección reutilizables.',
+  },
+  {
+    href: '/checklists/ejecuciones',
+    icon: ListChecks,
+    title: 'Inspecciones',
+    description: 'Ejecutá inspecciones en campo.',
+  },
+  {
+    href: '/accidentabilidad',
+    icon: ShieldAlert,
+    title: 'Accidentabilidad',
+    description: 'Incidentes y acciones correctivas.',
+  },
+  {
     href: '/calendario',
     icon: Calendar,
     title: 'Calendario',
@@ -44,7 +84,7 @@ const QUICK_LINKS = [
  * el `<AppShell>` aguas arriba — acá va el contenido específico de la página:
  *  - Banner post-recovery (T-014).
  *  - Panel "Próximos vencimientos" (T-030) — server async child embedido.
- *  - Sección "Accesos rápidos" con 4 cards a los módulos live (T-095).
+ *  - Sección "Accesos rápidos" con 9 cards a los módulos live (T-095).
  *
  * Server component sync con async child: React Server Components soporta
  * embed async children sin convertir el padre a async.
