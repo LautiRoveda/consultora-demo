@@ -296,7 +296,37 @@ Anular inserta un **tombstone hijo** (`anulacion=true`, `corrige_id`→original)
 
 ### Responsive híbrido `h-11 md:pointer-fine:h-9` + footgun de tailwind-merge
 
-**Origen**: T-127 Tanda 1. **Aplicable forward**: sizing de cualquier primitivo compartido (Button, Input, Select, …). Target táctil 44px en mobile/touch, compacto en desktop con mouse: clase híbrida `h-11 md:pointer-fine:h-9` (variante `pointer-fine` = dispositivos con puntero preciso). **Footgun**: `tailwind-merge` (el `cn()` de shadcn) colapsa clases de la misma familia y "se come" la altura híbrida cuando el primitivo ya trae una `h-*` por default → agregar un `size="none"` (sin `h-*` propio) en el primitivo para que la clase híbrida del caller gane. Dialog/AlertDialog: `max-h` + scroll interno para que el contenido largo no desborde en pantallas chicas. Tandas 2-7 (tablas→cards, nav móvil, forms, calendario, chat, tipografía) pendientes — ver `operativo.md`.
+**Origen**: T-127 Tanda 1. **Aplicable forward**: sizing de cualquier primitivo compartido (Button, Input, Select, …). Target táctil 44px en mobile/touch, compacto en desktop con mouse: clase híbrida `h-11 md:pointer-fine:h-9` (variante `pointer-fine` = dispositivos con puntero preciso). **Footgun**: `tailwind-merge` (el `cn()` de shadcn) colapsa clases de la misma familia y "se come" la altura híbrida cuando el primitivo ya trae una `h-*` por default → agregar un `size="none"` (sin `h-*` propio) en el primitivo para que la clase híbrida del caller gane. Dialog/AlertDialog: `max-h` + scroll interno para que el contenido largo no desborde en pantallas chicas. Tandas 2-6 + FUs ✅ EN PROD; queda T7 (pulido) — ver `operativo.md` y la sección **Responsive / UI (T-127)** abajo.
+
+## Responsive / UI (T-127)
+
+### SelectTrigger: `w-fit` → `w-full min-w-0`
+
+**Origen**: FU smoke (#226 agregó `w-full`) + Tanda 4 FU2 (#227 agregó `min-w-0`). El `w-full` solo **NO** alcanza para evitar overflow: `min-w-0` es el que deja truncar. Footgun de selects (u otros controles con texto largo) dentro de un grid/flex — el ítem flex/grid tiene `min-width: auto` por default y se niega a encoger por debajo del ancho de su contenido; `min-w-0` lo libera. Forward: cualquier control con valor largo dentro de un contenedor flex/grid necesita `min-w-0`, no solo `w-full`.
+
+### Verificar overflow mobile sin prod ni Docker
+
+**Origen**: FU smoke T-127. Ruta dev throwaway + assertion Playwright `scrollWidth <= clientWidth` en viewport mobile + demo red→green. **NO** confirmar un smoke "a ojo" ni con zoom-out del browser (el zoom-out esconde el overflow real) — me costó una ronda.
+
+### Dual-render tablas→cards
+
+**Origen**: T2 (#222). Tabla en desktop (`hidden md:block`) + stack de cards en mobile (`md:hidden`), renderizando los mismos datos dos veces. Más simple y accesible que forzar una sola tabla a colapsar en mobile.
+
+### Barras de acción de forms: `flex-col-reverse … sm:flex-row`
+
+**Origen**: T4 (#224). `flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end` — el `flex-col-reverse` deja el botón **primario arriba** en mobile (orden DOM secundario→primario, invertido visualmente) y la fila clásica `justify-end` en desktop.
+
+### Grid stack: `grid gap` vs `grid grid-cols-1`
+
+**Origen**: T-127. `grid gap` (columna implícita `auto`) **no** encoge el contenido; `grid grid-cols-1` usa `minmax(0,1fr)` y sí lo deja encoger. Importa cuando algo adentro debe truncar.
+
+### Header compartido aside/Sheet: `pr-12 md:pr-4`
+
+**Origen**: FU smoke (#226). Cuando un header se comparte entre un aside fijo (desktop) y un Sheet (mobile, con su botón X arriba-derecha), `pr-12 md:pr-4` reserva el espacio de la X en mobile sin desperdiciarlo en desktop.
+
+### Drift `QUICK_LINKS` (dashboard) ↔ `NAV_ITEMS`
+
+**Origen**: #226 (corrigió el dashboard a los 9 módulos). Dos listas de navegación paralelas que se desincronizan. Fix forward: fuente única + guard test-meta que falle si divergen — pendiente (T-127 Tanda 7).
 
 ## Operativo / VPS
 

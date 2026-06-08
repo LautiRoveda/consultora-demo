@@ -172,7 +172,7 @@ Mergeado #201 (`215dc7b`). Flaky pre-existente intermitente: el `waitFor`/`findB
 
 ## T-127 Tanda 1 ✅ Responsive de primitivos compartidos — EN MAIN
 
-#220 (squash `9916f50`). Patrón híbrido **`h-11 md:pointer-fine:h-9`** en los primitivos compartidos (44px táctil en mobile/touch / compacto en desktop+mouse) + `size="none"` en Button para esquivar el **footgun de tailwind-merge** (el merge "se comía" la altura híbrida) + Dialog/AlertDialog con `max-h` + scroll interno. Solo CSS/clases, sin lógica. **Tandas 2-7 pendientes** (ver FU al final).
+#220 (squash `9916f50`). Patrón híbrido **`h-11 md:pointer-fine:h-9`** en los primitivos compartidos (44px táctil en mobile/touch / compacto en desktop+mouse) + `size="none"` en Button para esquivar el **footgun de tailwind-merge** (el merge "se comía" la altura híbrida) + Dialog/AlertDialog con `max-h` + scroll interno. Solo CSS/clases, sin lógica. **Tandas 2-6 + FUs ✅ EN PROD** (ver abajo); queda **T7 (pulido)**.
 
 ## T-117-FU2 🔜 DORMIDO
 
@@ -190,9 +190,24 @@ Estabilizar `checklists-ejecuciones.spec.ts:100` (`EXEC_NOT_DRAFT`, race entre e
 
 `docs/technical/03-data-model.md` stale: menciona la tabla `establecimientos` fantasma (dropeada en T-052) y policies pre-T-015 (subqueries inline a `consultora_members` en vez de los helpers). Sync pendiente (sibling de T-076). _En este doc-sync solo se AGREGÓ la sección "Asistente IA · chat" (T-126); la staleness vieja sigue pendiente._
 
-## T-127 responsive · tandas 2-7 🔜 DORMIDO
+## T-127 Tandas 2-6 + FUs ✅ Responsive — EN PROD
 
-Continuación del responsive (T-127 Tanda 1 ✅ cerró los primitivos). Pendiente: tablas→cards · navegación móvil (hamburguesa en la landing + `TabsNav`) · formularios densos · calendario móvil · chat · pulido de tipografía/densidad. El owner sigue cuando quiera.
+Continuación del responsive (Tanda 1 ✅ cerró los primitivos). Tandas 2-6 + follow-ups, todas en prod:
+
+- **T2 · tablas→cards** (#222, squash `0c26fae`): dual-render `hidden md:block` (tabla en desktop) / `md:hidden` (stack de cards en mobile) en el padrón EPP (`epp/padron`) + `EntregaDetailView`.
+- **T2 FU1 · header entrega** (#223, squash `6ca9f8f`): `flex-wrap` en la barra de acciones del detalle de entrega para que wrappee en mobile (~375px).
+- **T4 · barras de acción de forms** (#224, squash `b6c6cf1`): `flex flex-col-reverse gap-2 sm:flex-row sm:justify-end` (primario arriba en mobile) en 7 forms (Incidente · TemplateMeta · Cliente · Empleado · Categoria · Item · Puesto).
+- **T3/T5/T6 + resto-T4** (#225, squash `9a3de8f`): T3 `TabsNav` con `overflow-x` (Calendar/Cliente/Epp/Catalogo/Settings) + hamburguesa en la landing (`LandingMobileNav` + `LandingHeader`) · T5 scroll-x del calendario del mes (`CalendarMonthView`) · T6 chat `min-w-0` + `break-words` (burbujas del asistente) · resto-T4 wizard de entrega (`EntregaWizard`/`EntregaItemsBuilder`: grids `sm:grid-cols-2` + de-anidar Card + barra responsive).
+- **FU smoke** (#226, squash `a7ad767`): `SelectTrigger w-full` + dashboard con los 9 módulos en `QUICK_LINKS` + badge trial `pr-12 md:pr-4` (esquiva la X del Sheet).
+- **T4 FU2 · select min-w-0** (#227, squash `dd4d377`): `SelectTrigger min-w-0` — el `w-full` solo no alcanzaba; `min-w-0` es el que deja truncar selects con valor largo en grid/flex.
+
+## T-127 Tanda 7 🔜 pulido
+
+Lo único pendiente de T-127: pulido de tipografía/densidad + barrido de headers compartidos + guard anti-drift del dashboard (`QUICK_LINKS` ↔ `NAV_ITEMS`, fuente única + test-meta). El owner sigue cuando quiera.
+
+## Panel de vencimientos del dashboard 🔜 feedback owner
+
+Rediseño del panel de vencimientos del dashboard — pendiente de definición por el owner (feedback de producto).
 
 ## T-126 producto 🔜 DORMIDO
 
