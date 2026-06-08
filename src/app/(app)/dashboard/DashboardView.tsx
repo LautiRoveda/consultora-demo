@@ -1,81 +1,14 @@
-import {
-  Bot,
-  Calendar,
-  ClipboardCheck,
-  FileText,
-  HardHat,
-  ListChecks,
-  ShieldAlert,
-  UserCheck,
-  Users,
-} from 'lucide-react';
 import Link from 'next/link';
 
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
 
 import { ProximosVencimientosPanel } from './ProximosVencimientosPanel';
+import { QUICK_LINKS } from './quick-links';
 
 type DashboardViewProps = {
   showResetSuccess?: boolean;
 };
-
-const QUICK_LINKS = [
-  {
-    href: '/informes',
-    icon: FileText,
-    title: 'Informes',
-    description: 'Generá informes técnicos con IA.',
-  },
-  {
-    href: '/clientes',
-    icon: Users,
-    title: 'Clientes',
-    description: 'Gestioná tu cartera de empresas.',
-  },
-  {
-    href: '/empleados',
-    icon: UserCheck,
-    title: 'Empleados',
-    description: 'Empleados por cliente con tracking.',
-  },
-  {
-    href: '/epp',
-    icon: HardHat,
-    title: 'EPP',
-    description: 'Catálogo, entregas y padrón de EPP.',
-  },
-  {
-    href: '/asistente',
-    icon: Bot,
-    title: 'Asistente',
-    description: 'Consultá tus datos en lenguaje natural.',
-  },
-  {
-    href: '/checklists',
-    icon: ClipboardCheck,
-    title: 'Checklists',
-    description: 'Plantillas de inspección reutilizables.',
-  },
-  {
-    href: '/checklists/ejecuciones',
-    icon: ListChecks,
-    title: 'Inspecciones',
-    description: 'Ejecutá inspecciones en campo.',
-  },
-  {
-    href: '/accidentabilidad',
-    icon: ShieldAlert,
-    title: 'Accidentabilidad',
-    description: 'Incidentes y acciones correctivas.',
-  },
-  {
-    href: '/calendario',
-    icon: Calendar,
-    title: 'Calendario',
-    description: 'Vencimientos y alertas proactivas.',
-  },
-] as const;
 
 /**
  * Contenido del dashboard.
