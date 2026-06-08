@@ -10,8 +10,6 @@ const APELLIDO_MIN = 2;
 const APELLIDO_MAX = 80;
 const TELEFONO_MIN = 6;
 const TELEFONO_MAX = 30;
-const PUESTO_MIN = 2;
-const PUESTO_MAX = 120;
 const NOTAS_MAX = 2000;
 
 const nombreField = z
@@ -44,11 +42,12 @@ const telefonoField = z
   .min(TELEFONO_MIN, { message: `Mínimo ${TELEFONO_MIN} caracteres.` })
   .max(TELEFONO_MAX, { message: `Máximo ${TELEFONO_MAX} caracteres.` });
 
-const puestoField = z
-  .string()
-  .trim()
-  .min(PUESTO_MIN, { message: `Mínimo ${PUESTO_MIN} caracteres.` })
-  .max(PUESTO_MAX, { message: `Máximo ${PUESTO_MAX} caracteres.` });
+// T-128 · El "puesto" del empleado pasa a ser el del catálogo estructurado
+// (tabla `puestos`, vía join `empleados_puestos`). El form envía `puesto_id`
+// (uuid del catálogo); la action resuelve el nombre y lo escribe como puente en
+// la col legacy `empleados.puesto` hasta que T-129 la elimine. El texto libre
+// ya no es un input válido.
+const puestoIdField = z.string().uuid({ message: 'Puesto inválido.' });
 
 const notasField = z
   .string()
@@ -70,7 +69,7 @@ export const createEmpleadoSchema = z.object({
   cuil: cuitField.optional(),
   email: emailField.optional(),
   telefono: telefonoField.optional(),
-  puesto: puestoField.optional(),
+  puesto_id: puestoIdField.optional(),
   fecha_ingreso: fechaIsoField.optional(),
   fecha_nacimiento: fechaIsoField.optional(),
   notas: notasField.optional(),
@@ -84,7 +83,7 @@ export const updateEmpleadoPatchSchema = z
     cuil: cuitField.nullable().optional(),
     email: emailField.nullable().optional(),
     telefono: telefonoField.nullable().optional(),
-    puesto: puestoField.nullable().optional(),
+    puesto_id: puestoIdField.nullable().optional(),
     fecha_ingreso: fechaIsoField.nullable().optional(),
     fecha_nacimiento: fechaIsoField.nullable().optional(),
     notas: notasField.nullable().optional(),
