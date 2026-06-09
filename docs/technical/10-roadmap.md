@@ -12,7 +12,7 @@ Cómo construir el sistema, ticket por ticket, con dependencias claras. La idea:
 
 ## Estado del roadmap
 
-Última actualización: 2026-06-08 (doc-sync: campo Puesto → catálogo —T-128 selector + T-129 fase A consumers/backfill, ambos en prod—; T-127 responsive tandas 2-6 + FUs en prod —tablas→cards · nav móvil · forms · calendario · chat · wizard—, queda T7 pulido).
+Última actualización: 2026-06-09 (doc-sync: campo Puesto → catálogo **CERRADA** —T-129 fase B dropeó la columna legacy `empleados.puesto` + función backfill + puente, #234—; rediseño del dashboard **CERRADO** —T-131 fase A operativo #235 + fase B semáforo por cliente #238—; T-132 #236 endureció el flake E2E del guard `EXEC_NOT_DRAFT`).
 
 - **Sprint 0/1** (T-001..T-018) ✅ ejecutados con la numeración planificada original.
 - **Sprint 2 original** ("Auditoría + Notificaciones + Calendario") ✅ ejecutado con numeración real **T-026..T-037 + T-034** durante el Sprint 3 cronológico real. Ver CLAUDE.md para mapping detallado.
@@ -22,7 +22,8 @@ Cómo construir el sistema, ticket por ticket, con dependencias claras. La idea:
 - **Tanda de consistencia EPP↔calendario** (2026-06-04, ADR-0015): T-114 (fix reminders EPP), T-117/FU1 (asistente IA EPP), T-119 (lifecycle planificaciones), T-118 (sync calendario→dominio) — todas en prod. **Pagos · EPP · Checklists/Inspecciones · Accidentabilidad/Incidentes** están en prod (ver `CLAUDE.md` + `operativo.md`).
 - **Asistente IA + responsive** (2026-06-06, post-ADR-0015): el asistente evolucionó con streaming SSE + render markdown (T-117-FU3), registry de tools multi-módulo + tools de Checklists/Inspecciones (T-125) y persistencia del chat con conversaciones + historial (T-126); arrancó el responsive de primitivos compartidos (T-127 Tanda 1). Detalle en `operativo.md`.
 - **Responsive T-127 completo** (2026-06-08): el responsive de la app quedó cerrado — tandas 1-6 + follow-ups en prod (primitivos híbridos · tablas→cards · nav móvil/landing · barras de forms · calendario · chat · wizard de entrega). Queda **T7 (pulido)**: tipografía/densidad + guard anti-drift del dashboard. Detalle en `operativo.md`.
-- **Campo Puesto → catálogo** (2026-06-08): el campo "Puesto" del empleado pasó de texto libre a selector del catálogo (T-128, #231) y los consumers legacy de `empleados.puesto` se cortaron al catálogo vía el helper `getEmpleadoPuestosLabel` + backfill idempotente (T-129 fase A, #232, `049cd26`) — ambos en prod. Queda **T-129 fase B** (segundo PR del mismo ticket, NO T-130): drop de la columna + de la función backfill + del puente + `db:types` completo (despierta el skew PostgREST). Detalle en `operativo.md`.
+- **Campo Puesto → catálogo** ✅ **CERRADA** (2026-06-09): el campo "Puesto" del empleado pasó de texto libre a selector del catálogo (T-128, #231), los consumers legacy de `empleados.puesto` se cortaron al catálogo vía el helper `getEmpleadoPuestosLabel` + backfill idempotente (T-129 fase A, #232, `049cd26`) y la **fase B** dropeó la columna legacy + la función backfill + el puente de escritura (T-129 fase B, #234, migración `20260608000002`) — todo en prod. Detalle en `operativo.md`.
+- **Rediseño del dashboard** ✅ **CERRADA** (2026-06-09): dashboard operativo —saludo + pulso + 4 contadores accionables + cola "lo que necesita tu atención" + columna derecha + FAB móvil— (T-131 fase A, #235) y **semáforo por cliente** vía RPC `semaforo_clientes` (T-131 fase B, #238), ambos en prod; reemplaza el viejo `ProximosVencimientosPanel`. **T-132** (#236) endureció el flake E2E del guard `EXEC_NOT_DRAFT` (split a test zero-write). Detalle en `operativo.md`.
 
 **Source of truth de tickets ejecutados**: `CLAUDE.md`.
 

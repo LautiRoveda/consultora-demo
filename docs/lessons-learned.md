@@ -102,6 +102,18 @@ El merge auto-deploya **solo el código** (webhook EasyPanel, no es job de GitHu
 
 **Origen**: T-124. Quitar un valor muerto depende de cómo está modelado: si es `text` + `CHECK in (…)` (ej. `calendar_event_reminders.status`), un `ALTER … DROP CONSTRAINT` + re-add sin el valor lo quita en una línea; si es un enum `TYPE` (ej. `estado_suscripcion`), no hay `DROP VALUE` → recrear el tipo entero es pesado → se REDOCUMENTA en vez de quitar. Y la asimetría: se QUITA el valor si es dato sin lógica (`failed`, que nunca se escribía); se REDOCUMENTA si tiene scaffolding/feature vivo (`archived` = soft-delete diseñado-no-implementado, con label + botones TS). Guard al estrechar un CHECK: `raise exception` si quedan filas con el valor a remover (mensaje legible antes de que el `ADD CONSTRAINT` falle solo).
 
+### Drop de columna: recrear en la MISMA tx los triggers/funciones plpgsql que la referencian
+
+**Origen**: T-129 fase B (`audit_empleados`). **Aplicable a**: cualquier `DROP COLUMN` sobre una tabla con triggers/funciones plpgsql.
+
+Postgres NO trackea como dependencia las referencias `new.<col>`/`old.<col>` dentro de un cuerpo plpgsql → el `DROP COLUMN` tiene éxito pero el trigger tira `record "new" has no field <col>` en la PRÓXIMA escritura (runtime, no en la migración). En T-129 fase B `audit_empleados()` leía `new.puesto`/`old.puesto` en el diff-guard y en los payloads. Fix: `CREATE OR REPLACE FUNCTION` del trigger SIN la columna **en la misma transacción y ANTES** del `DROP COLUMN`. Cazá el riesgo con `grep -E '(new|old)\.<col>'` sobre `supabase/migrations/` antes de dropear.
+
+### Drop de columna con puente de escritura: el código que deja de escribirla va a prod ANTES del drop
+
+**Origen**: T-129 fase B. **Contraste**: invierte el "Orden `db push` ↔ merge" de arriba (que es migración-primero cuando el código DEPENDE del objeto nuevo).
+
+Cuando se dropea una columna que el código todavía escribe (puente legacy), el orden seguro es el inverso al habitual: primero merge + auto-deploy del código SIN el puente (deja de escribir la columna), y recién DESPUÉS el `db push` del `DROP COLUMN`. Si dropeás primero, el código viejo en prod sigue intentando escribir la columna inexistente → escrituras rotas en la ventana. Validar con smoke pre y post-drop. En T-129 fase B se mergeó #234 (código sin puente) → deploy → `db push` del drop (`20260608000002`) → smoke OK.
+
 ### Skew PostgREST local↔prod en `pnpm db:types`
 
 **Origen**: T-126. Prod corre PostgREST 14.5; la imagen de Supabase local (`supabase start`) es 14.x → al regenerar `src/shared/supabase/types.ts` con `pnpm db:types`, la versión local **reintroduce** el bloque `__InternalSupabase` que el gate de drift de CI (`gen types --local` + `git diff`) rechaza. Workaround manual: hand-edit del archivo (mismo recurso que en T-061-FU1). Fix de raíz pendiente (FU en `operativo.md`): bumpear la imagen local a 14.5, o stripear ese bloque en el script `db:types`.
@@ -111,6 +123,12 @@ El merge auto-deploya **solo el código** (webhook EasyPanel, no es job de GitHu
 **Origen**: T-129 fase A (commit `9f6663b`). **Relacionado**: skew PostgREST ↑.
 
 Una migración que agrega un objeto visible a los tipos generados (función/RPC, tabla, columna, enum) rompe el gate `types.ts sin drift` del job Integration **aunque el PR difiera `db:types` a propósito** y no toque columnas existentes: `gen types --local` (que corre el gate) lo incluye y el `git diff` contra el `types.ts` commiteado falla. **Fix sin Docker**: NO correr `pnpm db:types` (= `gen types --linked` contra prod) — despierta el skew PostgREST prod 14.5↔local (reintroduce `__InternalSupabase`, ver ↑). En cambio, leer el diff exacto que imprime el gate (`gh run view --job <id> --log-failed`) y aplicar **a mano** SOLO ese bloque al `types.ts` (para una función `(p_x uuid default null) returns jsonb`: 4 líneas en `Functions:`, `Args: { p_x?: string }` + `Returns: Json`). Es la misma adición que produce el gen local → el gate pasa, sin tocar el resto. Verificar antes que el diff sean SOLO tus líneas (sin ruido del skew).
+
+### RPC: cast seguro de metadata jsonb (regex de formato antes del `::uuid`)
+
+**Origen**: T-131 fase B (RPC `semaforo_clientes`). **Aplicable a**: toda RPC que castee `metadata`/jsonb de shape libre.
+
+`(metadata->>'key')::uuid` revienta la RPC ENTERA si el valor no es un UUID (los `calendar_events` system-generated guardan `metadata` de shape libre). Filtrá con una regex de formato UUID en el `WHERE` ANTES del cast → degradado granular (la fila inválida se descarta, la RPC sigue) en vez de un error global. Mismo criterio para cualquier cast de jsonb no garantizado por schema.
 
 ## Tests integration
 
@@ -181,6 +199,18 @@ CI Ubuntu NO exhibe el problema (los PRs T-024..T-036 todos pasaron con retries=
 ### `waitFor` toast antes de navegar post-action
 
 **Origen**: T-049 (E2E test 3). Race entre `setDialogOpen(false)` sync y `startTransition` async causa que el `goto` post-archive traiga el cliente todavía no archivado de DB. Esperar el toast garantiza que la action completó.
+
+### E2E: revalidate→swap-race (un `revalidatePath` en vuelo desmonta el target del click)
+
+**Origen**: T-132 (guard `EXEC_NOT_DRAFT` del runner de checklists).
+
+Un `revalidatePath` en vuelo (de un save/foto previo del mismo test) re-renderiza la ruta server-side; si el estado cambió out-of-band, la page swappea el componente (runner → `EjecucionDetailView`) y desmonta el target del click → el click cuelga hasta el timeout. Para testear un guard de transición de estado, aislá un **test zero-write** (sin escrituras previas → sin refetch RSC en vuelo → swap imposible por construcción); dejá el happy path en el mega-test. Red→green en CI: viejo 5/20 rojo → nuevo 20/20 verde.
+
+### CI: `pnpm <script> -- <args>` filtra el `--` a la herramienta subyacente
+
+**Origen**: T-132. **Aplicable a**: cualquier script de pnpm que forwardee `argv` a otra CLI.
+
+El orquestador E2E forwardea `argv`; `pnpm test:e2e:local -- --grep <x>` leakea el `--` a Playwright, que lo lee como filtro de archivos → "No tests found". Invocá el node script directo (`node scripts/test-e2e-local.mjs <args>`). Bonus: `--retries=0` por CLI pisa el `retries:2` del config (útil para demostrar un flake red→green sin que los retries lo escondan).
 
 ## Server actions
 
@@ -493,6 +523,12 @@ function isoDaysFromNow(n: number): string {
 Reproducción local: clock real entre 00:00 y 03:00 UTC (= 21:00–00:00 AR día anterior), o `vi.useFakeTimers() + vi.setSystemTime(new Date('2026-05-27T00:30:00Z'))`. Validación cerrada cuando el patrón pre-fix falla y el post-fix pasa en el mismo runner.
 
 **Audit pendiente**: 5 integration tests con el mismo bug listados en issue [#148 (T-105-FU2)](https://github.com/LautiRoveda/consultora-demo/issues/148). No bloquean CI hoy (requieren `.env.local`) pero rompen smoke local en cross-day. Tech-debt clase B.
+
+### Dashboard/agregador: derivá fechas por civil AR sobre la UNIÓN, no por el corte UTC de las sub-queries
+
+**Origen**: T-131 fase A (dashboard). **Relacionado**: "TZ tests cross-day window flakiness" ↑.
+
+`getOverdueEvents`/`getUpcomingEvents` cortan por "hoy" UTC; en la ventana 21:00–00:00 ART un vencimiento "de hoy" cuenta como vencido y los conteos/severidad salen +1. Re-clasificá las fechas contra `todayCivilIsoAR()` sobre la unión de vencimientos del agregador, no confíes en el corte de cada sub-query. El test del borde usa fecha **mockeada** (`vi.setSystemTime`), NO la hora real del CI — el flake original se cazó por azar de horario (mismo patrón que la lesson cross-day de arriba).
 
 ## AI / Prompts
 
