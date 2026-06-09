@@ -131,4 +131,25 @@ describe('getDashboardData', () => {
       accionesAbiertas: 0,
     });
   });
+
+  // Guard de la regresión TZ (cross-day 21:00–00:00 ART): getOverdueEvents corta por
+  // "hoy" UTC, así que un vencimiento de HOY-AR llega en el set `overdue`. El derive
+  // por fecha civil AR sobre la unión debe clasificarlo como "por vencer", NO vencido.
+  // Si se revierte a `vencidos = overdue.length`, este caso se pone rojo.
+  it('evento de hoy-AR que llega por overdue (borde 21-24h ART) → por vencer, no vencido', async () => {
+    getOverdueMock.mockResolvedValue([
+      makeEvent({ id: 'o-viejo', fecha_vencimiento: isoDaysFromNow(-2) }),
+      makeEvent({ id: 'o-hoy', fecha_vencimiento: isoDaysFromNow(0) }), // hoy-AR mal-clasificado por UTC
+    ]);
+    getUpcomingMock.mockResolvedValue([]);
+    countBorradoresMock.mockResolvedValue(0);
+    countCapasMock.mockResolvedValue(0);
+    listInformesMock.mockResolvedValue([]);
+
+    const data = await getDashboardData(fakeSb);
+
+    expect(data.metrics.vencidos).toBe(1); // solo o-viejo
+    expect(data.metrics.vencenSemana).toBe(1); // o-hoy
+    expect(data.attention.find((a) => a.ev.id === 'o-hoy')?.severity).toBe('upcoming');
+  });
 });
