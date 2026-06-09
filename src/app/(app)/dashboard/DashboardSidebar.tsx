@@ -1,20 +1,32 @@
 import type { InformeListRow } from '../informes/queries';
+import type { SemaforoItem } from './queries';
 import { Bot, FileText, Plus } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader } from '@/shared/ui/card';
 
+import { ClientSemaphore } from './ClientSemaphore';
+
 /**
- * T-131 · Columna derecha del tablero (fase A).
+ * T-131 · Columna derecha del tablero.
  *
- * Botón primario "Nuevo informe" (solo desktop — en móvil la CTA primaria es el
+ * Fase B: arriba de todo el semáforo por cliente (`ClientSemaphore`). Debajo, el
+ * botón primario "Nuevo informe" (solo desktop — en móvil la CTA primaria es el
  * FAB, una sola por breakpoint), "Seguir con lo tuyo" (borradores recientes) y
- * una barra sutil al asistente IA. El semáforo por cliente entra acá en fase B.
+ * una barra sutil al asistente IA.
  */
-export function DashboardSidebar({ recentDrafts }: { recentDrafts: InformeListRow[] }) {
+export function DashboardSidebar({
+  recentDrafts,
+  semaforo,
+}: {
+  recentDrafts: InformeListRow[];
+  semaforo: SemaforoItem[];
+}) {
   return (
     <aside className="space-y-4" data-testid="dashboard-sidebar">
+      <ClientSemaphore semaforo={semaforo} />
+
       <Button asChild size="lg" className="hidden w-full md:flex" data-testid="nuevo-informe-cta">
         <Link href="/informes/nuevo">
           <Plus className="h-5 w-5" aria-hidden="true" />

@@ -6,11 +6,14 @@ import type { CalendarEventRow } from '../calendario/queries';
 import type { InformeListRow } from '../informes/queries';
 
 import { todayCivilIsoAR } from '@/shared/lib/format-date';
+import { logger } from '@/shared/observability/logger';
 
 import { addDaysIso } from '../calendario/agenda-buckets';
 import { getOverdueEvents, getUpcomingEvents } from '../calendario/queries';
 import { countCapasAbiertas } from '../checklists/ejecuciones/queries';
+import { getClientesForConsultora } from '../clientes/queries';
 import { countInformesEnBorrador, listInformes } from '../informes/queries';
+import { buildSemaforo } from './semaforo';
 
 /**
  * T-131 · Agregador de datos del dashboard operativo (fase A).
@@ -39,12 +42,23 @@ export type AttentionEntry = {
   severity: 'overdue' | 'upcoming';
 };
 
+/** Estado del semáforo por cliente = su PEOR vencimiento. Rojo / ámbar / verde. */
+export type SemaforoEstado = 'vencido' | 'por_vencer' | 'al_dia';
+
+/** Fila cruda de la RPC `semaforo_clientes` (solo clientes con vencimientos derivables). */
+export type SemaforoRow = Database['public']['Functions']['semaforo_clientes']['Returns'][number];
+
+/** Ítem renderizable: cliente activo + estado + contexto mínimo ("1 vencido" / "vence en 5 d"). */
+export type SemaforoItem = { id: string; nombre: string; estado: SemaforoEstado; contexto: string };
+
 export type DashboardData = {
   metrics: DashboardMetrics;
   /** Cola priorizada: vencidos (más viejo primero) y luego por vencer. */
   attention: AttentionEntry[];
   /** 1-2 borradores recientes para "Seguir con lo tuyo". */
   recentDrafts: InformeListRow[];
+  /** Semáforo: TODOS los clientes activos, ordenados rojo→amarillo→verde. */
+  semaforo: SemaforoItem[];
 };
 
 /** Máximo de ítems en la cola de atención del home (el resto vive en /calendario/agenda). */
@@ -52,21 +66,45 @@ const ATTENTION_LIMIT = 6;
 /** Cantidad de borradores recientes en "Seguir con lo tuyo". */
 const RECENT_DRAFTS_LIMIT = 2;
 
+/**
+ * Filas del semáforo por cliente (RPC `semaforo_clientes`). Pasamos `hoy` (fecha
+ * civil AR, T-085) en vez del default SQL para que TODO el tablero use el mismo
+ * "hoy". Si la RPC falla, degradamos a `[]` (tras el merge todos los clientes salen
+ * "al día") en vez de reventar el tablero entero.
+ */
+async function getSemaforoRows(
+  supabase: SupabaseClient<Database>,
+  hoy: string,
+): Promise<SemaforoRow[]> {
+  const { data, error } = await supabase.rpc('semaforo_clientes', { p_hoy: hoy });
+  if (error) {
+    logger.warn({ err: error.message }, 'getSemaforoRows: RPC semaforo_clientes falló');
+    return [];
+  }
+  return data ?? [];
+}
+
 export async function getDashboardData(supabase: SupabaseClient<Database>): Promise<DashboardData> {
-  const [overdue, upcoming, informes, borradores, accionesAbiertas] = await Promise.all([
-    getOverdueEvents(supabase),
-    getUpcomingEvents(supabase, 30),
-    listInformes(supabase),
-    countInformesEnBorrador(supabase),
-    countCapasAbiertas(supabase),
-  ]);
+  // `hoy` civil AR (T-085) ÚNICO para todo el tablero: lo consumen la severidad de la
+  // cola y el `p_hoy` de la RPC del semáforo. Se computa ANTES del Promise.all.
+  const todayAR = todayCivilIsoAR(new Date());
+
+  const [overdue, upcoming, informes, borradores, accionesAbiertas, clientes, semaforoRows] =
+    await Promise.all([
+      getOverdueEvents(supabase),
+      getUpcomingEvents(supabase, 30),
+      listInformes(supabase),
+      countInformesEnBorrador(supabase),
+      countCapasAbiertas(supabase),
+      getClientesForConsultora(supabase, { limit: 200 }),
+      getSemaforoRows(supabase, todayAR),
+    ]);
 
   // Derivamos contadores y severidad por fecha civil AR (T-085) sobre la UNIÓN de
   // ambos sets. getOverdueEvents/getUpcomingEvents cortan por "hoy" UTC; entre
   // 21:00–00:00 ART ese corte adelanta un día y un vencimiento "de hoy (AR)"
-  // caería como vencido. Comparando contra `todayCivilIsoAR` queda estable todo el
-  // día. `all` viene ordenado por fecha ASC (overdue < corte <= upcoming → disjuntos).
-  const todayAR = todayCivilIsoAR(new Date());
+  // caería como vencido. Comparando contra `todayAR` queda estable todo el día.
+  // `all` viene ordenado por fecha ASC (overdue < corte <= upcoming → disjuntos).
   const plus7AR = addDaysIso(todayAR, 7);
   const all = [...overdue, ...upcoming];
 
@@ -88,9 +126,12 @@ export async function getDashboardData(supabase: SupabaseClient<Database>): Prom
 
   const recentDrafts = informes.filter((i) => i.status === 'draft').slice(0, RECENT_DRAFTS_LIMIT);
 
+  const semaforo = buildSemaforo(clientes, semaforoRows, todayAR);
+
   return {
     metrics: { vencenSemana, vencidos, borradores, accionesAbiertas },
     attention,
     recentDrafts,
+    semaforo,
   };
 }

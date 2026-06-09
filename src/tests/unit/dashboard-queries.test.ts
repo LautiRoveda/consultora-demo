@@ -10,7 +10,8 @@
  * para que el bucketing sea idempotente entre 00:00–03:00 UTC.
  */
 import type { CalendarEventRow } from '@/app/(app)/calendario/queries';
-import { describe, expect, it, vi } from 'vitest';
+import type { ClienteRow } from '@/app/(app)/clientes/queries';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { todayCivilIsoAR } from '@/shared/lib/format-date';
 
@@ -33,6 +34,12 @@ vi.mock('@/app/(app)/informes/queries', () => ({
 const countCapasMock = vi.fn<() => Promise<number>>();
 vi.mock('@/app/(app)/checklists/ejecuciones/queries', () => ({
   countCapasAbiertas: () => countCapasMock(),
+}));
+
+// Fase B (semáforo): getDashboardData ahora también lista clientes + llama la RPC.
+const getClientesMock = vi.fn();
+vi.mock('@/app/(app)/clientes/queries', () => ({
+  getClientesForConsultora: () => getClientesMock(),
 }));
 
 // Import DESPUÉS de los mocks.
@@ -68,9 +75,41 @@ function makeEvent(over: Partial<CalendarEventRow>): CalendarEventRow {
   };
 }
 
-const fakeSb = {} as never;
+// fase B: el semáforo llama `supabase.rpc('semaforo_clientes', { p_hoy })`. Stub controlable.
+const rpcMock = vi.fn<() => Promise<{ data: unknown; error: unknown }>>();
+const fakeSb = { rpc: rpcMock } as never;
+
+function makeCliente(id: string, razon_social: string): ClienteRow {
+  return {
+    id,
+    razon_social,
+    consultora_id: 'c1',
+    cuit: '20-12345678-9',
+    archived_at: null,
+    art: null,
+    contacto_email: null,
+    contacto_nombre: null,
+    contacto_telefono: null,
+    created_at: '2026-06-01T00:00:00.000Z',
+    created_by: null,
+    domicilio: null,
+    industria: null,
+    localidad: null,
+    nombre_fantasia: null,
+    notas: null,
+    provincia: null,
+    updated_at: '2026-06-01T00:00:00.000Z',
+  };
+}
 
 describe('getDashboardData', () => {
+  // Defaults seguros para los mocks de fase B: sin clientes + RPC vacía → semaforo === [].
+  // Los `it` de fase A no los tocan; el de fase B los sobreescribe en su cuerpo.
+  beforeEach(() => {
+    getClientesMock.mockResolvedValue([]);
+    rpcMock.mockResolvedValue({ data: [], error: null });
+  });
+
   it('métricas + cola priorizada + borradores recientes', async () => {
     getOverdueMock.mockResolvedValue([
       makeEvent({ id: 'o1', fecha_vencimiento: isoDaysFromNow(-10) }),
@@ -151,5 +190,45 @@ describe('getDashboardData', () => {
     expect(data.metrics.vencidos).toBe(1); // solo o-viejo
     expect(data.metrics.vencenSemana).toBe(1); // o-hoy
     expect(data.attention.find((a) => a.ev.id === 'o-hoy')?.severity).toBe('upcoming');
+  });
+
+  // Fase B: getDashboardData pasa `p_hoy` (civil AR) a la RPC y mergea sus filas con
+  // TODOS los clientes activos. El cliente sin fila RPC sale "al día" (verde).
+  it('cablea el semáforo: clientes activos + filas RPC → SemaforoItem[] ordenado', async () => {
+    getOverdueMock.mockResolvedValue([]);
+    getUpcomingMock.mockResolvedValue([]);
+    countBorradoresMock.mockResolvedValue(0);
+    countCapasMock.mockResolvedValue(0);
+    listInformesMock.mockResolvedValue([]);
+    getClientesMock.mockResolvedValue([
+      makeCliente('c-rojo', 'Rojo SA'),
+      makeCliente('c-verde', 'Verde SA'),
+    ]);
+    rpcMock.mockResolvedValue({
+      data: [
+        {
+          cliente_id: 'c-rojo',
+          estado: 'vencido',
+          fecha_proxima: '2026-06-01',
+          vencidos_count: 2,
+          proximos_count: 0,
+        },
+      ],
+      error: null,
+    });
+
+    const data = await getDashboardData(fakeSb);
+
+    // Se llamó la RPC con la fecha civil AR (no UTC).
+    expect(rpcMock).toHaveBeenCalledWith('semaforo_clientes', {
+      p_hoy: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    });
+    expect(data.semaforo).toHaveLength(2);
+    expect(data.semaforo[0]).toMatchObject({
+      id: 'c-rojo',
+      estado: 'vencido',
+      contexto: '2 vencidos',
+    });
+    expect(data.semaforo[1]).toMatchObject({ id: 'c-verde', estado: 'al_dia', contexto: 'al día' });
   });
 });
