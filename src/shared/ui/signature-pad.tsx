@@ -21,13 +21,14 @@ export type SignaturePadProps = {
 };
 
 /**
- * T-102 · Canvas HTML5 nativo para captura de firma del operario.
+ * Canvas HTML5 nativo para captura de firma (T-102, lift a shared en T-061b:
+ * lo comparten EPP entregas y Checklists cierre).
  *
  * Sin librería externa: el mismo dibujo se obtiene con ~80 líneas y evita
- * dependency tree. Touch-friendly (mobile-first per Sprint 7 polish):
- * preventDefault en touchstart/touchmove evita scroll mientras se firma.
+ * dependency tree. Touch-friendly (mobile-first): preventDefault en los
+ * pointer events evita scroll mientras se firma.
  *
- * API ref imperativa: clear(), toDataURL(), isEmpty(). El consumer (wizard)
+ * API ref imperativa: clear(), toDataURL(), isEmpty(). El consumer (form/wizard)
  * llama toDataURL() al submit final.
  *
  * No es responsive por width/height de container — usa props fijas (ergonomía
@@ -109,7 +110,13 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(fu
       e.preventDefault();
       const point = getPointFromEvent(e);
       if (!point) return;
-      canvasRef.current?.setPointerCapture(e.pointerId);
+      try {
+        canvasRef.current?.setPointerCapture(e.pointerId);
+      } catch {
+        // setPointerCapture puede tirar (InvalidStateError) con punteros sintéticos
+        // (p.ej. el mouse de Playwright en E2E). El trazo no depende de la captura
+        // —solo mantiene el move si el puntero sale del canvas— así que seguimos.
+      }
       isDrawingRef.current = true;
       lastPointRef.current = point;
 
@@ -158,7 +165,7 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(fu
     <canvas
       ref={canvasRef}
       role="img"
-      aria-label={ariaLabel ?? 'Pad para firmar la entrega'}
+      aria-label={ariaLabel ?? 'Pad para firmar'}
       width={width}
       height={height}
       onPointerDown={handlePointerDown}

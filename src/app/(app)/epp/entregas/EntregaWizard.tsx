@@ -1,8 +1,8 @@
 'use client';
 
+import type { SignaturePadHandle } from '@/shared/ui/signature-pad';
 import type { ItemCatalogOption } from './EntregaItemsBuilder';
 import type { CreateEntregaInput } from './schema';
-import type { SignaturePadHandle } from './SignaturePad';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState } from 'react';
@@ -13,12 +13,12 @@ import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/shared/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select';
+import { SignaturePad } from '@/shared/ui/signature-pad';
 import { Textarea } from '@/shared/ui/textarea';
 
 import { createEntregaAction } from './actions';
 import { EntregaItemsBuilder } from './EntregaItemsBuilder';
 import { createEntregaSchema, DEFAULT_MOTIVO_ENTREGA } from './schema';
-import { SignaturePad } from './SignaturePad';
 
 type WizardStep = 'empleado' | 'items' | 'firma';
 
@@ -223,9 +223,11 @@ export function EntregaWizard({
   return (
     <Card className="max-w-3xl">
       <CardContent className="grid gap-6 pt-6">
-        <header className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{STEP_TITLES[step]}</h2>
-          <div className="text-xs text-muted-foreground">Paso {stepIndex(step)} de 3</div>
+        <header className="flex items-center justify-between gap-2">
+          {/* min-w-0 deja que el titulo trunque si es largo; shrink-0 evita que "Paso X de 3"
+              se comprima a 2 lineas en mobile. */}
+          <h2 className="min-w-0 text-lg font-semibold">{STEP_TITLES[step]}</h2>
+          <div className="shrink-0 text-xs text-muted-foreground">Paso {stepIndex(step)} de 3</div>
         </header>
 
         <Form {...form}>
@@ -322,10 +324,18 @@ export function EntregaWizard({
               </div>
             )}
 
-            <div className="mt-2 flex items-center justify-between gap-2">
+            {/* En mobile la barra apila full-width (Volver arriba, accion principal abajo);
+                en desktop vuelve a fila con Volver a la izquierda y la accion a la derecha. */}
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 {step !== 'empleado' && (
-                  <Button type="button" variant="outline" onClick={handleBack} disabled={isPending}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleBack}
+                    disabled={isPending}
+                    className="w-full sm:w-auto"
+                  >
                     ← Volver
                   </Button>
                 )}
@@ -335,6 +345,7 @@ export function EntregaWizard({
                 {step !== 'firma' ? (
                   <Button
                     type="button"
+                    className="w-full sm:w-auto"
                     onClick={() => {
                       void handleNext();
                     }}
@@ -342,7 +353,11 @@ export function EntregaWizard({
                     Siguiente →
                   </Button>
                 ) : (
-                  <Button type="submit" disabled={isPending || firmaIsEmpty}>
+                  <Button
+                    type="submit"
+                    disabled={isPending || firmaIsEmpty}
+                    className="w-full sm:w-auto"
+                  >
                     {isPending ? 'Registrando…' : 'Registrar entrega'}
                   </Button>
                 )}

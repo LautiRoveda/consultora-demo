@@ -3,7 +3,7 @@
 import type { Database } from '@/shared/supabase/types';
 import { revalidatePath } from 'next/cache';
 
-import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
+import { requireOwner } from '@/shared/auth/requireOwner';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
 
@@ -116,53 +116,6 @@ function buildInvalidInput(
     (fieldErrors[key] ??= []).push(issue.message);
   }
   return { fieldErrors };
-}
-
-type AuthContext = {
-  userId: string;
-  consultoraId: string;
-  role: 'owner' | 'member';
-};
-
-type AuthFailure = {
-  ok: false;
-  code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'FORBIDDEN_NOT_OWNER';
-  message: string;
-};
-
-/**
- * Auth + owner-only gate. Catálogo es config sensible: solo owners pueden mutar
- * (decisión cerrada en plan). RLS schema permite any-member; el check está acá
- * a nivel app como defense-in-depth.
- */
-async function requireOwner(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-): Promise<{ ok: true; ctx: AuthContext } | AuthFailure> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false, code: 'UNAUTHENTICATED', message: 'Necesitás iniciar sesión.' };
-  }
-
-  const consultora = await getCurrentConsultora(supabase, user.id);
-  if (!consultora) {
-    return {
-      ok: false,
-      code: 'NO_CONSULTORA',
-      message: 'No tenés una consultora asociada.',
-    };
-  }
-
-  if (consultora.role !== 'owner') {
-    return {
-      ok: false,
-      code: 'FORBIDDEN_NOT_OWNER',
-      message: 'Solo el owner de la consultora puede editar el catálogo EPP.',
-    };
-  }
-
-  return { ok: true, ctx: { userId: user.id, consultoraId: consultora.id, role: consultora.role } };
 }
 
 function isUniqueNameViolation(err: { code?: string } | null): boolean {

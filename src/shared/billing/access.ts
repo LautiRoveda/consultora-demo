@@ -17,7 +17,8 @@ import { env } from '@/env';
  * Estados que disparan el gate:
  *   - plan='trial' + trial_hasta < now() (trial vencido sin pago).
  *   - estado_suscripcion='expirada'.
- *   - estado_suscripcion='cancelada' + cancelar_en < now() (período ya pasó).
+ *   - estado_suscripcion='cancelada' + (cancelar_en < now() O cancelar_en NULL)
+ *     (período ya pasó / churn por falta de pago sin gracia pendiente — T-124).
  *
  * Estados OK:
  *   - plan='trial' + trial_hasta >= now().
@@ -49,8 +50,11 @@ export function getBillingStatus(
       return { ok: false, reason: 'SUBSCRIPTION_EXPIRED' };
     }
     if (suscripcion.estado === 'cancelada') {
+      // cancelar_en NULL = cancelada por MP por falta de pago (sin período de gracia
+      // pendiente) -> churn, bloquea ya (T-124, cierra el leak). cancelar_en >= now() =
+      // gracia viva (cancelación user-iniciada, activa hasta fin del período) -> ok.
       const cancelarEn = suscripcion.cancelar_en ? new Date(suscripcion.cancelar_en) : null;
-      if (cancelarEn && cancelarEn < now) {
+      if (!cancelarEn || cancelarEn < now) {
         return { ok: false, reason: 'SUBSCRIPTION_CANCELLED' };
       }
     }

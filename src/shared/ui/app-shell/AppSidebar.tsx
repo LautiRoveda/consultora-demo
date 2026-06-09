@@ -114,7 +114,7 @@ function ConsultoraHeader({
   const trialExpired = daysLeft !== null && daysLeft <= 0;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-4">
+    <div className="flex items-center gap-3 px-4 py-4 pr-12 md:pr-4">
       {logoSignedUrl ? (
         // T-024-FU0.5: refuerzo de ownership UX. Si la consultora subio logo,
         // lo mostramos en lugar del placeholder "CD". next/image requeriria

@@ -475,7 +475,6 @@ export type CompleteEventResult =
       ok: true;
       eventId: string;
       nextEventId: string | null;
-      remindersSkipped: number;
       nextRemindersCreated: number;
       nextRemindersSkippedPast: number;
     }
@@ -562,25 +561,11 @@ export async function completeCalendarEventAction(eventId: string): Promise<Comp
     return { ok: false, code: 'FORBIDDEN', message: FORBIDDEN_MESSAGE };
   }
 
-  // Skip pending reminders (no spam de recordatorios despues de completado).
+  // Skip de reminders pending: lo hace el trigger T-123 (skip_reminders_on_event_final)
+  // a nivel DB cuando el UPDATE de arriba pasa status a 'completed' (fuente estructural,
+  // cubre tambien caminos SQL/service-role directos). `admin` se reusa abajo para
+  // insertar los reminders del evento de recurrencia.
   const admin = createServiceRoleClient();
-  const { data: skippedRows, error: skipError } = await admin
-    .from('calendar_event_reminders')
-    .update({ status: 'skipped' })
-    .eq('event_id', eventId)
-    .eq('status', 'pending')
-    .select('id');
-
-  if (skipError) {
-    // No es fatal: el evento ya quedo completado, lo loggeamos a Sentry pero
-    // continuamos. El cron T-031 vera que el event.status='completed' y no
-    // disparara los reminders aunque sigan 'pending'.
-    logger.error(
-      { err: skipError, eventId, consultoraId: consultora.id },
-      'completeCalendarEventAction: skip pending reminders failed',
-    );
-  }
-  const remindersSkipped = skippedRows?.length ?? 0;
 
   // Auto-recurrencia (Opcion A): si recurrence_months no es null, crear el
   // siguiente event con fecha + N meses.
@@ -675,7 +660,6 @@ export async function completeCalendarEventAction(eventId: string): Promise<Comp
       consultoraId: consultora.id,
       userId: user.id,
       nextEventId,
-      remindersSkipped,
       nextRemindersCreated,
       nextRemindersSkippedPast,
     },
@@ -686,7 +670,6 @@ export async function completeCalendarEventAction(eventId: string): Promise<Comp
     ok: true,
     eventId,
     nextEventId,
-    remindersSkipped,
     nextRemindersCreated,
     nextRemindersSkippedPast,
   };
@@ -697,7 +680,7 @@ export async function completeCalendarEventAction(eventId: string): Promise<Comp
 // ---------------------------------------------------------------------------
 
 export type CancelEventResult =
-  | { ok: true; eventId: string; remindersSkipped: number }
+  | { ok: true; eventId: string }
   | { ok: false; code: 'INVALID_INPUT'; fieldErrors: Record<string, string[]>; message: string }
   | {
       ok: false;
@@ -794,22 +777,8 @@ export async function cancelCalendarEventAction(
     return { ok: false, code: 'FORBIDDEN', message: FORBIDDEN_MESSAGE };
   }
 
-  const admin = createServiceRoleClient();
-  const { data: skippedRows, error: skipError } = await admin
-    .from('calendar_event_reminders')
-    .update({ status: 'skipped' })
-    .eq('event_id', eventId)
-    .eq('status', 'pending')
-    .select('id');
-
-  if (skipError) {
-    logger.error(
-      { err: skipError, eventId, consultoraId: consultora.id },
-      'cancelCalendarEventAction: skip pending reminders failed',
-    );
-  }
-  const remindersSkipped = skippedRows?.length ?? 0;
-
+  // Skip de reminders pending: lo hace el trigger T-123 a nivel DB cuando el UPDATE
+  // de arriba pasa status a 'cancelled' (no spam de un vencimiento ya resuelto).
   revalidatePath('/calendario');
   revalidatePath(`/calendario/${eventId}`);
   revalidatePath('/dashboard');
@@ -820,10 +789,9 @@ export async function cancelCalendarEventAction(
       consultoraId: consultora.id,
       userId: user.id,
       hasReason: trimmedReason !== undefined,
-      remindersSkipped,
     },
     'calendar_event_cancelled',
   );
 
-  return { ok: true, eventId, remindersSkipped };
+  return { ok: true, eventId };
 }

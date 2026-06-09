@@ -1,5 +1,17 @@
 import type { LucideIcon } from 'lucide-react';
-import { Calendar, FileText, HardHat, Home, Settings, UserCheck, Users } from 'lucide-react';
+import {
+  Bot,
+  Calendar,
+  ClipboardCheck,
+  FileText,
+  HardHat,
+  Home,
+  ListChecks,
+  Settings,
+  ShieldAlert,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 
 /**
  * Items del sidebar autenticado. Fuente única de verdad para nav.
@@ -31,6 +43,16 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/clientes', label: 'Clientes', icon: Users, status: 'live' },
   { href: '/empleados', label: 'Empleados', icon: UserCheck, status: 'live' },
   { href: '/epp', label: 'EPP', icon: HardHat, status: 'live' },
+  // T-117: asistente IA contextual de EPP/empleados (chat en lenguaje natural).
+  // Junto a EPP porque su scope MVP son datos de EPP/empleados.
+  { href: '/asistente', label: 'Asistente', icon: Bot, status: 'live' },
+  { href: '/checklists', label: 'Checklists', icon: ClipboardCheck, status: 'live' },
+  // T-061a: ejecuciones = uso diario (member, en campo); 'Checklists' queda para
+  // autoría de templates. Ruta anidada en /checklists/ejecuciones (revalidatePath
+  // del backend apunta ahí) → el active-state most-specific-match-wins de
+  // AppSidebarNav evita que 'Checklists' e 'Inspecciones' se marquen a la vez.
+  { href: '/checklists/ejecuciones', label: 'Inspecciones', icon: ListChecks, status: 'live' },
+  { href: '/accidentabilidad', label: 'Accidentabilidad', icon: ShieldAlert, status: 'live' },
   { href: '/calendario', label: 'Calendario', icon: Calendar, status: 'live' },
   { href: '/settings/consultora', label: 'Configuración', icon: Settings, status: 'live' },
 ] as const;

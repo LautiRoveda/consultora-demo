@@ -18,13 +18,20 @@ export const EVENT_TIPO_VALUES = [
   'examen_medico',
   'rgrl_anual',
   'custom',
+  // T-057 · acción correctiva RGRL. SYSTEM-GENERATED (la RPC gen_acciones_calendar_for
+  // crea el evento al cerrar una inspección) → NO se ofrece en el dropdown manual de
+  // EventForm. Espejo del CHECK calendar_events.tipo (migración t057_checklists).
+  'accion_correctiva',
 ] as const;
 export type CalendarEventTipo = (typeof EVENT_TIPO_VALUES)[number];
 
 export const EVENT_STATUS_VALUES = ['pending', 'completed', 'cancelled'] as const;
 export type CalendarEventStatus = (typeof EVENT_STATUS_VALUES)[number];
 
-export const REMINDER_STATUS_VALUES = ['pending', 'sent', 'skipped', 'failed'] as const;
+// Espejo del CHECK calendar_event_reminders.status (migración calendar_events, estrechado
+// en T-124). 'failed' se quitó en T-124: nunca se escribió — el fallo de envío vive en
+// notification_log, no en el reminder. Ciclo real: pending -> sent (cron) | skipped (trigger T-123).
+export const REMINDER_STATUS_VALUES = ['pending', 'sent', 'skipped'] as const;
 export type CalendarEventReminderStatus = (typeof REMINDER_STATUS_VALUES)[number];
 
 /**
@@ -48,6 +55,10 @@ export const DEFAULT_REMINDER_OFFSETS_BY_TYPE: Record<CalendarEventTipo, readonl
   calibracion: [60, 14, 0],
   examen_medico: [30, 7, 0],
   custom: [7, 0],
+  // accion_correctiva [30,7,0]: la fecha_compromiso es un plazo de regularización
+  // comprometido; 30d permite coordinar la corrección. La RPC los inyecta en
+  // calendar_event_reminders (T-057).
+  accion_correctiva: [30, 7, 0],
 };
 
 /**

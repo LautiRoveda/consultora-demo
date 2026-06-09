@@ -26,11 +26,11 @@ Detalle en `docs/technical/01-principles.md`.
 
 ## Estructura del repo
 
-`docs/` (discovery + technical + adr + sprints + operations + lessons-learned.md) · `src/` (`app/` rutas Next.js · `modules/` 14 módulos · `shared/` UI base + supabase + ai + observability · `tests/` unit + integration + e2e) · `supabase/` (migrations + seed.sql) · `public/` · `.github/workflows/`. Detalle en `docs/technical/04-folder-structure.md`.
+`docs/` (discovery + technical + adr + sprints + operations + lessons-learned.md) · `src/` (`app/` rutas Next.js + los 14 módulos co-localizados en `app/(app)/<modulo>/` · `shared/` UI base + supabase + ai + observability · `tests/` unit + integration + e2e) · `supabase/` (migrations + seed.sql) · `public/` · `.github/workflows/`. Detalle en `docs/technical/04-folder-structure.md`.
 
 ## 14 módulos
 
-**Transversal** Auth · Tenancy · Auditoría · Notificaciones · **Coordinación** Calendario · **Negocio** Informes · EPP · Checklists · Catálogo de Tareas · Accidentabilidad · Permisos de Trabajo · Documentos · Capacitaciones · Pagos. Cada módulo en `src/modules/<nombre>/` (`actions.ts`+`queries.ts`+`schemas.ts`+`types.ts`+`index.ts`+`README.md` + `components/` cuando aplica). Detalle en `docs/technical/02-architecture.md`.
+**Transversal** Auth · Tenancy · Auditoría · Notificaciones · **Coordinación** Calendario · **Negocio** Informes · EPP · Checklists · Catálogo de Tareas · Accidentabilidad · Permisos de Trabajo · Documentos · Capacitaciones · Pagos. Cada módulo vive co-localizado en `src/app/(app)/<modulo>/` (`actions.ts` + `queries.ts` + `schema.ts` + componentes `.tsx` + subrutas `nuevo/` y `[id]/`; `labels.ts`/helpers cuando aplica). Detalle en `docs/technical/02-architecture.md`.
 
 ## Modelo de datos
 
@@ -47,10 +47,11 @@ Roadmap por fases en [`docs/technical/10-roadmap.md`](docs/technical/10-roadmap.
 | 2 ✅ | T-019..T-025 informes | [sprint-2.md](docs/sprints/sprint-2.md) |
 | 3 ✅ | T-026..T-037 + T-034 calendario + notificaciones | [sprint-3.md](docs/sprints/sprint-3.md) |
 | 4 🚧 | T-047..T-055 clientes + empleados (Clientes ✅ + Empleados ✅) | [sprint-4.md](docs/sprints/sprint-4.md) |
-| 5 ✅ | T-100..T-106 EPP + T-109 trazabilidad EPP per-empleado + resumen semanal | [sprint-5.md](docs/sprints/sprint-5.md) |
+| 5 ✅ | T-100..T-106 EPP + T-109 trazabilidad EPP per-empleado + resumen semanal + **T-114** (fix reminders EPP) | [sprint-5.md](docs/sprints/sprint-5.md) |
+| 6 ✅ | Incidentes: T-062 + T-063 + T-063-FU1 + T-075 link IA + T-063-FU2 ✅. Checklists: T-057..T-059 + T-060/T-061 (lifecycle+runner+cierre+firma+PDF+anular+FU1) ✅ en prod. Consistencia EPP↔calendario: T-114/T-119/T-118 ✅. Asistente IA: T-117/FU1 + **T-117-FU3** (streaming SSE + markdown + tests del cliente) + **T-125** (registry de tools multi-módulo + Checklists/Inspecciones) + **T-126** (persistencia del chat) ✅. Responsive: **T-127 Tandas 1-6 + FUs** (primitivos híbridos · tablas→cards · nav móvil · forms · calendario · chat · wizard) ✅ (queda T7 pulido). Auditoría integridad ADR-0015: T-122/120/123/124/121 ✅ | [operativo.md](docs/sprints/operativo.md) |
 | Op | Transversales (T-079 email templates, T-052-FU1/FU2 VPS runbook + monitor, T-111 aislamiento tests + cleanup prod, …) | [operativo.md](docs/sprints/operativo.md) |
 
-**Próximo ticket**: reordenamiento roadmap 12 semanas en curso. Backlog DEVEX: T-112 (aislar E2E de prod) + F1.2 (estabilizar billing-gate en la suite aislada).
+**Próximo ticket**: **Checklists/Inspecciones** (T-057..T-061 + FU1) ✅ en prod (lifecycle + runner + cierre con firma + PDF + anular). **Tanda de consistencia EPP↔calendario** ✅ en prod (T-114 fix reminders · T-117/FU1 asistente IA · T-119 lifecycle planificaciones · T-118 sync calendario→dominio; ADR-0015). **Auditoría de integridad ADR-0015** ✅ en prod (T-122 plan-cache · T-120 lifecycle CAPAs · T-123 skip reminders estructural · T-124 churn reaper + leak gate · T-121 FK compuestas Ring A + audit_consultoras). **Pagos** en prod (MP Subscriptions, billing gate, trial 14d). Próximo: **RGRL completo** / **T-127 Tanda 7** (pulido: tipografía/densidad + guard anti-drift dashboard) / FU dormidos (T-117-FU2 ventana vencimientos, T-126 producto, skew PostgREST local↔prod, T-121-FU, flaky E2E, doc-drift data-model) — a definir por el owner.
 
 ## RLS / multi-tenancy
 

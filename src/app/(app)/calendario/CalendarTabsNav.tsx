@@ -29,7 +29,7 @@ export function CalendarTabsNav() {
     <nav
       role="tablist"
       aria-label="Vista del calendario"
-      className="bg-muted/30 inline-flex items-center gap-1 rounded-md border p-1"
+      className="bg-muted/30 flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-md border p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {TABS.map((t) => {
         const active = pathname === t.href;
@@ -41,7 +41,7 @@ export function CalendarTabsNav() {
             aria-selected={active}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-sm px-3 py-1 text-sm font-medium transition-colors',
+              'inline-flex shrink-0 items-center gap-1.5 rounded-sm px-3 py-1 text-sm font-medium whitespace-nowrap transition-colors',
               active
                 ? 'bg-background shadow-sm'
                 : 'text-muted-foreground hover:text-foreground hover:bg-background/50',

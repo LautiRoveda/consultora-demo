@@ -127,7 +127,7 @@ jobs:
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm store cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
@@ -150,7 +150,7 @@ jobs:
         run: pnpm test
 
       - name: Cache Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .next/cache
           key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**/*.{ts,tsx,js,jsx}') }}
@@ -217,7 +217,7 @@ jobs:
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm store cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
@@ -226,6 +226,23 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # T-062 · Gate de drift de db:types: el schema ya migrado debe generar
+      # EXACTAMENTE el src/shared/supabase/types.ts committeado. El `db reset`
+      # vive DENTRO de scripts/test-integration-local.mjs, así que acá levantamos
+      # el stack + reseteamos nosotros (idempotente: el test:integration de abajo
+      # repite start/reset sin efecto). Va temprano: post-reset, antes de que los
+      # tests muten datos (el schema no cambia con los inserts, pero por prolijidad).
+      # `git diff --exit-code` es read-only en CI: NO commitea, solo falla
+      # (mostrando el diff) si el generado difiere del committeado → hay que
+      # correr `pnpm db:types` y commitear.
+      - name: types.ts sin drift (db:types gate)
+        run: |
+          pnpm exec supabase start
+          pnpm exec supabase db reset
+          pnpm exec supabase gen types typescript --local > src/shared/supabase/types.ts
+          pnpm exec prettier --write src/shared/supabase/types.ts
+          git diff --exit-code src/shared/supabase/types.ts
 
       # `pnpm test:integration` = scripts/test-integration-local.mjs:
       #   supabase start (Docker local) -> db reset -> status -o env -> vitest.
@@ -241,8 +258,8 @@ jobs:
   # secrets. El orquestador NO usa --linked: imposible tocar la DB de prod. Los
   # servicios externos no se pegan de verdad en los specs (AI mockeada con
   # page.route, push con addInitScript, Telegram/Resend/MP solo tocan DB/UI).
-  # NOTA: arranca NO-required en branch protection hasta probar estabilidad (≥1
-  # corrida verde). Marcarlo required es un cambio de settings del repo, no de acá.
+  # NOTA: required en branch protection (ruleset), junto con CI e Integration. La
+  # flakiness inicial se resolvió (T-113d) → promovido a required.
   e2e-tests:
     name: E2E (Supabase local)
     runs-on: ubuntu-latest
@@ -289,7 +306,7 @@ jobs:
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm store cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
@@ -306,7 +323,7 @@ jobs:
       # `ci` (prod) en vez de 127.0.0.1:54321. Key aislada → el build E2E siempre
       # hornea la URL local; el gate de abajo lo verifica igual como red de seguridad.
       - name: Cache Next.js build (E2E, key aislada)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .next/cache
           key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**/*.{ts,tsx,js,jsx}') }}
@@ -315,7 +332,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: playwright-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}

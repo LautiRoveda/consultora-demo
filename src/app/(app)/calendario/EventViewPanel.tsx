@@ -261,7 +261,7 @@ export function EventViewPanel({
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[120px_1fr] gap-2">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[120px_1fr]">
       <dt className="text-muted-foreground text-xs font-medium uppercase tracking-wide">{label}</dt>
       <dd className="text-sm">{children}</dd>
     </div>
