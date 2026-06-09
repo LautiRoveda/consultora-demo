@@ -215,15 +215,39 @@ Consumers cortados del legacy `empleados.puesto` → catálogo, vía helper `get
 
 - **Migración `20260608000001`**: función `backfill_empleados_puestos_from_legacy(p_consultora_id)` idempotente, best-effort, `security definer`, `service_role`. `db push` a prod ejecutado como gate (diff validado por el orquestador): **no-op verificado** (a_migrar 0→0, asignaciones/puestos 4→4; los empleados con puesto texto ya estaban asignados desde T-128).
 - **Decisiones de producto**: concatenar nombres; quitar puesto de búsquedas/autocompletes/asistente; migrar datos best-effort.
-- **Queda T-129 fase B** (segundo PR del mismo ticket, NO T-130 — reservado): drop de `empleados.puesto` + de la función backfill + del puente de `empleados/actions.ts` + `db:types` completo (ahí despierta el skew PostgREST, ver sección abajo) + actualizar los tests que hoy asertan el puente (`empleados-rls.test.ts:605`, `empleados-actions.test.ts` test 8, e2e crud). Reconfirmar el conteo de empleados con `puesto` texto en prod antes del drop. PR #232, merge `049cd26`.
+- **Fase B** ✅ (hecha — ver entrada **T-129 fase B** abajo): dropeó `empleados.puesto` + la función backfill + el puente de `empleados/actions.ts` (#234). PR #232 (fase A), merge `049cd26`.
+
+## T-129 fase B ✅ Drop de la columna legacy `puesto` + función backfill + puente — EN PROD
+
+Cierre del hilo "campo Puesto": se eliminó el legacy `empleados.puesto` ahora que los consumers leen del catálogo (T-129 fase A). **Migración `20260608000002_t129_fase_b_drop_puesto.sql`** en una sola transacción y en este orden: (1) `CREATE OR REPLACE FUNCTION audit_empleados()` **sin** `puesto` — el trigger de auditoría referenciaba `new.puesto`/`old.puesto` en el diff-guard y en los payloads `before_data`/`after_data`, y Postgres NO lo trackea como dependencia del `DROP COLUMN`, así que recrearlo en la misma tx y **antes** del drop es obligatorio (si no, la próxima escritura tira `record "new" has no field puesto`); (2) `DROP COLUMN empleados.puesto`; (3) `DROP FUNCTION backfill_empleados_puestos_from_legacy`. `types.ts` editado **a mano** (quirúrgico, sin `db:types --linked` para no despertar el skew PostgREST). Se quitó el puente de escritura de `empleados/actions.ts` y se actualizaron los tests que asertaban el puente.
+
+- **Orden invertido respecto del `db push` habitual** (que es migración-primero cuando el código depende del objeto nuevo): acá el código sin puente fue a prod **primero** (merge + auto-deploy) y el `db push` del DROP se aplicó **después** — el código ya no escribía la columna, así que el drop no podía romper escrituras en vuelo. Smoke pre y post-drop OK.
+- PR #234, merge `a8be440`.
+
+## T-131 fase A ✅ Dashboard operativo (pulso + contadores accionables + cola de atención) — EN PROD
+
+Rediseño del dashboard: saludo + pulso del día + **4 contadores accionables** (no vanity metrics) + cola **"lo que necesita tu atención"** (`AttentionQueue`) con drill-to-action por tipo (EPP → planilla Res 299/11, protocolo → informe IA, resto → ver en agenda) + columna derecha (`DashboardSidebar`: nuevo informe / borradores / asistente) + FAB en mobile (`DashboardFab`). **Reemplaza el viejo `ProximosVencimientosPanel`.** Composición RSC con un agregador único (`DashboardData`) bajo `<Suspense>` (`DashboardSkeleton`).
+
+- **Fechas por civil AR sobre la unión**: las severidades/conteos se derivan contra `todayCivilIsoAR()` sobre la unión de vencimientos, no por el corte UTC de las sub-queries (`getOverdueEvents`/`getUpcomingEvents`) — en la ventana 21-24h ART un vencimiento "de hoy" cuenta como vencido. El test del borde usa fecha mockeada, no la hora del CI (ver lessons).
+- Sin migración. PR #235, merge `aab1c31`.
+
+## T-131 fase B ✅ Semáforo por cliente en el dashboard (el diferenciador) — EN PROD
+
+Semáforo de estado por cliente (`ClientSemaphore`). **RPC `semaforo_clientes`** (`20260609000001_t131_semaforo_clientes.sql`) que deriva el cliente de cada vencimiento por 3 caminos (informes → `cliente_id`; EPP → empleado → cliente; acción correctiva), con **cast seguro de metadata jsonb** (regex de formato UUID en el `WHERE` antes del `::uuid` — `metadata` es shape libre y un valor no-UUID reventaría la RPC entera), aislamiento por `my_consultora_ids()` y fecha civil AR (`p_hoy` + `at time zone`). Umbral: **rojo** = vencido, **amarillo** = ≤30d, **verde** = >30d o sin vencimientos. El merge con la lista de clientes se hace en el server.
+
+- Migración aditiva (solo la RPC) → `db push` aplicado **antes** del merge (el código nuevo la consume al deploy).
+- PR #238, merge `01b4041`.
+
+## T-132 ✅ Endurecer el flake E2E del guard `EXEC_NOT_DRAFT` (split a test zero-write) — EN PROD
+
+El guard `EXEC_NOT_DRAFT` flapeaba dentro del mega-test del runner de checklists: un `revalidatePath` en vuelo (de un save/foto previo del mismo test) re-renderizaba la ruta server-side y, al cambiar el estado out-of-band, swappeaba el componente (runner → `EjecucionDetailView`) desmontando el target del click → el click colgaba hasta el timeout. **Fix: split a un test zero-write dedicado** (sin escrituras previas → sin `revalidatePath` en vuelo → swap imposible por construcción); el mega-test queda en el happy path.
+
+- Probado **red→green** en CI (viejo 5/20 rojo → nuevo 20/20 verde). Test-only, sin migración.
+- PR #236, merge `ee11408`.
 
 ## T-127 Tanda 7 🔜 pulido
 
 Lo único pendiente de T-127: pulido de tipografía/densidad + barrido de headers compartidos + guard anti-drift del dashboard (`QUICK_LINKS` ↔ `NAV_ITEMS`, fuente única + test-meta). El owner sigue cuando quiera.
-
-## Panel de vencimientos del dashboard 🔜 feedback owner
-
-Rediseño del panel de vencimientos del dashboard — pendiente de definición por el owner (feedback de producto).
 
 ## T-126 producto 🔜 DORMIDO
 
