@@ -4,10 +4,13 @@
  * Flujo: seed de un template publicado + cliente (adminClient) → login → listado
  * de Inspecciones → Nueva → elegir template + cliente → runner → responder ítem
  * (autosave "Guardado" + fila en execution_respuestas) → foto (thumbnail + fila en
- * execution_adjuntos) → card de cierre. Guard: anular el borrador por fuera →
- * el siguiente save da EXEC_NOT_DRAFT → el runner pasa a read-only.
+ * execution_adjuntos) → card de cierre.
  *
- * El cierre con firma + el PDF + el calendario se prueban en el E2E de T-061b.
+ * El guard EXEC_NOT_DRAFT (anular el borrador por fuera → el runner pasa a read-only)
+ * vive en su propio caso aislado (T-132): sin foto ni save previo, cero escrituras
+ * antes del `anulada`, así no hay ningún revalidatePath en vuelo que pueda swappear la
+ * página a la vista de detalle y desmontar el toggle (la carrera que volvía flaky a
+ * este mega-caso). El cierre con firma + el PDF + el calendario se prueban en T-061b.
  *
  * Cleanup: borramos executions (cascade) + templates del tenant + el user.
  */
@@ -97,7 +100,7 @@ async function seedPublishedTemplate(consultoraId: string, nombre: string): Prom
 }
 
 test.describe('Inspecciones · runner (T-061a)', () => {
-  test('nueva → relevar sección → autosave + foto → DB; guard EXEC_NOT_DRAFT', async ({ page }) => {
+  test('nueva → relevar sección → autosave + foto → DB', async ({ page }) => {
     test.setTimeout(120_000);
     const stamp = Date.now().toString(36);
     const email = uniqueTestEmail('insp-runner');
@@ -180,14 +183,94 @@ test.describe('Inspecciones · runner (T-061a)', () => {
 
     // Sección única = última + ítem obligatorio respondido → CTA de cierre (owner, T-061b).
     await expect(page.getByRole('link', { name: /Cerrar y firmar inspección/i })).toBeVisible();
+  });
 
-    // Guard: anular el borrador por fuera → el próximo save da EXEC_NOT_DRAFT.
+  // T-132 · Guard EXEC_NOT_DRAFT, aislado y determinístico. Cero escrituras antes del
+  // `anulada` (sin foto ni save previo) → ningún revalidatePath en vuelo → page.tsx no
+  // puede swappear al detalle y desmontar el toggle mientras Playwright clickea. Antes,
+  // embebido en el mega-caso, el revalidate de la foto a veces llegaba DESPUÉS del anular
+  // y la página rendereaba EjecucionDetailView: el locator "No cumple" no resolvía y el
+  // click colgaba hasta el timeout. El borrador se siembra directo (mismas columnas que
+  // createEjecucionAction) para no depender del wizard de creación.
+  test('guard EXEC_NOT_DRAFT · anular por fuera → save rechazado + runner read-only', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    const stamp = Date.now().toString(36);
+    const email = uniqueTestEmail('insp-guard');
+    const { userId, consultoraId, password } = await createTestUserWithConsultora({
+      email,
+      consultoraName: `T-132 ${stamp}`,
+    });
+    createdUserIds.push(userId);
+    createdConsultoraIds.push(consultoraId);
+
+    const templateId = await seedPublishedTemplate(consultoraId, `Insp guard ${stamp}`);
+    const { data: ver } = await adminClient
+      .from('checklist_template_versions')
+      .select('id')
+      .eq('template_id', templateId)
+      .eq('estado', 'published')
+      .single();
+    const { data: cli } = await adminClient
+      .from('clientes')
+      .insert({
+        consultora_id: consultoraId,
+        razon_social: `ACME guard ${stamp}`,
+        cuit: `30-${Date.now().toString().slice(-8)}-9`,
+      })
+      .select('id')
+      .single();
+
+    const { data: exec } = await adminClient
+      .from('checklist_executions')
+      .insert({
+        consultora_id: consultoraId,
+        template_version_id: ver!.id,
+        cliente_id: cli!.id,
+        estado: 'borrador',
+        inspector_user_id: userId,
+        fecha_inspeccion: new Date().toISOString().slice(0, 10),
+        created_by: userId,
+      })
+      .select('id')
+      .single();
+    const executionId = exec!.id;
+
+    await loginViaUI(page, email, password);
+    await page.goto(`/checklists/ejecuciones/${executionId}`);
+
+    // Runner montado + hidratado: los asserts + el round-trip del anular dan tiempo de
+    // sobra a la hidratación (el mega-caso prueba que este mismo preámbulo basta).
+    await expect(page.getByText('Seguridad')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Extintores señalizados')).toBeVisible();
+    await expect(page.getByText('No cumple', { exact: true })).toBeVisible();
+
+    // Anular por fuera (el cliente no se entera) → el próximo save da EXEC_NOT_DRAFT.
     await adminClient
       .from('checklist_executions')
       .update({ estado: 'anulada' })
       .eq('id', executionId);
 
     await page.getByText('No cumple', { exact: true }).click();
+
+    // (1) Cadena disparada: onChange → saveRespuestaAction → EXEC_NOT_DRAFT → onFrozen → banner.
     await expect(page.getByText(/ya fue cerrada o anulada/i)).toBeVisible({ timeout: 10_000 });
+
+    // (2) Escritura rechazada (assert objetivo y persistente, no un toast efímero): el guard
+    // no insertó la respuesta → execution_respuestas sigue vacío para esta ejecución. El
+    // assert (1) ya descarta un click perdido, así que (2) confirma el rechazo del write.
+    await expect
+      .poll(
+        async () => {
+          const { count } = await adminClient
+            .from('execution_respuestas')
+            .select('id', { count: 'exact', head: true })
+            .eq('execution_id', executionId);
+          return count ?? 0;
+        },
+        { timeout: 10_000 },
+      )
+      .toBe(0);
   });
 });
