@@ -4,6 +4,8 @@ import type { Database } from '@/shared/supabase/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ItemForScore } from './scoring';
 
+import { logger } from '@/shared/observability/logger';
+
 type Sb = SupabaseClient<Database>;
 
 export type ChecklistExecutionRow = Database['public']['Tables']['checklist_executions']['Row'];
@@ -522,4 +524,25 @@ export async function getCapasForConsultora(
     cliente_razon_social: r.cliente_id ? (razonByClienteId.get(r.cliente_id) ?? null) : null,
     execution_id: r.execution_id,
   }));
+}
+
+/**
+ * T-131 · Conteo exacto de CAPAs abiertas para el contador del dashboard.
+ *
+ * Reusa `CAPA_ESTADOS_PENDIENTES` (= ['abierta','en_progreso']) para no
+ * desincronizar el contador con `getCapasForConsultora`. `head: true` no trae
+ * filas (solo el count) y evita la 2ª query de resolución de cliente; RLS
+ * scopea el tenant. No usamos `getCapasForConsultora().length` porque está cap
+ * a 50 y subcontaría.
+ */
+export async function countCapasAbiertas(sb: Sb): Promise<number> {
+  const { count, error } = await sb
+    .from('acciones_correctivas')
+    .select('*', { count: 'exact', head: true })
+    .in('estado', [...CAPA_ESTADOS_PENDIENTES]);
+  if (error) {
+    logger.error({ err: error }, 'countCapasAbiertas: count fallo');
+    return 0;
+  }
+  return count ?? 0;
 }

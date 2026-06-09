@@ -1,30 +1,35 @@
-import Link from 'next/link';
+import { Suspense } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
 
-import { ProximosVencimientosPanel } from './ProximosVencimientosPanel';
-import { QUICK_LINKS } from './quick-links';
+import { DashboardData } from './DashboardData';
+import { DashboardFab } from './DashboardFab';
+import { DashboardSkeleton } from './DashboardSkeleton';
+import { QuickLinksRow } from './QuickLinksRow';
 
 type DashboardViewProps = {
   showResetSuccess?: boolean;
+  consultoraNombre?: string | null;
 };
 
 /**
- * Contenido del dashboard.
+ * T-131 · Tablero operativo (fase A). Responde "¿qué hago hoy?", no "¿a dónde voy?".
  *
- * El nombre de la consultora, el plan tier y el menú de cuenta los muestra
- * el `<AppShell>` aguas arriba — acá va el contenido específico de la página:
- *  - Banner post-recovery (T-014).
- *  - Panel "Próximos vencimientos" (T-030) — server async child embedido.
- *  - Sección "Accesos rápidos" con 9 cards a los módulos live (T-095).
+ * Shell síncrono (saludo + accesos rápidos + FAB) que streamea al instante, con
+ * el subárbol de datos (`DashboardData`: pulso + contadores + cola de atención +
+ * columna derecha) detrás de un `<Suspense>`. El nombre de la consultora y el
+ * menú de cuenta los muestra el `<AppShell>` aguas arriba.
  *
- * Server component sync con async child: React Server Components soporta
- * embed async children sin convertir el padre a async.
+ *  - Banner post-recovery (T-014) — se mantiene.
+ *  - Saludo + pulso operativo.
+ *  - Banda de 4 contadores accionables + "Lo que necesita tu atención".
+ *  - Accesos rápidos demotados a fila compacta (T-131; antes 9 cards).
+ *
+ * `pb-24 md:pb-8`: deja aire para que el FAB móvil no tape el final del contenido.
  */
-export function DashboardView({ showResetSuccess }: DashboardViewProps) {
+export function DashboardView({ showResetSuccess, consultoraNombre }: DashboardViewProps) {
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-24 md:pb-8">
       {showResetSuccess ? (
         <Alert>
           <AlertTitle>Contraseña actualizada</AlertTitle>
@@ -32,44 +37,19 @@ export function DashboardView({ showResetSuccess }: DashboardViewProps) {
         </Alert>
       ) : null}
 
-      <ProximosVencimientosPanel />
-
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-balance break-words">
-          Bienvenido a ConsultoraDemo
+          Buen día{consultoraNombre ? `, ${consultoraNombre}` : ''}
         </h1>
-        <p className="text-muted-foreground text-sm">
-          Gestioná tus informes, clientes y vencimientos desde un solo lugar.
-        </p>
       </header>
 
-      <section aria-labelledby="accesos-rapidos-heading" className="space-y-3">
-        <h2
-          id="accesos-rapidos-heading"
-          className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-        >
-          Accesos rápidos
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {QUICK_LINKS.map(({ href, icon: Icon, title, description }) => (
-            <Link
-              key={href}
-              href={href}
-              className="group block rounded-lg outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <Card className="h-full transition-all group-hover:border-primary/40 group-hover:shadow-sm">
-                <CardHeader>
-                  <div className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-md">
-                    <Icon className="size-5" aria-hidden="true" />
-                  </div>
-                  <CardTitle className="mt-3 text-base">{title}</CardTitle>
-                  <CardDescription>{description}</CardDescription>
-                </CardHeader>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardData />
+      </Suspense>
+
+      <QuickLinksRow />
+
+      <DashboardFab />
     </div>
   );
 }
