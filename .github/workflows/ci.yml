@@ -263,7 +263,10 @@ jobs:
   e2e-tests:
     name: E2E (Supabase local)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # T-132 TEMP red-demo (throwaway, NO se mergea): 90' para que el repeat-each=20 del
+    # mega-caso (iteraciones colgadas hasta 120s por el swap) complete y los
+    # upload-artifact (if: failure) suban report + traces en vez de cancelarse por timeout.
+    timeout-minutes: 90
     env:
       NEXT_PUBLIC_SENTRY_DSN: https://placeholder@o0.ingest.sentry.io/0
       SENTRY_ORG: placeholder-org
@@ -367,7 +370,10 @@ jobs:
       # verifica el gate de abajo). NUNCA usa --linked → imposible tocar prod. Falla el
       # job si la suite falla (el script propaga el exit code).
       - name: E2E tests (Supabase local efímero)
-        run: pnpm test:e2e:local
+        # T-132 TEMP red-demo (throwaway, NO se mergea): reproducir el flake del guard en
+        # el mega-caso ORIGINAL. repeat-each=20 retries=0 (sin enmascarar el flake) +
+        # trace retain-on-failure para capturar el swap a EjecucionDetailView.
+        run: pnpm test:e2e:local -- --grep "guard EXEC_NOT_DRAFT" --repeat-each=20 --retries=0 --trace retain-on-failure
 
       # GATE DURO (T-112): probamos que el build SERVIDO quedó horneado apuntando al
       # Supabase LOCAL y NO a prod. Verificado empíricamente (no es obvio):
