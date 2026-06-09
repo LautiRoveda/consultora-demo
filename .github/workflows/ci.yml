@@ -373,7 +373,9 @@ jobs:
         # T-132 TEMP red-demo (throwaway, NO se mergea): reproducir el flake del guard en
         # el mega-caso ORIGINAL. repeat-each=20 retries=0 (sin enmascarar el flake) +
         # trace retain-on-failure para capturar el swap a EjecucionDetailView.
-        run: pnpm test:e2e:local -- --grep "guard EXEC_NOT_DRAFT" --repeat-each=20 --retries=0 --trace retain-on-failure
+        # node directo (sin `pnpm ... --`): el `--` se filtra al argv y playwright lo trata
+        # como filtro de archivos posicional → "No tests found".
+        run: node scripts/test-e2e-local.mjs --grep "guard EXEC_NOT_DRAFT" --repeat-each=20 --retries=0 --trace retain-on-failure
 
       # GATE DURO (T-112): probamos que el build SERVIDO quedó horneado apuntando al
       # Supabase LOCAL y NO a prod. Verificado empíricamente (no es obvio):
