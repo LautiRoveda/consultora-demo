@@ -12,13 +12,17 @@ Cómo construir el sistema, ticket por ticket, con dependencias claras. La idea:
 
 ## Estado del roadmap
 
-Última actualización: T-038 (2026-05-17).
+Última actualización: 2026-06-08 (doc-sync: campo Puesto → catálogo —T-128 selector + T-129 fase A consumers/backfill, ambos en prod—; T-127 responsive tandas 2-6 + FUs en prod —tablas→cards · nav móvil · forms · calendario · chat · wizard—, queda T7 pulido).
 
 - **Sprint 0/1** (T-001..T-018) ✅ ejecutados con la numeración planificada original.
 - **Sprint 2 original** ("Auditoría + Notificaciones + Calendario") ✅ ejecutado con numeración real **T-026..T-037 + T-034** durante el Sprint 3 cronológico real. Ver CLAUDE.md para mapping detallado.
-- **Sprint 3 original** ("Pagos") 🔜 renumerado a T-039..T-046 (no ejecutado).
+- **Sprint 3 original** ("Pagos") ✅ **EJECUTADO** (renumerado T-039..T-046): módulo Pagos en prod — billing gate `requireBillingAccess`, MP Subscriptions (ADR-0008), dunning T-074, trial 14d T-108, `/settings/billing`.
 - **Sprint 4 original** ("Informes core") ✅ ejecutado mayormente durante Sprint 2 real (T-019..T-025) con tipos genéricos en lugar de norma-específicos.
-- **Sprint 5/6/7 originales** (EPP / Checklists / Pulido) 🔜 renumerados (no ejecutados).
+- **Sprint 5/6 originales** (EPP / Checklists) ✅ **ejecutados** (EPP T-100..T-106/T-109/T-114, Checklists T-057..T-061 — en prod, ver `operativo.md`). Sprint 7 ("Pulido") 🔜 sin renumerar.
+- **Tanda de consistencia EPP↔calendario** (2026-06-04, ADR-0015): T-114 (fix reminders EPP), T-117/FU1 (asistente IA EPP), T-119 (lifecycle planificaciones), T-118 (sync calendario→dominio) — todas en prod. **Pagos · EPP · Checklists/Inspecciones · Accidentabilidad/Incidentes** están en prod (ver `CLAUDE.md` + `operativo.md`).
+- **Asistente IA + responsive** (2026-06-06, post-ADR-0015): el asistente evolucionó con streaming SSE + render markdown (T-117-FU3), registry de tools multi-módulo + tools de Checklists/Inspecciones (T-125) y persistencia del chat con conversaciones + historial (T-126); arrancó el responsive de primitivos compartidos (T-127 Tanda 1). Detalle en `operativo.md`.
+- **Responsive T-127 completo** (2026-06-08): el responsive de la app quedó cerrado — tandas 1-6 + follow-ups en prod (primitivos híbridos · tablas→cards · nav móvil/landing · barras de forms · calendario · chat · wizard de entrega). Queda **T7 (pulido)**: tipografía/densidad + guard anti-drift del dashboard. Detalle en `operativo.md`.
+- **Campo Puesto → catálogo** (2026-06-08): el campo "Puesto" del empleado pasó de texto libre a selector del catálogo (T-128, #231) y los consumers legacy de `empleados.puesto` se cortaron al catálogo vía el helper `getEmpleadoPuestosLabel` + backfill idempotente (T-129 fase A, #232, `049cd26`) — ambos en prod. Queda **T-129 fase B** (segundo PR del mismo ticket, NO T-130): drop de la columna + de la función backfill + del puente + `db:types` completo (despierta el skew PostgREST). Detalle en `operativo.md`.
 
 **Source of truth de tickets ejecutados**: `CLAUDE.md`.
 
@@ -111,7 +115,7 @@ Tickets base que dejan el repo listo para construir features.
 
 ---
 
-### Sprint 3 · Pagos + Plan Pro + trial (semana 3-4)
+### Sprint 3 · Pagos + Plan Pro + trial (semana 3-4) ✅ EN PROD
 
 - **T-039 · Migration: subscriptions, invoices, ai_usage_log.**
 - **T-040 · Módulo Pagos: definición de planes y guard de acceso.**
@@ -169,16 +173,16 @@ Tickets base que dejan el repo listo para construir features.
 
 ### Sprint 6 · Checklists Lite + Incidentes (semana 6-7)
 
-- **T-057 · Migration: checklist_templates, checklist_executions.**
-- **T-058 · Módulo Checklists: CRUD de templates.**
-- **T-059 · UI: editor de checklist (items, criterios, requeridos).**
+- **T-057 · Migration: checklist_templates, checklist_executions.** ✅ ejecutado (#193) — schema base (9 tablas + RLS system-aware/freeze + audit + seed RGRL de sistema), aplicado en prod.
+- **T-058 · Módulo Checklists: CRUD de templates.** ✅ ejecutado (#194) — actions + RPCs clone/create + queries.
+- **T-059 · UI: editor de checklist (items, criterios, requeridos).** ✅ ejecutado (#195) — editor con Dialogs + reorder ↑/↓ (RPC two-phase) + versionado + clone RGRL, en prod.
 - **T-060 · Módulo Checklists: ejecutar checklist con firma.**
 - **T-061 · UI: ejecución de checklist en mobile (responsive).**
 - **T-062 · Módulo Accidentabilidad: libro de incidentes simple (sin IA).** ✅
 - **T-063 · UI: alta/listado de incidentes.** ✅
   - **T-063-FU1 · Pulido UX libro de incidentes** ✅ — historial enriquecido (resalta los campos que cambiaron), filtro gravedad server-side, copy "víctima"/"involucrado" según tipo.
-  - **T-063-FU2 · Ver anulados en el listado** (backlog) — toggle "incluir anulados" calcando `IncludeArchivedToggle` de `clientes`; el libro es append-only (los anulados quedan en DB pero hoy no hay forma de verlos desde la UI). Agrupar con el próximo trabajo del módulo.
-- **T-075 · Link `informe_id` incidente↔informe + botón "Generar investigación IA"** (follow-up de Accidentabilidad; RFC propio). El libro es append-only (sólo INSERT/SELECT) → setear `informe_id` en un registro existente hoy sólo se puede vía corrección (ensucia el historial). **RFC-stub**: evaluar un path de **UPDATE acotado** (policy / función `security definer` que sólo permita setear `informe_id`, con audit `action='linked'`) vs el glue-correction; reusar `createInformeAction` con metadata pre-poblada desde el incidente + su cliente; ocultar el botón si el incidente ya está vinculado. Aplica sólo a `tipo='accidente'`.
+  - **T-063-FU2 · Ver anulados en el listado** ✅ DONE (#191) — toggle "incluir anulados" (calca `IncludeArchivedToggle` de `clientes`); vista `incidentes_heads` (head de cadena, anulados incluidos), badge "Anulado", toggle visible incluso en onboarding.
+- **T-075 · Link `informe_id` incidente↔informe + botón "Generar investigación IA"** ✅ DONE (#191, en prod) — RPC `security definer` `link_informe_to_incidente` (UPDATE acotado a `informe_id`, audit `action='linked'`, append-only intacto); reusa `createInformeAction` con metadata pre-poblada desde el incidente + cliente/empleado; botón muta a "Ver informe" si ya está vinculado, deshabilitado sin cliente. Solo `tipo='accidente'`.
 
 **Criterio de aceptación Sprint 6:** el usuario puede crear sus checklists, ejecutarlos firmados, registrar incidentes en un libro digital.
 

@@ -6,6 +6,7 @@ import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
 
+import { resolveActivePuestoForTenant } from './puesto-lookup';
 import { assignPuestoSchema, removePuestoSchema } from './schema';
 
 const UNIQUE_VIOLATION_CODE = '23505';
@@ -108,12 +109,9 @@ export async function assignPuestoAction(input: unknown): Promise<AssignPuestoRe
   }
 
   // Defense cross-tenant + archivado — no permitir asignar puesto archivado.
-  const { data: puesto } = await supabase
-    .from('puestos')
-    .select('id, archived_at')
-    .eq('id', puesto_id)
-    .maybeSingle();
-  if (!puesto || puesto.archived_at !== null) {
+  // Helper compartido con las actions de alta/edición de empleado (T-128).
+  const puesto = await resolveActivePuestoForTenant(supabase, puesto_id);
+  if (!puesto) {
     return { ok: false, code: 'PUESTO_NOT_FOUND', message: 'Puesto no disponible.' };
   }
 

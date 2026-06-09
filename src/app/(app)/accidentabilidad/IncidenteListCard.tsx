@@ -42,6 +42,7 @@ export function IncidenteListCard({
                 {gravedadIncidenteLabel(incidente.gravedad)}
               </Badge>
             )}
+            {incidente.anulacion && <Badge variant="outline">Anulado</Badge>}
           </div>
           <p className="text-foreground line-clamp-1 font-medium">{incidente.descripcion ?? '—'}</p>
           <p className="text-muted-foreground text-xs">

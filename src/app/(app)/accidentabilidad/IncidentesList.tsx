@@ -48,61 +48,68 @@ export function IncidentesList({ incidentes, clienteOptions, initial, hasActiveF
     });
   }, [incidentes, q]);
 
-  // Empty-state real: no hay incidentes en el tenant y no hay filtros activos.
-  // Distinto a "ningún incidente coincide con los filtros".
-  if (incidentes.length === 0 && !hasActiveFilters) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
-          <div className="space-y-1">
-            <p className="text-foreground text-sm font-medium">Todavía no registraste incidentes</p>
-            <p className="text-muted-foreground max-w-md text-sm">
-              Llevá el libro de incidentes: registrá casi-accidentes y accidentes para tener la
-              trazabilidad al día.
-            </p>
-          </div>
-          <Button asChild>
-            <Link href="/accidentabilidad/nuevo">Registrar primer incidente</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Onboarding real: no hay incidentes vigentes y no hay filtros activos.
+  // OJO (T-063-FU2): NO gateamos los filtros detrás de esto — la barra (con el
+  // toggle "Ver anulados") se renderiza SIEMPRE, así un tenant cuyo único
+  // incidente fue anulado puede igual revelarlo. Distinto a "ningún incidente
+  // coincide con los filtros".
+  const showOnboarding = incidentes.length === 0 && !hasActiveFilters;
 
   return (
     <div className="space-y-4">
       <IncidenteFilters initial={initial} clienteOptions={clienteOptions} />
 
-      <div className="relative w-full sm:max-w-sm">
-        <Search
-          className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
-          aria-hidden="true"
-        />
-        <Input
-          type="search"
-          placeholder="Buscar por descripción o lugar…"
-          className="pl-9"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          aria-label="Buscar incidentes"
-        />
-      </div>
-
-      {filtered.length === 0 ? (
-        <p className="text-muted-foreground py-8 text-center text-sm">
-          Ningún incidente coincide con los filtros actuales.
-        </p>
+      {showOnboarding ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+            <div className="space-y-1">
+              <p className="text-foreground text-sm font-medium">
+                Todavía no registraste incidentes
+              </p>
+              <p className="text-muted-foreground max-w-md text-sm">
+                Llevá el libro de incidentes: registrá casi-accidentes y accidentes para tener la
+                trazabilidad al día.
+              </p>
+            </div>
+            <Button asChild>
+              <Link href="/accidentabilidad/nuevo">Registrar primer incidente</Link>
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
-        <ul className="space-y-3">
-          {filtered.map((i) => (
-            <li key={i.id ?? ''}>
-              <IncidenteListCard
-                incidente={i}
-                clienteNombre={i.cliente_id ? clienteById.get(i.cliente_id) : undefined}
-              />
-            </li>
-          ))}
-        </ul>
+        <>
+          <div className="relative w-full sm:max-w-sm">
+            <Search
+              className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+              aria-hidden="true"
+            />
+            <Input
+              type="search"
+              placeholder="Buscar por descripción o lugar…"
+              className="pl-9"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              aria-label="Buscar incidentes"
+            />
+          </div>
+
+          {filtered.length === 0 ? (
+            <p className="text-muted-foreground py-8 text-center text-sm">
+              Ningún incidente coincide con los filtros actuales.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {filtered.map((i) => (
+                <li key={i.id ?? ''}>
+                  <IncidenteListCard
+                    incidente={i}
+                    clienteNombre={i.cliente_id ? clienteById.get(i.cliente_id) : undefined}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </div>
   );

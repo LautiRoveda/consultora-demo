@@ -6,6 +6,7 @@ import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select';
+import { Switch } from '@/shared/ui/switch';
 
 import { GRAVEDAD_INCIDENTE, TIPO_INCIDENTE } from './schema';
 
@@ -15,6 +16,8 @@ export type IncidenteFilterValues = {
   gravedad?: string;
   desde?: string;
   hasta?: string;
+  /** T-063-FU2: incluir anulados en el listado (lee de `incidentes_heads`). */
+  incluirAnulados?: boolean;
 };
 
 type ClienteOption = { id: string; razon_social: string };
@@ -46,6 +49,7 @@ export function IncidenteFilters({
     if (next.gravedad) params.set('gravedad', next.gravedad);
     if (next.desde) params.set('desde', next.desde);
     if (next.hasta) params.set('hasta', next.hasta);
+    if (next.incluirAnulados) params.set('anulados', '1');
     const qs = params.toString();
     router.push(`/accidentabilidad${qs ? `?${qs}` : ''}`);
   }
@@ -55,7 +59,8 @@ export function IncidenteFilters({
     initial.clienteId ||
     initial.gravedad ||
     initial.desde ||
-    initial.hasta
+    initial.hasta ||
+    initial.incluirAnulados
   );
 
   return (
@@ -150,6 +155,17 @@ export function IncidenteFilters({
           min={initial.desde || undefined}
           onChange={(e) => push({ ...initial, hasta: e.target.value || undefined })}
         />
+      </div>
+
+      <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-5">
+        <Switch
+          id="filtro-anulados"
+          checked={!!initial.incluirAnulados}
+          onCheckedChange={(checked) => push({ ...initial, incluirAnulados: checked })}
+        />
+        <Label htmlFor="filtro-anulados" className="cursor-pointer text-sm">
+          Ver anulados
+        </Label>
       </div>
 
       {hasFilters && (

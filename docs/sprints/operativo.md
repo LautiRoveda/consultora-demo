@@ -44,6 +44,7 @@ Documentado el trigger secundario del incident T-052 (EasyPanel deploy via webho
 - **T-111 ✅ COMPLETO (F1 + F2 + F2b ejecutados 2026-05-31) · DEVEX: aislar integration tests (Supabase local efímero) + cleanup test data prod** (absorbe el ex-`T-DEVEX`). **Causa raíz**: `pnpm test:integration` corría all-at-once contra el Postgres prod-linked compartido → (a) fallas no determinísticas (RLS-claim collisions, fechas epoch por concurrencia) y (b) acumulación de ~14k consultoras de test en prod.
   - **F1 (aislamiento)**: `test:integration` ahora levanta un Supabase local efímero (`supabase start` + `db reset`) e inyecta sus keys (`scripts/test-integration-local.mjs`); cero cambios a la lógica de los tests (todo via `process.env`); `test:integration:remote` queda para debug puntual contra prod. Requiere Docker local. CI de integration (no corría) queda como follow-up.
   - **F2 (cleanup prod)**: borrado del test_set (identificación por EXCLUSIÓN: protegido = consultora con ≥1 member email ≠ @example.com; test = orphans con patrón + consultoras con members todos @example.com) vía bloque transaccional `DO` con `disable trigger user` + borrado explícito hijo→padre en orden topológico (Kahn dinámico sobre las FK; `session_replication_role='replica'` NO sirve en Supabase — `postgres` no es superuser → 42501; el cascade tampoco por las FK RESTRICT intra-dominio). Asserts pre/post (count del test_set, cero @gmail, cero huérfanos, restantes=5). **Backup**: Query B (dump JSON de los 5 reales, validado 1:1) + schema en git — Free NO tiene PITR ni backup automático; un full `pg_dump` habría respaldado solo basura (las 14k de test) → descartado. **Precondición cumplida**: E2E pausado (#161) congeló el universo en 14.484 (ver T-112). **EJECUTADO 2026-05-31** por Lautaro en el SQL editor (no el agente): **14.484 consultoras de test borradas, 5 restantes** (4 reales @gmail + "Debug"), reales intactos, bloque sin errores. **F2b** (`auth.users` de test): 5.811 users `@example.com`; el `delete` plano lo bloquea el trigger inmutable de `audit_log` (SET NULL sobre `actor_user_id`, 533 filas) + los audit AFTER de telegram/push en cascade → mismo molde `DO`+`disable trigger user`; cascadea `notification_channel_prefs`/`telegram_subscriptions`/`push_subscriptions` + `auth.*`; 4 @gmail intactos. **EJECUTADO 2026-05-31** por Lautaro: 5.811 `auth.users @example` borrados, 4 @gmail intactos, post-check 0/4/5 (0 @example, 4 @gmail, 5 consultoras). → **T-111 100% COMPLETO** (F1 aislamiento + F2 consultoras + F2b auth.users).
+  - **Residuo detectado en T-114** (2026-06-04): 3 reminders EPP de test pre-T-111 (`created_at` desde 2026-05-22, anteriores a la migración T-100 → de `createCalendarEventAction`, no de la RPC EPP) sobrevivieron al cleanup. Benignos; purga opcional. No urge.
 
 - **T-112 · DEVEX: aislar E2E (Playwright) de prod — Supabase efímero (sibling de T-111 F1)**. **Causa raíz**: el step `E2E tests` de `ci.yml` (job `ci`) corre Playwright contra la app buildeada con los secrets de prod, así que cada run crea consultoras de test en la DB prod-linked (~546 entre dos recounts de T-111 F2). F1 aisló los *integration*; los *E2E* siguen pegándole a prod. **Estado actual**: PAUSADO temporalmente (`if: false` en el step, T-111 F2) para congelar el universo antes del cleanup. **Solución permanente** (replicar el patrón F1 #158): levantar un Supabase local efímero (`supabase start` + `db reset`) + correr la app Next contra ese stack (Playwright `webServer` con las keys locales inyectadas), de modo que los E2E nunca toquen prod. Luego quitar el `if: false`. Considerar también un seed mínimo para los flows que hoy dependen de `admin.createUser`. **NO hacer durante T-111** — se registra para after-cleanup.
 
@@ -67,3 +68,171 @@ Documentado el trigger secundario del incident T-052 (EasyPanel deploy via webho
 - **T-113c · `retencion_datos_hasta` — bug de TZ LATENTE (NO activo)** [BAJA] (detectado en F1.3; re-diagnosticado). **El campo nunca se escribe en prod**: la columna `consultoras.retencion_datos_hasta` existe desde T-070 (`20260520000001_t070_pagos_schema.sql:32`, nullable sin default) y los crons de dunning la **leen** (`billing-notifications/route.ts`, `billing-dunning-recovery/route.ts`) pero **ningún flujo le hace `insert`/`update`** → siempre `null` → el email "trial expired" no muestra fecha de retención. El bug de TZ es **latente**: `formatDateAR` (`Intl.DateTimeFormat` timeZone `America/Argentina/Buenos_Aires` = UTC-3, `src/shared/lib/format-date.ts`) sobre un valor medianoche-UTC renderiza el **día anterior** (30/06 00:00Z → 29/06 21:00 AR → "29/06/2026"), pero como hoy no hay write, no se manifiesta. **NADA que arreglar hoy.** Cuando se implemente el seteo del campo: guardarlo **date-only** o a **mediodía UTC** para evitar el shift. (En F1.3, el test `billing-dunning-cron` test 6 pasaba el valor a mano → se fijó a mediodía UTC.)
 
 - **Required checks (branch protection, forward)** — al configurar branch protection en `main`, los **3 jobs pueden ir `required`**: `CI` (build), `e2e-tests`, **y `integration-tests`**. El bloqueador de integration quedó **resuelto**: F1.4 en T-113a (`a4edb05`) + la flakiness sistémica en **T-113d** (#173, `--no-file-parallelism` → 5/5 verde, clase de pollution muerta). Ya no hay flake conocido que bloquee merges legítimos al azar.
+
+## T-114 ✅ Fix: `gen_epp_planificaciones_y_calendar_for` no crea `calendar_event_reminders` (vencimientos EPP no notifican en prod) [ALTA] — EN PROD
+
+**Detectado en T-057** (al calcar la maquinaria del Calendario para `gen_acciones_calendar_for`). La RPC EPP `gen_epp_planificaciones_y_calendar_for` (T-100, `20260523000001_t100_epp_schema.sql`) inserta el `calendar_event` con `reminder_offsets_days = array[14,3,0]` **pero NO inserta ninguna fila en `calendar_event_reminders`**. El cron `process_pending_reminders()` (`20260515095701_notifications_infrastructure.sql`) escanea `calendar_event_reminders WHERE status='pending' AND scheduled_at <= now()` → como no hay filas, **nunca dispara** → **los vencimientos de planificación EPP (renovación 6m, Res SRT 299/11) no generan ninguna notificación Resend/Telegram/Push en prod**. El array `reminder_offsets_days` queda como metadato muerto en el evento.
+
+Contraste: el path TS `createCalendarEventAction` SÍ crea los reminders (vía `computeReminderRows` + insert service-role), por eso los vencimientos creados por formulario (protocolo/RGRL/custom) sí notifican; solo los generados por la **RPC EPP** quedan mudos.
+
+**Fix:** replicar en la RPC EPP el mismo bloque que `gen_acciones_calendar_for` agregó en T-057 (`20260603000001_t057_checklists.sql`): por cada offset, `INSERT INTO calendar_event_reminders (event_id, consultora_id, offset_days, scheduled_at, status)` con `scheduled_at = (fecha_proxima − offset días) a las 12:00 UTC` (= 09:00 ART, espejo de `computeScheduledAtUtc`), omitiendo los que caen en el pasado, `ON CONFLICT (event_id, offset_days) DO NOTHING`. **Prioridad ALTA**: afecta notificaciones reales de un módulo ya en prod. **Verificación**: integration test que cierre una entrega EPP con item no-descartable y asserte que se crearon las filas de `calendar_event_reminders` (hoy faltaría — agregar). Considerar backfill de los eventos EPP ya existentes en prod sin reminders.
+
+**Resuelto #204** (squash `87fb22b`, 2026-06-04). Migración `20260604000002`: redefinición de la RPC (patrón T-057, replica `computeReminderRows` — 12:00 UTC, omite pasado, `ON CONFLICT`) + backfill idempotente. red→green ejecutado en CI (run rojo → verde). `db push`: backfill 45 reminders. Verificación post: `huerfanos_futuros=0`. Smoke OK.
+
+## T-115 🔜 Hardening: envolver `requireBillingAccess` en try/catch en los módulos que no lo hacen [MEDIA]
+
+**Detectado en T-058.** `requireBillingAccess` (`src/shared/billing/access.ts`) llama a `getActiveSubscription` (`settings/billing/queries.ts`), que **tira** (`throw new Error(...)`) ante cualquier error de la query de suscripción. A diferencia de `getCurrentConsultora` (devuelve `null`, nunca tira), un fallo transitorio de DB en el billing-gate se propaga como un **reject sin manejar** de la Server Action → 500 en vez de un error de dominio limpio.
+
+El preámbulo de **checklists** (T-058) ya lo envuelve en try/catch → `INTERNAL_ERROR` (ver `requireOwnerWithBilling` en `src/app/(app)/checklists/actions.ts`). Los módulos pre-T-058 que invocan `requireBillingAccess` **sin** try/catch siguen expuestos: `clientes/actions.ts`, `accidentabilidad/actions.ts`, y cualquier otro CREATE/EXPORT/GENERATE gateado (grep `requireBillingAccess`). **Fix:** envolver la llamada en cada módulo (o, mejor, extraer un helper compartido `requireOwnerWithBilling` / `requireBillingAccessSafe` que ya devuelva el discriminated-union failure `INTERNAL_ERROR`, y migrar los call-sites). **No se tocó en T-058** (sería scope creep cross-module). **Verificación**: unit test que mockee `getActiveSubscription` para tirar y asserte que la action devuelve `INTERNAL_ERROR` en vez de propagar.
+
+> **Avance parcial (T-060a):** ya existe el helper compartido `src/shared/auth/with-billing.ts` (`requireMemberWithBilling` + `requireOwnerWithBilling`, billing en try/catch), usado por el módulo de ejecuciones de checklists. Falta migrar los call-sites pre-T-058 (`clientes`, `accidentabilidad`, …) a este helper.
+
+## T-060c 🔜 RPC atómica `close_checklist_execution` (flip + CAPA + gen_acciones en una tx) [BAJA — opcional]
+
+**Detectado en T-060b** (Enfoque 1, opción A). `cerrarEjecucionAction` inserta las CAPAs + invoca `gen_acciones_calendar_for` **antes** del flip a `cerrada` (último paso, CAS `.eq('estado','borrador')`). Eso garantiza que una ejecución `cerrada` SIEMPRE tenga sus CAPAs (el INSERT de CAPAs es fatal/pre-flip) y, en el happy path, sus eventos. Dos residuales conocidos, ambos de probabilidad ≈0 y auto-corregibles en reintento (la ejecución sigue `borrador` ante cualquier fallo pre-flip → todo re-corre idempotente):
+
+- Si `gen_acciones_calendar_for` falla (es **no-fatal**, patrón EPP T-102 `planificacionWarning`), la ejecución queda `cerrada` con CAPAs pero **sin** `calendar_events`/reminders → se devuelve `calendarWarning`; NO se auto-regenera vía la action (re-cerrar da `ALREADY_CLOSED`). Mismo gap de "regenerar calendario post-cierre" que T-114 deja latente en EPP.
+- Si el flip falla **persistentemente** tras CAPA+gen OK, queda un *borrador* con eventos vivos (alertas espurias) hasta el reintento.
+
+**Fix (opcional):** RPC `security definer` `close_checklist_execution(...)` que haga INSERT de CAPAs + `gen_acciones_calendar_for` + UPDATE `estado='cerrada'` en **una sola transacción** (todo-o-nada) → elimina ambos residuales. **Requiere migración + `pnpm db:types`** (Docker para regenerar `types.ts`). No se hizo en T-060b porque (a) la opción A ya satisface la invariante "cerrada ⇒ con CAPAs", (b) sin Docker no se puede regenerar `types.ts` → el gate `db:types` fallaría. **Prioridad BAJA**: solo si los residuales molestan en prod.
+
+## T-061-FU1 ✅ Ver inspecciones anuladas (toggle en el listado) — EN PROD
+
+Mergeado #202 (`5fc7598`); la migración se aplicó a prod **antes** del merge (`db push --linked` diff-validado: única pendiente `20260604000001`). Calca el patrón de incidentes T-063-FU2.
+
+- **Migración** `20260604000001_t061fu1_checklist_executions_heads_view.sql`: vista `checklist_executions_heads` (`security_invoker`, head de cada cadena SIN filtrar anulación = vigentes + tombstones) + `checklist_executions_vigentes` REDEFINIDA sobre heads (`create or replace`, single-source del `NOT EXISTS`) + 2 `grant select`. Read-only; no toca tabla/policies.
+- **Query**: `getEjecucionesForConsultora(sb, { includeAnuladas })` switchea la fuente heads↔vigentes (mismo molde que `getIncidentes`).
+- **UI**: toggle "Ver anuladas" (`EjecucionesAnuladasToggle`, push `?anuladas=1`) renderizado SIEMPRE (incluso en onboarding, así un tenant cuya única inspección fue anulada puede revelarla); `EjecucionesList` muestra el estado `anulada` (badge + subtítulo). El toggle cuenta en `hasActiveFilters` → no dispara el empty-state por sí solo.
+- **Link fix (clave)**: las filas anuladas linkean al **original** (`corrige_id`), NO al tombstone vacío — ver lesson "tombstone vacío" en lessons-learned. El detalle del original (T-061b) ya renderiza todo + banner "anulada" (tiene hijo tombstone → `esVigente=false`).
+- **types.ts**: hand-edit (sin Docker local; `db:types` usa `--linked`=prod, que aún no tenía la migración) — nueva view entry `checklist_executions_heads` + ref `_heads` en los 6 FK arrays (`corrige_id` ×3 relaciones, `execution_id` ×4 hijas). Validado por el **gate de drift de CI** (`gen types --local` + `git diff`).
+- **Tests**: unit `ejecuciones-queries.test.ts` (source switching) + integration tests 13-14 (heads incluye anuladas / vigentes las excluye / RLS cross-tenant).
+
+## Checklists · follow-ups abiertos (post T-061b/FU1) [BAJA]
+
+Dos guardas no urgentes (no alcanzables por la UI hoy, pero blindan el modelo de anulación):
+
+- **Guard redirect tombstone→original en `[id]/page.tsx`**: el acceso por URL directa al `tombstone.id` (`anulacion=true`) carga el detalle del tombstone vacío (sin respuestas/firma). Fix: si `basics.anulacion && basics.corrige_id` → `redirect(corrige_id)`. Requiere ampliar `getEjecucionBasics` con `anulacion` + `corrige_id` (hoy no los selecciona). La UI ya no expone el `tombstone.id` (lo cierra el link fix de FU1) → es defensa de borde.
+- **`anularEjecucionAction` valide `estado='cerrada'`**: hoy solo rechaza `estado='anulada'` (`ALREADY_ANULLED`) → un **borrador** se puede anular vía backend y el original queda `estado='borrador'` (técnicamente editable, y `/[id]` cae en el runner en vez del detalle con banner). No alcanzable por la UI (el CTA de anular vive solo en el detalle de una cerrada). Fix: rechazar todo `estado !== 'cerrada'` en la action.
+
+## T-116 ✅ Flaky `ClienteForm > DUPLICATE_CUIT` — `asyncUtilTimeout` global (project component) — EN MAIN
+
+Mergeado #201 (`215dc7b`). Flaky pre-existente intermitente: el `waitFor`/`findBy` default de testing-library (1000ms) vencía bajo contención de CPU al correr los 94 archivos del project `component` en paralelo (cadenas RHF+Zod async, p.ej. `ClienteForm` DUPLICATE_CUIT) → fallaba ~1/N runs, verde en aislamiento. **NO** era state pollution (projects `unit`/`component` aislados, `isolate=true`, `setup.ts` trivial) ni de T-061-FU1 (su test es project `unit`, pool aparte). **Fix** (1 archivo): `configure({ asyncUtilTimeout: 5000 })` en `src/tests/setup.ts` (lo carga solo el project component → no afecta unit/integration); sube el techo de TODOS los async utils, los que ya pasaban resuelven al primer intento. **Verificado 5/5 corridas verdes** de la suite completa; el test resuelve en ~400ms. Sin migración.
+
+## T-117 ✅ Asistente IA contextual de EPP (Haiku + tool-calling) — EN PROD
+
+#206 (squash `ba13745`). Módulo `asistente` (`/asistente`, `/api/asistente`). 4 tools sólo-lectura mapeadas 1:1 a queries RLS-aware existentes (`buscar_empleado`, `epp_entregado_a_empleado`, `vencimientos_epp_de_empleado`, `vencimientos_epp_proximos`). Loop multi-turno `tool_choice:auto`, caps (5 iter / 1024 tok / rate-limit 15 min), gateado con `requireMemberWithBilling` (T-115-safe). Cero-DB. Modelo Haiku (env override).
+
+## T-117-FU1 ✅ Robustez del asistente: búsqueda multi-término + fecha en prompt + reintento — EN PROD
+
+#207 (squash `d0cbb79`). `searchEmpleadosForChat` (multi-término AND + accent-insensitive en JS, sin tocar `searchEmpleadosByNombre`); fecha de hoy (TZ AR) inyectada al system prompt; guía de reintento. Cero-DB. Pendiente dormido **T-117-FU2**: ventana de `vencimientos_epp_proximos` configurable (hoy fija 30 días).
+
+## T-119 ✅ Lifecycle de planificaciones EPP: cerrar al reentregar + unicidad + backfill — EN PROD
+
+#208 (squash `1fb740d`). Migración `20260604000003`: la RPC cierra la planif activa previa del mismo `(empleado, item)` al reentregar (dedup por `item_id`, evento→`completed`, reminders skipped) + unique parcial `uq_epp_planif_activa_empleado_item` + backfill. `db push`: 6 planif cerradas, 6 eventos completados; 16→10 activas, 0 duplicados. Smoke OK (lista Roveda limpia).
+
+## T-118 ✅ Sincronización calendario → dominio (trigger AFTER UPDATE) — EN PROD
+
+#209 (squash `bcf8e43`). Migración `20260604000004`: trigger `sync_calendar_event_to_origin` propaga `fecha` + `status` del evento al dominio (`epp_planificaciones` / `acciones_correctivas`) con `WHEN` clause + escritura separada fecha/status + guarda de idempotencia (no-op vs T-119) + backfill solo-fecha. `db push`: 2 planif re-sincronizadas (incluido el Guantes de Roveda 24/11→13/06), 0 desincronizadas. Smoke OK (mover fecha en calendario → reflejado en chat/ficha al instante).
+
+## T-120 ✅ Lifecycle de CAPAs (`acciones_correctivas`): resolución con evidencia — EN PROD
+
+#212 (squash `7884f70`). Cero-DB. `resolverCapaAction` (member, patrón CAPA-primero: flip a `'cerrada'` vía RLS con el cliente user-scoped + evento→`completed`/reminders skipped con service-role; no-conflicto con el trigger T-118) + `CapaResolverButton` (cierre con evidencia desde la ficha de inspección) + fix `CAPA_ESTADO_LABELS`. Cierra la clase B-CAPAs de ADR-0015 (T-119 cerró B-EPP; T-118 ya permitía cerrarla completando el evento desde el calendario — T-120 es el cierre CON evidencia).
+
+## T-121 ✅ Coherencia `consultora_id` denormalizado (FK compuestas Ring A) + `audit_consultoras` — EN PROD
+
+#215 (squash `1d2a7db`). Migraciones `20260605000004` (9 `unique (id, consultora_id)` en los parents + 17 FK COMPUESTAS `hijo.(<fk>, consultora_id) → parent.(id, consultora_id)` que reemplazan los FK simples preservando el `ON DELETE`; drop dinámico del `conname` real desde `pg_constraint`, aborta si no lo encuentra; guard pre-conteo fail-fast) + `20260605000005` (`audit_consultoras()` AFTER INSERT/UPDATE → `audit_log`, molde `audit_calendar_events`, SIN rama DELETE porque el hard-delete de consultoras es imposible — `audit_log` ON DELETE RESTRICT + inmutable). Guard 0 mismatches / 328 filas escaneadas. Cierra la clase D-RingA de ADR-0015. Alcance Ring A core: ownership NOT-NULL, ambos lados `consultora_id NOT NULL` (cero gaps de `MATCH SIMPLE`); Ring B/C → T-121-FU dormido.
+
+## T-122 ✅ Sync `consultoras.plan` ↔ suscripciones (trigger) + backfill — EN PROD
+
+#211 (squash `84b3ddc`). Migración `20260605000001`: trigger `sync_consultora_plan_from_suscripcion` (`AFTER INSERT OR UPDATE OF estado` en `suscripciones`) recomputa `consultoras.plan`/`trial_hasta` vía `EXISTS` sobre el estado VIGENTE de la consultora (suscripción en `activa`/`morosa`/`cancelada` → `plan='pro'` + `trial_hasta=NULL`; resto → `trial`), guard `is distinct from` idempotente + backfill promote-only + comments corregidos. Fuente única (ADR-0015 clase A en billing, misma forma que T-118). Cierra el drift del cache `plan` (una consultora que pagaba quedaba `trial` para siempre → badge del sidebar miente + dunning espurio). Backfill prod 0 (sin pagos reales todavía).
+
+## T-123 ✅ Trigger skip reminders al finalizar evento (backstop estructural) — EN PROD
+
+#213 (squash `2e5acda`). Migración `20260605000002`: trigger `skip_reminders_on_event_final` (`AFTER UPDATE OF status`, `WHEN old.status='pending' AND new.status IN ('completed','cancelled')`) skipea los reminders `pending` del evento al finalizarlo — fuente ESTRUCTURAL del skip, cubre todo camino (action/RPC/SQL directo/futuro). `security definer` (los reminders tienen UPDATE default-deny para authenticated). Como corre ANTES del skip explícito de `complete/cancelCalendarEventAction`, ese skip veía 0 filas → se quitó el `remindersSkipped` (count muerto post-trigger, no usado por la UI). Los otros 3 skips explícitos (anularEjecucion, resolverCapa T-120, RPC T-119) quedan redundantes inofensivos (idempotentes, sin count asertado). No-conflicto con T-118 (tablas disjuntas). Backfill 0.
+
+## T-124 ✅ Churn reaper + cierra leak gate `cancelada` + limpieza enums muertos — EN PROD
+
+#214 (squash `bca1ce8`). Migración `20260605000003` + fix de gate (`src/shared/billing/access.ts`). **Reaper** `process_subscription_churn()` (cron diario `0 3 * * *`, SQL puro) flipa una `cancelada`-vencida (`cancelar_en NULL` = churn MP por falta de pago, o `cancelar_en < now()` = gracia vencida) → `expirada`; el UPDATE dispara T-122 → recomputa `consultoras.plan='trial'`. **Gate fix** cierra el LEAK real: una `cancelada` con `cancelar_en NULL` caía a `ok:true` → ahora `if (!cancelarEn || cancelarEn < now)` bloquea (`SUBSCRIPTION_CANCELLED`); el test del leak se invirtió a `ok:false`. **Enums**: `calendar_event_reminders.status='failed'` REMOVido del CHECK (nunca se escribía; el fallo vive en `notification_log`) + espejo TS `REMINDER_STATUS_VALUES`; `estado_suscripcion` (`expirada` activado por el reaper, `trial` reservado) e `informes.status='archived'` (soft-delete diseñado-no-implementado, KEEP) redocumentados. Backfill 0.
+
+## T-117-FU3 ✅ Asistente: streaming SSE + render markdown + tests del cliente — EN PROD
+
+#217 (squash `511049f`). El chat del asistente pasa a **Server-Sent Events**: orquestador `streamEppChat` (`src/shared/ai/epp-chat-stream.ts`) emite eventos `delta` (token a token) / `tool` (nombre de la tool en curso) / `stop` / `usage` / `error` / `done`; encode en `src/shared/ai/sse-encode.ts`, parser isomórfico `src/shared/ai/sse-client.ts`. Los errores **post-200** (rate-limit, timeout, refusal, abort) viajan como evento SSE `error`, nunca HTTP 5xx. Render **markdown** en el cliente con `react-markdown` + `remarkGfm` + `rehype-sanitize` (`src/shared/ui/markdown.tsx`, sanitiza `<script>`/`on*`/`javascript:`). Cliente (`asistente-client.tsx`): throttle de re-render por `requestAnimationFrame` + fallback 250ms para tabs en background, botón "detener" vía `AbortController`. **Tests del cliente**: `src/tests/unit/ai-sse-client.test.ts` (fragmentación / CRLF / unicode) + `markdown.test.tsx` (bold/listas/tablas/sanitización). Cierra el pendiente "render markdown en el chat" que figuraba en CLAUDE.md.
+
+## T-125 ✅ Asistente multi-módulo: registry de tools + Checklists/Inspecciones — EN PROD
+
+#218 (squash `06a1a5f`). Reemplaza el `switch(name)` por un **registry** `Map<string, ToolEntry>` (`src/shared/ai/tools/registry.ts`) ensamblado de listas por módulo (`epp-tools.ts` + `common-tools.ts` + `checklists-tools.ts`); `dispatchTool()` hace lookup O(1) y **nunca tira** (envuelve todo error en `DispatchToolResult`). **Guardia anti-duplicados** al cargar el módulo: `if (TOOL_REGISTRY.size !== ALL_ENTRIES.length) throw`. Tools nuevas (read-only, RLS-aware): `buscar_cliente` (common) + `listar_inspecciones` / `inspeccion_detalle` / `capas_pendientes` (Checklists). Query nueva `getCapasForConsultora` en `src/app/(app)/checklists/ejecuciones/queries.ts`. System prompt ampliado a EPP + inspecciones + CAPAs. Cero-DB.
+
+## T-126 ✅ Persistencia del chat del asistente (conversaciones + RLS) — EN PROD
+
+#219 (squash `c620701`). Migración `20260606000001_t126_chat_persistence.sql`: tablas `chat_conversaciones` + `chat_mensajes` (detalle en `docs/technical/03-data-model.md` → "Asistente IA · chat"). **Persistencia client-driven (Option C)**: la route SSE (`/api/asistente`) **NO escribe** en DB — el cliente persiste el turno que mostró vía `persistChatTurnAction` (crea la conversación si `conversacionId=null`, inserta user+assistant en un statement → `seq` consecutivo; título derivado del 1er mensaje ≤80c) → route/orquestador intactos. UI de historial: sidebar `ConversacionList` + selección por `?c=<id>` + archivar (`archiveChatConversacionAction`, soft-delete `archived_at`). **RLS per-user** (`user_id = auth.uid()` + `is_member_of_consultora`): dos members de la misma consultora NO se ven los chats entre sí. Tests: `persist-chat-turn-action.test.ts` + `chat-persistence-rls.test.ts`. **Orden de deploy**: la migración se aplicó (`db push`) ANTES del merge (el código depende de las tablas) — gate migración-primero.
+
+> **Notas operativas (T-126):**
+> - **Integration NO contra prod (linked)** — durante T-126 la suite de integration se corrió contra el linked (=prod) y dejó consultoras orphan inertes, imborrables por el `audit_log` RESTRICT. Reincidente de la lección T-111: integration va a CI (Supabase local efímero) o local con Docker, **nunca** al linked. Ya hay memoria del tema.
+> - **Mount Windows→sandbox** — una branch nueva sin commits propios (HEAD==main) se ve desde el sandbox del orquestador como "No commits yet / todo A". Es vista del mount, no corrupción del repo.
+
+## T-127 Tanda 1 ✅ Responsive de primitivos compartidos — EN MAIN
+
+#220 (squash `9916f50`). Patrón híbrido **`h-11 md:pointer-fine:h-9`** en los primitivos compartidos (44px táctil en mobile/touch / compacto en desktop+mouse) + `size="none"` en Button para esquivar el **footgun de tailwind-merge** (el merge "se comía" la altura híbrida) + Dialog/AlertDialog con `max-h` + scroll interno. Solo CSS/clases, sin lógica. **Tandas 2-6 + FUs ✅ EN PROD** (ver abajo); queda **T7 (pulido)**.
+
+## T-117-FU2 🔜 DORMIDO
+
+Ventana de `vencimientos_epp_proximos` configurable (hoy fija en 30 días). Disparador: pedido de producto / primer cliente que la necesite distinta.
+
+## T-121-FU 🔜 DORMIDO
+
+Coherencia Ring B (FK nullable / `SET NULL` / self-ref) + Ring C (template tree / system rows con `consultora_id NULL`, donde `MATCH SIMPLE` NO garantiza la igualdad — un NULL en la columna compuesta pasa el check). Censo completo en el plan de T-121. Disparador: antes de exponer API pública / multi-instancia.
+
+## Flaky E2E 🔜
+
+Estabilizar `checklists-ejecuciones.spec.ts:100` (`EXEC_NOT_DRAFT`, race entre el click "No cumple" y el toast). Flaky conocido, rescatado por retry ("1 flaky" en main); guardado en memoria como known-flake. Re-correr el job antes de investigar si E2E sale rojo solo por este test.
+
+## doc-drift 🔜
+
+`docs/technical/03-data-model.md` stale: menciona la tabla `establecimientos` fantasma (dropeada en T-052) y policies pre-T-015 (subqueries inline a `consultora_members` en vez de los helpers). Sync pendiente (sibling de T-076). _En este doc-sync solo se AGREGÓ la sección "Asistente IA · chat" (T-126); la staleness vieja sigue pendiente._
+
+## T-127 Tandas 2-6 + FUs ✅ Responsive — EN PROD
+
+Continuación del responsive (Tanda 1 ✅ cerró los primitivos). Tandas 2-6 + follow-ups, todas en prod:
+
+- **T2 · tablas→cards** (#222, squash `0c26fae`): dual-render `hidden md:block` (tabla en desktop) / `md:hidden` (stack de cards en mobile) en el padrón EPP (`epp/padron`) + `EntregaDetailView`.
+- **T2 FU1 · header entrega** (#223, squash `6ca9f8f`): `flex-wrap` en la barra de acciones del detalle de entrega para que wrappee en mobile (~375px).
+- **T4 · barras de acción de forms** (#224, squash `b6c6cf1`): `flex flex-col-reverse gap-2 sm:flex-row sm:justify-end` (primario arriba en mobile) en 7 forms (Incidente · TemplateMeta · Cliente · Empleado · Categoria · Item · Puesto).
+- **T3/T5/T6 + resto-T4** (#225, squash `9a3de8f`): T3 `TabsNav` con `overflow-x` (Calendar/Cliente/Epp/Catalogo/Settings) + hamburguesa en la landing (`LandingMobileNav` + `LandingHeader`) · T5 scroll-x del calendario del mes (`CalendarMonthView`) · T6 chat `min-w-0` + `break-words` (burbujas del asistente) · resto-T4 wizard de entrega (`EntregaWizard`/`EntregaItemsBuilder`: grids `sm:grid-cols-2` + de-anidar Card + barra responsive).
+- **FU smoke** (#226, squash `a7ad767`): `SelectTrigger w-full` + dashboard con los 9 módulos en `QUICK_LINKS` + badge trial `pr-12 md:pr-4` (esquiva la X del Sheet).
+- **T4 FU2 · select min-w-0** (#227, squash `dd4d377`): `SelectTrigger min-w-0` — el `w-full` solo no alcanzaba; `min-w-0` es el que deja truncar selects con valor largo en grid/flex.
+
+## T-128 ✅ Selector de puesto del catálogo en el form de empleado (+ crear inline) — EN PROD
+
+El campo "Puesto" del form de empleado pasó de texto libre a **selector del catálogo** (`puesto_id` → `empleados_puestos`), single, opcional, con búsqueda (combobox Popover+Input estilo `ClienteAutocomplete`, sin cmdk) + "crear puesto nuevo" inline (solo owners, reusa `createPuestoAction`).
+
+- **Sincronía-puente**: la action sigue escribiendo el nombre del puesto en la columna legacy `empleados.puesto`, atómico dentro del INSERT/UPDATE; el join `empleados_puestos` es el único write separado, con éxito-y-warning (sin RPC: `empleados` no tiene policy DELETE → no hay compensación posible).
+- **Edición**: espejo single, read-only si el empleado tiene ≥2 puestos (la ficha es la fuente de la gestión multi); re-check server-side defensivo.
+- Sin migración SQL. PR #231.
+
+## T-129 fase A ✅ Migrar consumers de `puesto` al catálogo + backfill — EN PROD
+
+Consumers cortados del legacy `empleados.puesto` → catálogo, vía helper `getEmpleadoPuestosLabel` (nombres del catálogo concatenados, excluye archivados, `null` si no hay): informe de accidente (`puesto_afectado`), planilla Res 299/11 (`puestos_label`), asistente `buscar_empleado` (ya no expone puesto), detalle (sin Field "Puesto") + list card. `EmpleadoSummary` + las 3 búsquedas sin `puesto`.
+
+- **Migración `20260608000001`**: función `backfill_empleados_puestos_from_legacy(p_consultora_id)` idempotente, best-effort, `security definer`, `service_role`. `db push` a prod ejecutado como gate (diff validado por el orquestador): **no-op verificado** (a_migrar 0→0, asignaciones/puestos 4→4; los empleados con puesto texto ya estaban asignados desde T-128).
+- **Decisiones de producto**: concatenar nombres; quitar puesto de búsquedas/autocompletes/asistente; migrar datos best-effort.
+- **Queda T-129 fase B** (segundo PR del mismo ticket, NO T-130 — reservado): drop de `empleados.puesto` + de la función backfill + del puente de `empleados/actions.ts` + `db:types` completo (ahí despierta el skew PostgREST, ver sección abajo) + actualizar los tests que hoy asertan el puente (`empleados-rls.test.ts:605`, `empleados-actions.test.ts` test 8, e2e crud). Reconfirmar el conteo de empleados con `puesto` texto en prod antes del drop. PR #232, merge `049cd26`.
+
+## T-127 Tanda 7 🔜 pulido
+
+Lo único pendiente de T-127: pulido de tipografía/densidad + barrido de headers compartidos + guard anti-drift del dashboard (`QUICK_LINKS` ↔ `NAV_ITEMS`, fuente única + test-meta). El owner sigue cuando quiera.
+
+## Panel de vencimientos del dashboard 🔜 feedback owner
+
+Rediseño del panel de vencimientos del dashboard — pendiente de definición por el owner (feedback de producto).
+
+## T-126 producto 🔜 DORMIDO
+
+Mejoras de producto sobre la persistencia del chat: renombrar/buscar conversaciones · RPC transaccional `create + insert` (hoy son 2 statements desde la action) · títulos de conversación generados por IA.
+
+## Skew PostgREST local↔prod (`db:types`) 🔜
+
+Prod corre PostgREST 14.5; la imagen de Supabase local es 14.x → `pnpm db:types` reintroduce el bloque `__InternalSupabase` que el gate `gen types --local` (drift de CI) rechaza. Fix de raíz: bumpear la imagen de Supabase local a 14.5, o stripear ese bloque en el script `db:types`. Detectado en T-126.
+
+## Doc-sync · limpiar refs Vercel pre-T-022.5 en docs de planning 🔜
+
+El claim de deploy quedó alineado en este sync (`PROJECT-CONTEXT.md` + `06-deployment.md` + nota de resolución en ADR-0007). Queda staleness Vercel-host **anterior** a T-022.5 en docs de planning, NO tocada por decisión del owner: `docs/technical/00-skills-y-stack.md` (Hosting=Vercel + "deploy automático a Vercel", L38/49/150/160/168), `docs/technical/01-principles.md:48`, `docs/technical/05-branch-protection.md §198-204`. Sibling del doc-drift de data-model y de T-076.

@@ -77,70 +77,143 @@ export default async function EppPadronPage({
       {empleados.length === 0 ? (
         <p className="text-sm text-muted-foreground">Sin empleados para los filtros aplicados.</p>
       ) : (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Empleado</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead className="text-center">Puestos</TableHead>
-                <TableHead>Última entrega</TableHead>
-                <TableHead className="text-center">Pendientes 30d</TableHead>
-                <TableHead className="text-right">Acción</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {empleados.map((e) => (
-                <TableRow key={e.empleado_id} data-testid={`padron-row-${e.empleado_id}`}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">
-                        {e.empleado_apellido}, {e.empleado_nombre}
-                      </span>
-                      <span className="text-xs text-muted-foreground">DNI {e.empleado_dni}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/empleados?cliente_id=${e.cliente_id}`}
-                      className="text-sm hover:underline"
-                    >
-                      {e.cliente_razon_social}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {e.puestos_count === 0 ? (
-                      <Badge variant="outline" className="text-muted-foreground">
-                        sin puestos
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">{e.puestos_count}</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {e.ultima_entrega ? (
-                      <span className="text-sm">{formatDate(e.ultima_entrega)}</span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">sin entregas</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {e.pendientes_proximos_count === 0 ? (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    ) : (
-                      <Badge variant="default">{e.pendientes_proximos_count}</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button asChild size="sm" variant="ghost">
-                      <Link href={`/empleados/${e.empleado_id}`}>Ver →</Link>
-                    </Button>
-                  </TableCell>
+        <>
+          {/* Desktop: tabla. En mobile la tabla de 6 columnas scrollea horizontal
+              (overflow-x-auto del primitivo); se oculta y se reemplaza por el stack
+              de cards de abajo con el mismo dato. */}
+          <div className="hidden rounded-md border md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Empleado</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className="text-center">Puestos</TableHead>
+                  <TableHead>Última entrega</TableHead>
+                  <TableHead className="text-center">Pendientes 30d</TableHead>
+                  <TableHead className="text-right">Acción</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {empleados.map((e) => (
+                  <TableRow key={e.empleado_id} data-testid={`padron-row-${e.empleado_id}`}>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">
+                          {e.empleado_apellido}, {e.empleado_nombre}
+                        </span>
+                        <span className="text-xs text-muted-foreground">DNI {e.empleado_dni}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/empleados?cliente_id=${e.cliente_id}`}
+                        className="text-sm hover:underline"
+                      >
+                        {e.cliente_razon_social}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {e.puestos_count === 0 ? (
+                        <Badge variant="outline" className="text-muted-foreground">
+                          sin puestos
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">{e.puestos_count}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {e.ultima_entrega ? (
+                        <span className="text-sm">{formatDate(e.ultima_entrega)}</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">sin entregas</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {e.pendientes_proximos_count === 0 ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <Badge variant="default">{e.pendientes_proximos_count}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button asChild size="sm" variant="ghost">
+                        <Link href={`/empleados/${e.empleado_id}`}>Ver →</Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile: un card por empleado, mismos datos/hrefs/badges. */}
+          <div className="space-y-3 md:hidden">
+            {empleados.map((e) => (
+              <div
+                key={e.empleado_id}
+                data-testid={`padron-card-${e.empleado_id}`}
+                className="rounded-md border p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col">
+                    <span className="font-medium">
+                      {e.empleado_apellido}, {e.empleado_nombre}
+                    </span>
+                    <span className="text-xs text-muted-foreground">DNI {e.empleado_dni}</span>
+                  </div>
+                  <Button asChild size="sm" variant="ghost">
+                    <Link href={`/empleados/${e.empleado_id}`}>Ver →</Link>
+                  </Button>
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                  <div className="flex flex-col">
+                    <dt className="text-xs text-muted-foreground">Cliente</dt>
+                    <dd>
+                      <Link
+                        href={`/empleados?cliente_id=${e.cliente_id}`}
+                        className="hover:underline"
+                      >
+                        {e.cliente_razon_social}
+                      </Link>
+                    </dd>
+                  </div>
+                  <div className="flex flex-col">
+                    <dt className="text-xs text-muted-foreground">Puestos</dt>
+                    <dd>
+                      {e.puestos_count === 0 ? (
+                        <Badge variant="outline" className="text-muted-foreground">
+                          sin puestos
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">{e.puestos_count}</Badge>
+                      )}
+                    </dd>
+                  </div>
+                  <div className="flex flex-col">
+                    <dt className="text-xs text-muted-foreground">Última entrega</dt>
+                    <dd>
+                      {e.ultima_entrega ? (
+                        formatDate(e.ultima_entrega)
+                      ) : (
+                        <span className="text-xs text-muted-foreground">sin entregas</span>
+                      )}
+                    </dd>
+                  </div>
+                  <div className="flex flex-col">
+                    <dt className="text-xs text-muted-foreground">Pendientes 30d</dt>
+                    <dd>
+                      {e.pendientes_proximos_count === 0 ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <Badge variant="default">{e.pendientes_proximos_count}</Badge>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

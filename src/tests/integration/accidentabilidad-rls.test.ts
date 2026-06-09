@@ -347,6 +347,179 @@ describe('incidentes_vigentes (vista)', () => {
   });
 });
 
+describe('incidentes_heads (vista — T-063-FU2: anulados incluidos)', () => {
+  it('17. anulado aparece en heads pero NO en vigentes; superseded en ninguna', async () => {
+    // Cadena: alta F ← corrección G ← tombstone H (anula G).
+    const fId = await insertIncidente({ descripcion: 'Heads F — alta.' });
+    const { data: g } = await admin
+      .from('incidentes')
+      .insert(makeIncidente(cAId, ownerAId, { corrige_id: fId, descripcion: 'Heads G corrige F.' }))
+      .select('id')
+      .single();
+    const { data: h } = await admin
+      .from('incidentes')
+      .insert(makeIncidente(cAId, ownerAId, { corrige_id: g!.id, anulacion: true }))
+      .select('id')
+      .single();
+
+    const { data: heads, error: headsErr } = await clientMemberA
+      .from('incidentes_heads')
+      .select('id, anulacion')
+      .in('id', [fId, g!.id, h!.id]);
+    expect(headsErr).toBeNull();
+    // Head de la cadena = el tombstone H (nadie lo supersede), con anulacion=true.
+    expect((heads ?? []).map((r) => r.id)).toEqual([h!.id]);
+    expect(heads?.[0]?.anulacion).toBe(true);
+
+    // En vigentes no aparece ninguno (la cadena está anulada).
+    const { data: vigentes } = await clientMemberA
+      .from('incidentes_vigentes')
+      .select('id')
+      .in('id', [fId, g!.id, h!.id]);
+    expect(vigentes ?? []).toEqual([]);
+  });
+
+  it('18. heads respeta RLS: member de cA NO ve heads de cB (cross-tenant)', async () => {
+    const { data: ins } = await admin
+      .from('incidentes')
+      .insert(makeIncidente(cBId, ownerBId))
+      .select('id')
+      .single();
+    const { data, error } = await clientMemberA
+      .from('incidentes_heads')
+      .select('id')
+      .eq('id', ins!.id);
+    expect(error).toBeNull();
+    expect(data ?? []).toEqual([]);
+  });
+});
+
+describe('link_informe_to_incidente (RPC — T-075: UPDATE acotado)', () => {
+  async function insertAccidente(overrides: Partial<IncidenteInsert> = {}): Promise<string> {
+    return insertIncidente({ tipo: 'accidente', gravedad: 'grave', ...overrides });
+  }
+
+  async function insertInformeCA(): Promise<string> {
+    const { data, error } = await admin
+      .from('informes')
+      .insert({
+        consultora_id: cAId,
+        tipo: 'accidente',
+        titulo: `T075 informe ${runId} ${Math.random().toString(36).slice(2, 7)}`,
+        created_by: ownerAId,
+      })
+      .select('id')
+      .single();
+    if (error || !data) throw new Error(`insertInformeCA failed: ${JSON.stringify(error)}`);
+    return data.id;
+  }
+
+  it('19. happy: member linkea accidente↔informe → informe_id seteado + audit "linked"', async () => {
+    const incId = await insertAccidente();
+    const infId = await insertInformeCA();
+
+    const { error } = await clientMemberA.rpc('link_informe_to_incidente', {
+      p_incidente_id: incId,
+      p_informe_id: infId,
+    });
+    expect(error).toBeNull();
+
+    const { data: after } = await admin
+      .from('incidentes')
+      .select('informe_id')
+      .eq('id', incId)
+      .single();
+    expect(after?.informe_id).toBe(infId);
+
+    const { data: audit } = await admin
+      .from('audit_log')
+      .select('action')
+      .eq('entity_type', 'incidentes')
+      .eq('entity_id', incId)
+      .eq('action', 'linked')
+      .maybeSingle();
+    expect(audit?.action).toBe('linked');
+  });
+
+  it('20. append-only intacto: UPDATE directo de informe_id sigue 0 filas (RPC no aflojó RLS)', async () => {
+    const incId = await insertAccidente();
+    const infId = await insertInformeCA();
+    const { data, error } = await clientMemberA
+      .from('incidentes')
+      .update({ informe_id: infId })
+      .eq('id', incId)
+      .select('id');
+    expect(error).toBeNull();
+    expect(data?.length ?? 0).toBe(0);
+
+    const { data: still } = await admin
+      .from('incidentes')
+      .select('informe_id')
+      .eq('id', incId)
+      .single();
+    expect(still?.informe_id).toBeNull();
+  });
+
+  it('21. ya vinculado: segundo link del mismo incidente → 23505 (idempotencia)', async () => {
+    const incId = await insertAccidente();
+    const infId = await insertInformeCA();
+    const { error: e1 } = await clientMemberA.rpc('link_informe_to_incidente', {
+      p_incidente_id: incId,
+      p_informe_id: infId,
+    });
+    expect(e1).toBeNull();
+
+    const infId2 = await insertInformeCA();
+    const { error: e2 } = await clientMemberA.rpc('link_informe_to_incidente', {
+      p_incidente_id: incId,
+      p_informe_id: infId2,
+    });
+    expect(e2?.code).toBe('23505');
+  });
+
+  it('22. cross-tenant: member de cA NO puede linkear incidente de cB → 42501', async () => {
+    const { data: incB } = await admin
+      .from('incidentes')
+      .insert(makeIncidente(cBId, ownerBId, { tipo: 'accidente', gravedad: 'grave' }))
+      .select('id')
+      .single();
+    const infId = await insertInformeCA();
+    const { error } = await clientMemberA.rpc('link_informe_to_incidente', {
+      p_incidente_id: incB!.id,
+      p_informe_id: infId,
+    });
+    expect(error?.code).toBe('42501');
+  });
+
+  it('23. tipo casi_accidente → 23514 (solo accidente se investiga)', async () => {
+    const incId = await insertIncidente(); // casi_accidente por defecto
+    const infId = await insertInformeCA();
+    const { error } = await clientMemberA.rpc('link_informe_to_incidente', {
+      p_incidente_id: incId,
+      p_informe_id: infId,
+    });
+    expect(error?.code).toBe('23514');
+  });
+
+  it('24. registro superseded (corregido) → 23514 (solo el vigente)', async () => {
+    const altaId = await insertAccidente({ descripcion: 'T075 alta a corregir.' });
+    await admin.from('incidentes').insert(
+      makeIncidente(cAId, ownerAId, {
+        tipo: 'accidente',
+        gravedad: 'grave',
+        corrige_id: altaId,
+        descripcion: 'T075 corrige.',
+      }),
+    );
+    const infId = await insertInformeCA();
+    const { error } = await clientMemberA.rpc('link_informe_to_incidente', {
+      p_incidente_id: altaId,
+      p_informe_id: infId,
+    });
+    expect(error?.code).toBe('23514');
+  });
+});
+
 describe('incidentes · acción de sistema (FK set-null + audit updated)', () => {
   it('16. borrar el informe referenciado ⇒ informe_id null + audit "updated"', async () => {
     const { data: informe } = await admin

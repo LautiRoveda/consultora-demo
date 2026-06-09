@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { Button } from '@/shared/ui/button';
 
+import { LandingMobileNav } from './LandingMobileNav';
 import { WHATSAPP_LINK_HREF } from './whatsapp';
 
 /**
@@ -29,10 +30,10 @@ export function LandingHeader() {
         </Link>
 
         <nav className="flex items-center gap-1 sm:gap-2" aria-label="Navegación principal">
-          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+          <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
             <Link href="/features">Features</Link>
           </Button>
-          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+          <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
             <Link href="/precios">Precios</Link>
           </Button>
           <Button
@@ -49,6 +50,9 @@ export function LandingHeader() {
           <Button asChild variant="outline" size="sm">
             <Link href="/login">Iniciar sesión</Link>
           </Button>
+          {/* <md: Features/Precios/WhatsApp viven acá (el resto es hidden md:inline-flex).
+              El trigger es md:hidden, asi que en desktop no se duplica nada. */}
+          <LandingMobileNav />
         </nav>
       </div>
     </header>

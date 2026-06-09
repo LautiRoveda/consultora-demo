@@ -55,8 +55,8 @@ test.describe('login happy path', () => {
 
     await loginViaUI(page, email, password);
 
-    // Heading del dashboard simplificado (T-017).
-    await expect(page.getByText('Bienvenido a ConsultoraDemo')).toBeVisible();
+    // Heading del dashboard operativo (T-131): "Buen día, {consultora}".
+    await expect(page.getByRole('heading', { name: /Buen día/ })).toBeVisible();
 
     // Scope al `<aside>` del sidebar desktop. AppShell también renderiza el
     // mobile topbar (con el mismo `consultora.name`) aunque esté `md:hidden`

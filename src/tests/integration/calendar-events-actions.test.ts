@@ -506,7 +506,15 @@ describe('completeCalendarEventAction', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.nextEventId).toBeNull();
-    expect(result.remindersSkipped).toBeGreaterThan(0);
+
+    // El skip de reminders pending lo hace el trigger T-123 (no la action): verificamos
+    // el efecto estructural sobre calendar_event_reminders en vez del count del return.
+    const { data: skippedRems } = await admin
+      .from('calendar_event_reminders')
+      .select('status')
+      .eq('event_id', created.eventId);
+    expect((skippedRems ?? []).length).toBeGreaterThan(0);
+    expect((skippedRems ?? []).every((r) => r.status === 'skipped')).toBe(true);
 
     const { data: ev } = await admin
       .from('calendar_events')
@@ -635,7 +643,14 @@ describe('cancelCalendarEventAction', () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.remindersSkipped).toBeGreaterThan(0);
+    // El skip de reminders pending lo hace el trigger T-123 (no la action): verificamos
+    // el efecto estructural sobre calendar_event_reminders en vez del count del return.
+    const { data: skippedRems } = await admin
+      .from('calendar_event_reminders')
+      .select('status')
+      .eq('event_id', created.eventId);
+    expect((skippedRems ?? []).length).toBeGreaterThan(0);
+    expect((skippedRems ?? []).every((r) => r.status === 'skipped')).toBe(true);
 
     const { data: ev } = await admin
       .from('calendar_events')

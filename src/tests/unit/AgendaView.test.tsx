@@ -71,14 +71,11 @@ vi.mock('@/app/(app)/calendario/actions', () => ({
       ok: true,
       eventId: 'evt',
       nextEventId: null,
-      remindersSkipped: 0,
       nextRemindersCreated: 0,
       nextRemindersSkippedPast: 0,
     }),
   ),
-  cancelCalendarEventAction: vi.fn(() =>
-    Promise.resolve({ ok: true, eventId: 'evt', remindersSkipped: 0 }),
-  ),
+  cancelCalendarEventAction: vi.fn(() => Promise.resolve({ ok: true, eventId: 'evt' })),
 }));
 
 vi.mock('sonner', () => ({

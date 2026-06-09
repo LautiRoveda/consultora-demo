@@ -20,6 +20,7 @@ const TIPO_LABELS: Record<string, string> = {
   calibracion: 'Calibración',
   examen_medico: 'Examen médico',
   epp_entrega: 'EPP — entrega',
+  accion_correctiva: 'Acción correctiva',
   custom: 'Vencimiento',
 };
 

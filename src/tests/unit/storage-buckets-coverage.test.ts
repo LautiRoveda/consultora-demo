@@ -45,9 +45,15 @@ describe('STORAGE_BUCKETS vs supabase/migrations (anti-drift backup)', () => {
     expect(backedUp).toEqual(declared);
   });
 
-  it('incluye los 3 buckets conocidos (consultora-logos, informe-attachments, epp-firmas)', () => {
+  it('incluye los 5 buckets conocidos (logos, attachments, epp-firmas, checklist-firmas, checklist-adjuntos)', () => {
     expect(new Set<string>(STORAGE_BUCKETS)).toEqual(
-      new Set(['consultora-logos', 'informe-attachments', 'epp-firmas']),
+      new Set([
+        'consultora-logos',
+        'informe-attachments',
+        'epp-firmas',
+        'checklist-firmas',
+        'checklist-adjuntos',
+      ]),
     );
   });
 });
