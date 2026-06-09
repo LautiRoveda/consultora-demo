@@ -22,7 +22,7 @@ export async function DashboardData() {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { metrics, attention, recentDrafts } = await getDashboardData(supabase);
+  const { metrics, attention, recentDrafts, semaforo } = await getDashboardData(supabase);
 
   return (
     <div className="space-y-6">
@@ -36,7 +36,7 @@ export async function DashboardData() {
         <div className="lg:col-span-2">
           <AttentionQueue items={attention} />
         </div>
-        <DashboardSidebar recentDrafts={recentDrafts} />
+        <DashboardSidebar recentDrafts={recentDrafts} semaforo={semaforo} />
       </div>
     </div>
   );

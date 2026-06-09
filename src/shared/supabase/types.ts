@@ -2758,6 +2758,16 @@ export type Database = {
         Returns: undefined;
       };
       role_on_consultora: { Args: { p_consultora_id: string }; Returns: string };
+      semaforo_clientes: {
+        Args: { p_hoy?: string };
+        Returns: {
+          cliente_id: string;
+          estado: string;
+          fecha_proxima: string;
+          proximos_count: number;
+          vencidos_count: number;
+        }[];
+      };
       set_cron_vault_secret: {
         Args: { new_value: string; secret_name: string };
         Returns: undefined;
