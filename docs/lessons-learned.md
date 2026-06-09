@@ -106,6 +106,12 @@ El merge auto-deploya **solo el código** (webhook EasyPanel, no es job de GitHu
 
 **Origen**: T-126. Prod corre PostgREST 14.5; la imagen de Supabase local (`supabase start`) es 14.x → al regenerar `src/shared/supabase/types.ts` con `pnpm db:types`, la versión local **reintroduce** el bloque `__InternalSupabase` que el gate de drift de CI (`gen types --local` + `git diff`) rechaza. Workaround manual: hand-edit del archivo (mismo recurso que en T-061-FU1). Fix de raíz pendiente (FU en `operativo.md`): bumpear la imagen local a 14.5, o stripear ese bloque en el script `db:types`.
 
+### Objeto DB nuevo en una migración rompe el drift gate de `types.ts`
+
+**Origen**: T-129 fase A (commit `9f6663b`). **Relacionado**: skew PostgREST ↑.
+
+Una migración que agrega un objeto visible a los tipos generados (función/RPC, tabla, columna, enum) rompe el gate `types.ts sin drift` del job Integration **aunque el PR difiera `db:types` a propósito** y no toque columnas existentes: `gen types --local` (que corre el gate) lo incluye y el `git diff` contra el `types.ts` commiteado falla. **Fix sin Docker**: NO correr `pnpm db:types` (= `gen types --linked` contra prod) — despierta el skew PostgREST prod 14.5↔local (reintroduce `__InternalSupabase`, ver ↑). En cambio, leer el diff exacto que imprime el gate (`gh run view --job <id> --log-failed`) y aplicar **a mano** SOLO ese bloque al `types.ts` (para una función `(p_x uuid default null) returns jsonb`: 4 líneas en `Functions:`, `Args: { p_x?: string }` + `Returns: Json`). Es la misma adición que produce el gen local → el gate pasa, sin tocar el resto. Verificar antes que el diff sean SOLO tus líneas (sin ruido del skew).
+
 ## Tests integration
 
 ### Suite de integración + E2E escribían a prod → contaminación de 14k consultoras

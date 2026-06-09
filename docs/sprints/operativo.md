@@ -201,6 +201,22 @@ Continuación del responsive (Tanda 1 ✅ cerró los primitivos). Tandas 2-6 + f
 - **FU smoke** (#226, squash `a7ad767`): `SelectTrigger w-full` + dashboard con los 9 módulos en `QUICK_LINKS` + badge trial `pr-12 md:pr-4` (esquiva la X del Sheet).
 - **T4 FU2 · select min-w-0** (#227, squash `dd4d377`): `SelectTrigger min-w-0` — el `w-full` solo no alcanzaba; `min-w-0` es el que deja truncar selects con valor largo en grid/flex.
 
+## T-128 ✅ Selector de puesto del catálogo en el form de empleado (+ crear inline) — EN PROD
+
+El campo "Puesto" del form de empleado pasó de texto libre a **selector del catálogo** (`puesto_id` → `empleados_puestos`), single, opcional, con búsqueda (combobox Popover+Input estilo `ClienteAutocomplete`, sin cmdk) + "crear puesto nuevo" inline (solo owners, reusa `createPuestoAction`).
+
+- **Sincronía-puente**: la action sigue escribiendo el nombre del puesto en la columna legacy `empleados.puesto`, atómico dentro del INSERT/UPDATE; el join `empleados_puestos` es el único write separado, con éxito-y-warning (sin RPC: `empleados` no tiene policy DELETE → no hay compensación posible).
+- **Edición**: espejo single, read-only si el empleado tiene ≥2 puestos (la ficha es la fuente de la gestión multi); re-check server-side defensivo.
+- Sin migración SQL. PR #231.
+
+## T-129 fase A ✅ Migrar consumers de `puesto` al catálogo + backfill — EN PROD
+
+Consumers cortados del legacy `empleados.puesto` → catálogo, vía helper `getEmpleadoPuestosLabel` (nombres del catálogo concatenados, excluye archivados, `null` si no hay): informe de accidente (`puesto_afectado`), planilla Res 299/11 (`puestos_label`), asistente `buscar_empleado` (ya no expone puesto), detalle (sin Field "Puesto") + list card. `EmpleadoSummary` + las 3 búsquedas sin `puesto`.
+
+- **Migración `20260608000001`**: función `backfill_empleados_puestos_from_legacy(p_consultora_id)` idempotente, best-effort, `security definer`, `service_role`. `db push` a prod ejecutado como gate (diff validado por el orquestador): **no-op verificado** (a_migrar 0→0, asignaciones/puestos 4→4; los empleados con puesto texto ya estaban asignados desde T-128).
+- **Decisiones de producto**: concatenar nombres; quitar puesto de búsquedas/autocompletes/asistente; migrar datos best-effort.
+- **Queda T-129 fase B** (segundo PR del mismo ticket, NO T-130 — reservado): drop de `empleados.puesto` + de la función backfill + del puente de `empleados/actions.ts` + `db:types` completo (ahí despierta el skew PostgREST, ver sección abajo) + actualizar los tests que hoy asertan el puente (`empleados-rls.test.ts:605`, `empleados-actions.test.ts` test 8, e2e crud). Reconfirmar el conteo de empleados con `puesto` texto en prod antes del drop. PR #232, merge `049cd26`.
+
 ## T-127 Tanda 7 🔜 pulido
 
 Lo único pendiente de T-127: pulido de tipografía/densidad + barrido de headers compartidos + guard anti-drift del dashboard (`QUICK_LINKS` ↔ `NAV_ITEMS`, fuente única + test-meta). El owner sigue cuando quiera.
