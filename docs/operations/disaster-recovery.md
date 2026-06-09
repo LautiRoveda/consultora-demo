@@ -14,7 +14,7 @@ Qué se backupea automáticamente y qué requiere acción manual:
 | Componente | Backup automático | Frecuencia | Retención | Acción manual requerida |
 |---|---|---|---|---|
 | **DB Postgres** (Supabase) | ❌ **NO** (Free no incluye backups ni PITR — ver §2) | — | — | `pnpm backup:db` (pg_dump) mensual + subir a Drive |
-| **Storage buckets** (`consultora-logos`, `informe-attachments`, `epp-firmas`) | ❌ NO | — | — | `pnpm backup:storage` mensual + subir a Drive |
+| **Storage buckets** (`consultora-logos`, `informe-attachments`, `epp-firmas`, `checklist-firmas`, `checklist-adjuntos`) | ❌ NO | — | — | `pnpm backup:storage` mensual + subir a Drive |
 | **Secrets EasyPanel** (~30 env vars) | ❌ NO | — | — | Export manual al rotar + password manager personal |
 | **Vault Supabase** (`cron_dispatch_secret`, `cron_dispatch_base_url`) | ❌ NO | — | — | Copy/paste manual al rotar (cada 6 meses, lesson T-031) |
 | **Configuración EasyPanel** (service spec, env vars set) | ❌ NO | — | — | Documentado en ADR-0007 + screenshots periódicos |
@@ -23,7 +23,7 @@ Qué se backupea automáticamente y qué requiere acción manual:
 **Critical gap actual (DOBLE):** en Free Tier **ni la DB ni el Storage se backupean automáticamente**.
 
 - **DB**: Supabase Free NO tiene backups automáticos, NO tiene PITR y NO ofrece restore desde el dashboard (la sección _Backups_ aparece vacía — confirmado en T-111 F2). El **único** respaldo de la DB es el dump manual de §2 (`pnpm backup:db`). Sin correrlo, un incidente = pérdida total de data.
-- **Storage**: si un bucket se borra con service-role o la cuenta se compromete, los logos + adjuntos de informes + **las firmas legales de entregas EPP (Res SRT 299/11, bucket `epp-firmas`)** se pierden. Por eso §3 es no-negociable mensual.
+- **Storage**: si un bucket se borra con service-role o la cuenta se compromete, los logos + adjuntos de informes + **las firmas legales de entregas EPP (Res SRT 299/11, bucket `epp-firmas`)** + **las firmas y fotos de inspecciones RGRL (Res SRT 463/09, buckets `checklist-firmas` y `checklist-adjuntos`)** se pierden. Por eso §3 es no-negociable mensual.
 
 ---
 
@@ -149,6 +149,7 @@ Borrar los intermedios después de los 6 meses si Drive se llena.
 | `SUPABASE_SERVICE_ROLE_KEY` | **CRÍTICO** | Cada 12 meses o tras leak |
 | `ANTHROPIC_API_KEY` | **CRÍTICO** | Cada 12 meses o tras leak |
 | `ANTHROPIC_EPP_SUGGEST_MODEL` | Bajo (no secreto) | Si cambiás el modelo del sugeridor EPP (default Haiku 4.5, T-106) |
+| `ANTHROPIC_CHAT_MODEL` | Bajo (no secreto) | Si cambiás el modelo del asistente IA de EPP (default Haiku 4.5, T-117) |
 | `RESEND_API_KEY` | Alto | Cada 12 meses o tras leak |
 | `RESEND_FROM_ADDRESS` | Bajo | Si cambia dominio email |
 | `RESEND_REPLY_TO_ADDRESS` | Bajo | Si cambia política reply-to |

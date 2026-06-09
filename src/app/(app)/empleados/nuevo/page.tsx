@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { getClienteById } from '@/app/(app)/clientes/queries';
+import { listPuestos } from '@/app/(app)/epp/catalogo/queries';
+import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { createClient } from '@/shared/supabase/server';
 import { Card, CardContent } from '@/shared/ui/card';
 
@@ -32,8 +34,17 @@ export default async function NuevoEmpleadoPage({
   const clienteId = sp.cliente_id?.trim();
   if (!clienteId) redirect('/empleados');
 
+  const consultora = await getCurrentConsultora(supabase, user.id);
+  if (!consultora) redirect('/empleados');
+
   const cliente = await getClienteById(supabase, clienteId);
   if (!cliente) notFound();
+
+  // T-128 · catálogo activo de puestos del tenant para el selector del form.
+  const catalogoPuestos = (await listPuestos(supabase)).map((p) => ({
+    id: p.id,
+    nombre: p.nombre,
+  }));
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -59,6 +70,8 @@ export default async function NuevoEmpleadoPage({
             mode="create"
             clienteId={cliente.id}
             clienteRazonSocial={cliente.razon_social}
+            catalogoPuestos={catalogoPuestos}
+            canCrearPuesto={consultora.role === 'owner'}
           />
         </CardContent>
       </Card>

@@ -41,6 +41,13 @@ export const envSchema = z.object({
   // var — el resto sigue usando CLAUDE_MODEL (Sonnet 4.6) hardcoded.
   ANTHROPIC_EPP_SUGGEST_MODEL: z.string().min(1).default('claude-haiku-4-5-20251001'),
 
+  // T-117 · Modelo Claude del asistente IA contextual de EPP (/api/asistente).
+  // Default Haiku 4.5 (cheap+fast, ideal para el loop de tool-calling sobre
+  // queries de empleados/EPP). Override en EasyPanel a 'claude-sonnet-4-6' si el
+  // muestreo de feedback dice que la calidad de Haiku no alcanza. Mismo patrón
+  // que ANTHROPIC_EPP_SUGGEST_MODEL.
+  ANTHROPIC_CHAT_MODEL: z.string().min(1).default('claude-haiku-4-5-20251001'),
+
   // Resend API (T-031). Server-only — leak = spam ajeno + cuenta suspendida.
   RESEND_API_KEY: z.string().min(1),
 

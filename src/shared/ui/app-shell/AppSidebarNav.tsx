@@ -14,8 +14,27 @@ type AppSidebarNavProps = {
   onNavigate?: () => void;
 };
 
+/**
+ * Href del item activo = el de prefijo coincidente MÁS LARGO (most-specific-match-wins).
+ * Sin esto, una ruta anidada como `/checklists/ejecuciones/<id>` activaría tanto
+ * "Checklists" (href `/checklists`) como "Inspecciones" (href `/checklists/ejecuciones`),
+ * porque ambos son prefijos. El más específico gana → solo uno queda activo.
+ */
+export function resolveActiveHref(pathname: string): string | null {
+  let best: string | null = null;
+  for (const item of NAV_ITEMS) {
+    if (item.status !== 'live') continue;
+    const matches = pathname === item.href || pathname.startsWith(`${item.href}/`);
+    if (matches && (best === null || item.href.length > best.length)) {
+      best = item.href;
+    }
+  }
+  return best;
+}
+
 export function AppSidebarNav({ onNavigate }: AppSidebarNavProps) {
   const pathname = usePathname();
+  const activeHref = resolveActiveHref(pathname);
 
   return (
     <nav aria-label="Navegación principal" className="flex-1 px-3 py-2">
@@ -23,7 +42,7 @@ export function AppSidebarNav({ onNavigate }: AppSidebarNavProps) {
         {NAV_ITEMS.map((item) => (
           <li key={item.href}>
             {item.status === 'live' ? (
-              <LiveItem item={item} pathname={pathname} onNavigate={onNavigate} />
+              <LiveItem item={item} isActive={item.href === activeHref} onNavigate={onNavigate} />
             ) : (
               <SoonItem item={item} />
             )}
@@ -36,14 +55,13 @@ export function AppSidebarNav({ onNavigate }: AppSidebarNavProps) {
 
 function LiveItem({
   item,
-  pathname,
+  isActive,
   onNavigate,
 }: {
   item: NavItem;
-  pathname: string;
+  isActive: boolean;
   onNavigate?: () => void;
 }) {
-  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
   const Icon = item.icon;
 
   return (

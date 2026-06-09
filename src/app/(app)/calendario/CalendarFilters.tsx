@@ -90,7 +90,7 @@ export function CalendarFilters({ value, onChange }: Props) {
           <Button
             type="button"
             variant="ghost"
-            size="icon"
+            size="none"
             onClick={() => removeTipoBadge(t)}
             className="h-4 w-4 hover:bg-transparent"
             aria-label={`Quitar filtro tipo ${EVENT_TIPO_LABELS[t]}`}
@@ -106,7 +106,7 @@ export function CalendarFilters({ value, onChange }: Props) {
             <Button
               type="button"
               variant="ghost"
-              size="icon"
+              size="none"
               onClick={() => removeStatusBadge(s)}
               className="h-4 w-4 hover:bg-transparent"
               aria-label={`Quitar filtro estado ${EVENT_STATUS_LABELS[s]}`}

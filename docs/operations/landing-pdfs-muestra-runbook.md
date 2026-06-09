@@ -224,14 +224,14 @@ Una vez que tenés los 6 archivos en `Downloads/` o donde los guardaste:
 
 ```pwsh
 # Asumiendo archivos en C:\Users\lauta\Downloads\
-Copy-Item C:\Users\lauta\Downloads\demo-*.pdf C:\Users\lauta\OneDrive\Documentos\consultora-demo\public\landing\ -Force
-Copy-Item C:\Users\lauta\Downloads\demo-*-preview.png C:\Users\lauta\OneDrive\Documentos\consultora-demo\public\landing\ -Force
+Copy-Item C:\Users\lauta\Downloads\demo-*.pdf C:\proyecto\consultora-demo\public\landing\ -Force
+Copy-Item C:\Users\lauta\Downloads\demo-*-preview.png C:\proyecto\consultora-demo\public\landing\ -Force
 ```
 
 Verificá que los 6 archivos están en `public/landing/`:
 
 ```pwsh
-ls C:\Users\lauta\OneDrive\Documentos\consultora-demo\public\landing\
+ls C:\proyecto\consultora-demo\public\landing\
 ```
 
 Esperado:

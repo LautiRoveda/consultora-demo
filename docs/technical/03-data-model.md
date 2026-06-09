@@ -525,32 +525,65 @@ create policy chk_exec_consultora on checklist_executions for all
   with check (consultora_id in (select consultora_id from consultora_users where user_id = auth.uid()));
 ```
 
-### M10 · Accidentabilidad (mínimo Fase 1)
+### M10 · Accidentabilidad — libro de incidentes (T-062 ✅)
+
+Implementado en T-062 (UI T-063 + pulido T-063-FU1, en prod). Schema en español;
+**append-only por RLS**: corrección = registro nuevo que supersede vía `corrige_id`,
+anulación = tombstone (`anulacion=true`), vigencia DERIVADA por la vista
+`incidentes_vigentes`. `enfermedad` queda fuera (lógica legal propia → ticket aparte).
+Fuente de verdad: `supabase/migrations/20260602000001_t062_incidentes.sql`.
 
 ```sql
-create table incidents (
-  id                  uuid primary key default gen_random_uuid(),
-  consultora_id       uuid not null references consultoras(id) on delete cascade,
-  establecimiento_id  uuid references establecimientos(id),
-  fecha               date not null,
-  tipo                text not null,  -- 'accidente' | 'casi_accidente' | 'enfermedad'
-  gravedad            text not null,  -- 'leve' | 'grave' | 'mortal'
-  dias_perdidos       int default 0,
-  causa_raiz          text,
-  empleado_id         uuid references empleados(id),
-  descripcion         text not null,
-  metadata            jsonb,
-  created_at          timestamptz not null default now(),
-  created_by          uuid references auth.users(id)
+create type public.tipo_incidente     as enum ('casi_accidente', 'accidente');
+create type public.gravedad_incidente as enum ('leve', 'grave', 'mortal');
+
+create table public.incidentes (
+  id                uuid primary key default gen_random_uuid(),
+  consultora_id     uuid not null references consultoras(id) on delete cascade,
+  cliente_id        uuid references clientes(id)  on delete restrict,  -- "dónde ocurrió" (nullable)
+  empleado_id       uuid references empleados(id) on delete restrict,  -- víctima (nullable)
+  tipo              public.tipo_incidente not null,
+  fecha             date not null,
+  hora              time,
+  lugar_especifico  text check (lugar_especifico is null or length(trim(lugar_especifico)) between 3 and 200),
+  descripcion       text not null check (length(trim(descripcion)) between 10 and 4000),
+  causa_raiz        text check (causa_raiz is null or length(trim(causa_raiz)) between 1 and 4000),
+  accion_inmediata  text check (accion_inmediata is null or length(trim(accion_inmediata)) between 1 and 2000),
+  gravedad          public.gravedad_incidente,
+  dias_perdidos     int check (dias_perdidos is null or dias_perdidos between 0 and 3650),
+  informe_id        uuid references informes(id)   on delete set null, -- link opcional al informe IA (T-075)
+  corrige_id        uuid references incidentes(id) on delete set null, -- supersede al registro referenciado
+  anulacion         boolean not null default false,
+  created_by        uuid references auth.users(id) on delete set null,
+  created_at        timestamptz not null default now(),
+  -- coherencia tipo<->gravedad: accidente exige gravedad; casi_accidente no lleva lesión
+  constraint incidentes_gravedad_por_tipo check (
+    (tipo = 'accidente' and gravedad is not null)
+    or (tipo = 'casi_accidente' and gravedad is null and (dias_perdidos is null or dias_perdidos = 0))
+  ),
+  constraint incidentes_anulacion_requiere_corrige check (anulacion = false or corrige_id is not null)
 );
 
-create index idx_incidents_consultora_fecha on incidents(consultora_id, fecha desc);
+-- Cadena lineal de correcciones: un registro se corrige/anula a lo sumo una vez.
+create unique index uq_incidentes_corrige on incidentes(corrige_id) where corrige_id is not null;
+create index idx_incidentes_consultora_fecha on incidentes(consultora_id, fecha desc);
 
-alter table incidents enable row level security;
+-- Append-only por RLS: SELECT + INSERT con helpers T-015, SIN policy UPDATE/DELETE.
+alter table public.incidentes enable row level security;
 
-create policy incidents_consultora on incidents for all
-  using (consultora_id in (select consultora_id from consultora_users where user_id = auth.uid()))
-  with check (consultora_id in (select consultora_id from consultora_users where user_id = auth.uid()));
+create policy incidentes_select_own on incidentes for select
+  using (public.is_member_of_consultora(consultora_id));
+
+create policy incidentes_insert_own on incidentes for insert
+  with check (public.is_member_of_consultora(consultora_id) and created_by = auth.uid());
+
+-- Audit AFTER insert/update/delete -> audit_log (created | corrected | annulled), sin abortar.
+
+-- Vista de vigentes (head de cada cadena): no anulado y nadie lo supersede.
+create view public.incidentes_vigentes with (security_invoker = true) as
+  select i.* from public.incidentes i
+  where i.anulacion = false
+    and not exists (select 1 from public.incidentes s where s.corrige_id = i.id);
 ```
 
 ### M14 · Pagos
@@ -643,6 +676,70 @@ create policy invoices_consultora on invoices for select
 create policy ai_usage_consultora on ai_usage_log for select
   using (consultora_id in (select consultora_id from consultora_users where user_id = auth.uid() and rol = 'admin'));
 ```
+
+### Asistente IA · chat (T-126)
+
+Persistencia del chat del asistente IA. Implementado en T-126 — fuente de verdad:
+`supabase/migrations/20260606000001_t126_chat_persistence.sql`. Particularidades vs el resto del
+schema: **RLS per-user** (no tenant-shared — dos members de la misma consultora NO se ven los chats
+entre sí), **FK compuesta Ring A** (T-121), `seq` identity como tiebreaker de orden, **soft-delete**
+(`archived_at`), **sin audit trigger** (dato UX-privado, no dominio de compliance HyS), mensajes
+**append-only** (sin policies UPDATE/DELETE → solo INSERT + borrado por cascade de la conversación).
+
+```sql
+create table public.chat_conversaciones (
+  id            uuid primary key default gen_random_uuid(),
+  consultora_id uuid not null references public.consultoras(id) on delete cascade,
+  user_id       uuid not null references auth.users(id) on delete cascade,
+  titulo        text not null check (length(trim(titulo)) between 1 and 120),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  archived_at   timestamptz,                          -- soft delete (archivar desde el historial)
+  unique (id, consultora_id)                          -- destino del FK compuesto (Ring A, T-121)
+);
+
+create table public.chat_mensajes (
+  id              uuid primary key default gen_random_uuid(),
+  conversacion_id uuid not null,
+  consultora_id   uuid not null,
+  user_id         uuid not null,
+  role            text not null check (role in ('user', 'assistant')),
+  content         text not null check (length(content) between 1 and 8000),
+  created_at      timestamptz not null default now(),
+  seq             bigint generated always as identity, -- tiebreaker: user+assistant comparten created_at
+  -- FK COMPUESTA Ring A (T-121): garantiza que consultora_id del mensaje == el de su conversación.
+  foreign key (conversacion_id, consultora_id)
+    references public.chat_conversaciones (id, consultora_id) on delete cascade
+);
+
+alter table public.chat_conversaciones enable row level security;
+alter table public.chat_mensajes        enable row level security;
+
+-- RLS PER-USER en ambas: el dueño del chat es el user, no la consultora.
+create policy chat_conversaciones_select_own on public.chat_conversaciones for select
+  using (public.is_member_of_consultora(consultora_id) and user_id = auth.uid());
+create policy chat_conversaciones_insert_own on public.chat_conversaciones for insert
+  with check (public.is_member_of_consultora(consultora_id) and user_id = auth.uid());
+create policy chat_conversaciones_update_own on public.chat_conversaciones for update
+  using (public.is_member_of_consultora(consultora_id) and user_id = auth.uid())
+  with check (public.is_member_of_consultora(consultora_id) and user_id = auth.uid());
+-- sin DELETE policy: hard-delete solo via cascade de la consultora.
+
+create policy chat_mensajes_select_own on public.chat_mensajes for select
+  using (public.is_member_of_consultora(consultora_id) and user_id = auth.uid());
+create policy chat_mensajes_insert_own on public.chat_mensajes for insert
+  with check (
+    public.is_member_of_consultora(consultora_id) and user_id = auth.uid()
+    and exists (select 1 from public.chat_conversaciones c
+                where c.id = conversacion_id and c.user_id = auth.uid())
+  );
+-- sin UPDATE/DELETE: mensajes append-only (inmutabilidad efectiva por ausencia de policy).
+```
+
+**Persistencia client-driven (Option C):** la route de streaming (`POST /api/asistente`) NO escribe
+en estas tablas — el cliente persiste el turno que mostró vía la server action `persistChatTurnAction`
+(`src/app/(app)/asistente/actions.ts`); el orquestador/route quedan intactos. Detalle del flujo en
+la entrada de T-126 en `docs/sprints/operativo.md`.
 
 ### Tablas de fases siguientes (placeholders)
 

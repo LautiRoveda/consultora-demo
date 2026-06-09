@@ -138,14 +138,16 @@ describe('getBillingStatus · gate ENFORCED (default)', () => {
     expect(status.reason).toBe('SUBSCRIPTION_CANCELLED');
   });
 
-  it('suscripción cancelada sin cancelar_en → ok (período aún no terminó, defensa)', async () => {
+  it('suscripción cancelada sin cancelar_en → SUBSCRIPTION_CANCELLED (T-124: churn por falta de pago, bloquea)', async () => {
     const { getBillingStatus } = await import('@/shared/billing/access');
     const status = getBillingStatus(
       makeConsultora(),
       makeSub({ estado: 'cancelada', cancelar_en: null }),
       NOW,
     );
-    expect(status.ok).toBe(true);
+    expect(status.ok).toBe(false);
+    if (status.ok) return;
+    expect(status.reason).toBe('SUBSCRIPTION_CANCELLED');
   });
 
   it('frontera: trial_hasta exactamente igual a now → ok (< es estricto)', async () => {

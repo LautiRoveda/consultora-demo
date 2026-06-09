@@ -7,12 +7,12 @@ import { formatCivilDateEs, formatDateEs, formatDni, isArchived } from './labels
 
 /**
  * Densidad fija: placeholders `'—'` en cada slot vacío (matchea pattern T-049
- * `ClienteListCard`). Header: apellido, nombre. Subline: DNI · puesto. Tercera
- * línea: fecha de ingreso.
+ * `ClienteListCard`). Header: apellido, nombre. Subline: DNI. Tercera línea:
+ * fecha de ingreso. (T-129: el puesto se sacó del subline — vive en el catálogo,
+ * visible en el detalle; la lista desambigua por nombre + DNI.)
  */
 export function EmpleadoListCard({ empleado }: { empleado: EmpleadoRow }) {
   const dniDisplay = formatDni(empleado.dni);
-  const puesto = empleado.puesto ?? '—';
   const fechaIngreso = empleado.fecha_ingreso ? formatCivilDateEs(empleado.fecha_ingreso) : '—';
 
   return (
@@ -25,9 +25,7 @@ export function EmpleadoListCard({ empleado }: { empleado: EmpleadoRow }) {
           <p className="text-foreground font-medium">
             {empleado.apellido}, {empleado.nombre}
           </p>
-          <p className="text-muted-foreground text-sm">
-            DNI {dniDisplay} · {puesto}
-          </p>
+          <p className="text-muted-foreground text-sm">DNI {dniDisplay}</p>
           <p className="text-muted-foreground text-xs">Ingreso: {fechaIngreso}</p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">

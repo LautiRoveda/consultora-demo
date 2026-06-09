@@ -313,7 +313,10 @@ export function EventForm(props: Props) {
                     <SelectValue placeholder="Elegí un tipo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {EVENT_TIPO_VALUES.map((t) => (
+                    {/* accion_correctiva es system-generated (la inyecta la RPC al
+                        cerrar una inspección RGRL, T-057) → no se ofrece como tipo
+                        creable a mano. */}
+                    {EVENT_TIPO_VALUES.filter((t) => t !== 'accion_correctiva').map((t) => (
                       <SelectItem key={t} value={t}>
                         {EVENT_TIPO_LABELS[t]}
                       </SelectItem>

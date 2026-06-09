@@ -6,7 +6,6 @@ import { Trash2 } from 'lucide-react';
 import { useWatch } from 'react-hook-form';
 
 import { Button } from '@/shared/ui/button';
-import { Card, CardContent } from '@/shared/ui/card';
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/shared/ui/form';
 import { Input } from '@/shared/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select';
@@ -67,128 +66,129 @@ export function EntregaItemsBuilder({ form, fieldArray, itemsCatalog }: Props) {
         const requiresSerial = selectedItem?.requiere_numero_serie ?? false;
 
         return (
-          <Card key={field.id}>
-            <CardContent className="grid gap-3 pt-6">
-              <div className="flex items-start justify-between gap-2">
-                <div className="text-sm font-medium">Item #{idx + 1}</div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => remove(idx)}
-                  aria-label={`Quitar item ${idx + 1}`}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </div>
+          // De-anidamos la Card por item: el doble padding (Card + CardContent pt-6) comía
+          // ancho en mobile. Un div plano (mismo molde que el stack de EntregaDetailView)
+          // deja más espacio para los campos.
+          <div key={field.id} className="grid gap-3 rounded-md border p-3 sm:p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="text-sm font-medium">Item #{idx + 1}</div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => remove(idx)}
+                aria-label={`Quitar item ${idx + 1}`}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
 
-              <ItemSelectField control={form.control} idx={idx} itemsCatalog={itemsCatalog} />
+            <ItemSelectField control={form.control} idx={idx} itemsCatalog={itemsCatalog} />
 
-              <div className="grid grid-cols-2 gap-3">
-                <FormField
-                  control={form.control}
-                  name={`items.${idx}.cantidad`}
-                  render={({ field: f }) => (
-                    <FormItem>
-                      <FormLabel>Cantidad</FormLabel>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name={`items.${idx}.cantidad`}
+                render={({ field: f }) => (
+                  <FormItem>
+                    <FormLabel>Cantidad</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={f.value ?? 1}
+                        onChange={(e) => f.onChange(Number(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name={`items.${idx}.motivo_entrega`}
+                render={({ field: f }) => (
+                  <FormItem>
+                    <FormLabel>Motivo</FormLabel>
+                    <Select onValueChange={f.onChange} value={f.value}>
                       <FormControl>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={100}
-                          value={f.value ?? 1}
-                          onChange={(e) => f.onChange(Number(e.target.value))}
-                        />
+                        <SelectTrigger>
+                          <SelectValue placeholder="Elegir motivo" />
+                        </SelectTrigger>
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                      <SelectContent>
+                        {MOTIVO_ENTREGA_VALUES.map((v) => (
+                          <SelectItem key={v} value={v}>
+                            {MOTIVO_LABELS[v]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-                <FormField
-                  control={form.control}
-                  name={`items.${idx}.motivo_entrega`}
-                  render={({ field: f }) => (
-                    <FormItem>
-                      <FormLabel>Motivo</FormLabel>
-                      <Select onValueChange={f.onChange} value={f.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Elegir motivo" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {MOTIVO_ENTREGA_VALUES.map((v) => (
-                            <SelectItem key={v} value={v}>
-                              {MOTIVO_LABELS[v]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+            {requiresSerial && (
+              <FormField
+                control={form.control}
+                name={`items.${idx}.numero_serie`}
+                render={({ field: f }) => (
+                  <FormItem>
+                    <FormLabel>Número de serie (obligatorio)</FormLabel>
+                    <FormControl>
+                      <Input {...f} value={f.value ?? ''} placeholder="Ej. AR-2026-00123" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
-              {requiresSerial && (
-                <FormField
-                  control={form.control}
-                  name={`items.${idx}.numero_serie`}
-                  render={({ field: f }) => (
-                    <FormItem>
-                      <FormLabel>Número de serie (obligatorio)</FormLabel>
-                      <FormControl>
-                        <Input {...f} value={f.value ?? ''} placeholder="Ej. AR-2026-00123" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <FormField
-                  control={form.control}
-                  name={`items.${idx}.marca_entregada`}
-                  render={({ field: f }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Marca <span className="text-muted-foreground">(opcional)</span>
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          {...f}
-                          value={f.value ?? ''}
-                          placeholder={selectedItem?.marca_default ?? 'Marca'}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name={`items.${idx}.modelo_entregado`}
-                  render={({ field: f }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Modelo <span className="text-muted-foreground">(opcional)</span>
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          {...f}
-                          value={f.value ?? ''}
-                          placeholder={selectedItem?.modelo_default ?? 'Modelo'}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name={`items.${idx}.marca_entregada`}
+                render={({ field: f }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Marca <span className="text-muted-foreground">(opcional)</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        {...f}
+                        value={f.value ?? ''}
+                        placeholder={selectedItem?.marca_default ?? 'Marca'}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name={`items.${idx}.modelo_entregado`}
+                render={({ field: f }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Modelo <span className="text-muted-foreground">(opcional)</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        {...f}
+                        value={f.value ?? ''}
+                        placeholder={selectedItem?.modelo_default ?? 'Modelo'}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
         );
       })}
 

@@ -12,6 +12,7 @@ import { createClient } from '@/shared/supabase/server';
 import { normalizeCuit } from '@/shared/templates/common/cuit';
 import { normalizeDni } from '@/shared/templates/common/dni';
 
+import { resolveActivePuestoForTenant } from './[id]/puestos/puesto-lookup';
 import { createEmpleadoSchema, empleadoIdSchema, updateEmpleadoPatchSchema } from './schema';
 
 type EmpleadoUpdate = Database['public']['Tables']['empleados']['Update'];
@@ -23,8 +24,12 @@ const DNI_UNIQUE_INDEX = 'idx_empleados_consultora_cliente_dni';
 
 // ============ Discriminated unions ============
 
+// `puestoWarning`: el empleado se creó/editó OK, pero el INSERT al join
+// `empleados_puestos` falló (caso raro, transitorio) → el empleado quedó sin el
+// puesto asignado. El form avisa con toast.warning y el user puede re-asignar
+// desde la ficha. NO es un error fatal — `ok` sigue siendo `true` (T-128).
 export type CreateEmpleadoResult =
-  | { ok: true; empleadoId: string }
+  | { ok: true; empleadoId: string; puestoWarning?: true }
   | {
       ok: false;
       code: 'INVALID_INPUT';
@@ -50,13 +55,19 @@ export type CreateEmpleadoResult =
     }
   | {
       ok: false;
+      code: 'PUESTO_NOT_FOUND';
+      fieldErrors: { puesto_id: string[] };
+      message: string;
+    }
+  | {
+      ok: false;
       code: 'BILLING_GATED';
       reason: BillingGateReason;
       message: string;
     };
 
 export type UpdateEmpleadoResult =
-  | { ok: true; empleadoId: string }
+  | { ok: true; empleadoId: string; puestoWarning?: true }
   | {
       ok: false;
       code: 'INVALID_INPUT';
@@ -72,6 +83,12 @@ export type UpdateEmpleadoResult =
       ok: false;
       code: 'DUPLICATE_DNI';
       fieldErrors: { dni: string[] };
+      message: string;
+    }
+  | {
+      ok: false;
+      code: 'PUESTO_NOT_FOUND';
+      fieldErrors: { puesto_id: string[] };
       message: string;
     };
 
@@ -205,14 +222,30 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
     };
   }
 
-  const normalizedDni = normalizeDni(parsed.data.dni);
-  const normalizedCuil =
-    typeof parsed.data.cuil === 'string' ? normalizeCuit(parsed.data.cuil) : undefined;
+  // T-128 · `puesto_id` (uuid del catálogo) NO es columna de `empleados` —
+  // lo sacamos del spread del INSERT. Si viene, validamos ANTES de crear el
+  // empleado (puesto inválido/ajeno/archivado → no creamos orphan); la
+  // asignación vive en el join `empleados_puestos` (más abajo).
+  const { puesto_id, ...rest } = parsed.data;
+  if (puesto_id) {
+    const puesto = await resolveActivePuestoForTenant(supabase, puesto_id);
+    if (!puesto) {
+      return {
+        ok: false,
+        code: 'PUESTO_NOT_FOUND',
+        fieldErrors: { puesto_id: ['El puesto elegido no está disponible.'] },
+        message: 'El puesto elegido no está disponible. Actualizá la página y reintentá.',
+      };
+    }
+  }
+
+  const normalizedDni = normalizeDni(rest.dni);
+  const normalizedCuil = typeof rest.cuil === 'string' ? normalizeCuit(rest.cuil) : undefined;
 
   const { data, error } = await supabase
     .from('empleados')
     .insert({
-      ...parsed.data,
+      ...rest,
       dni: normalizedDni,
       ...(normalizedCuil !== undefined ? { cuil: normalizedCuil } : {}),
       consultora_id: consultora.id,
@@ -266,6 +299,34 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
     };
   }
 
+  // Join estructurado `empleados_puestos`: la asignación del puesto es un write
+  // separado del INSERT del empleado. Falla con prob ~0 (puesto pre-validado
+  // activo+tenant, consultora_id del contexto, asignado_por=self, PK fresca). Si
+  // igual falla, NO es fatal: el empleado ya existe → ok:true + puestoWarning, y
+  // el user re-asigna el puesto desde la ficha (T-128).
+  let puestoWarning = false;
+  if (puesto_id) {
+    const { error: joinError } = await supabase.from('empleados_puestos').insert({
+      empleado_id: data.id,
+      puesto_id,
+      consultora_id: consultora.id,
+      asignado_por: user.id,
+    });
+    if (joinError && joinError.code !== UNIQUE_VIOLATION_CODE) {
+      logger.error(
+        {
+          err: joinError,
+          userId: user.id,
+          consultoraId: consultora.id,
+          empleadoId: data.id,
+          puesto_id,
+        },
+        'createEmpleadoAction: join insert failed (empleado creado, asignación de puesto pendiente)',
+      );
+      puestoWarning = true;
+    }
+  }
+
   revalidatePath('/empleados');
   revalidatePath(`/clientes/${parsed.data.cliente_id}`);
   logger.info(
@@ -278,7 +339,7 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
     },
     'createEmpleadoAction: created',
   );
-  return { ok: true, empleadoId: data.id };
+  return { ok: true, empleadoId: data.id, ...(puestoWarning ? { puestoWarning: true } : {}) };
 }
 
 export async function updateEmpleadoAction(
@@ -345,7 +406,11 @@ export async function updateEmpleadoAction(
     };
   }
 
-  const payload: EmpleadoUpdate = { ...patchParsed.data };
+  // T-128 · `puesto_id` (uuid del catálogo) NO es columna de `empleados` —
+  // fuera del payload del UPDATE. Decidimos el plan de sync del join
+  // `empleados_puestos` ANTES de mutar.
+  const { puesto_id, ...rest } = patchParsed.data;
+  const payload: EmpleadoUpdate = { ...rest };
   if (typeof payload.dni === 'string') {
     payload.dni = normalizeDni(payload.dni);
   }
@@ -353,57 +418,156 @@ export async function updateEmpleadoAction(
     payload.cuil = normalizeCuit(payload.cuil);
   }
 
-  const { data, error } = await supabase
-    .from('empleados')
-    .update(payload)
-    .eq('id', empleadoId)
-    .select('id')
-    .single();
+  // El form solo manda `puesto_id` cuando cambió (diffPatch). Espejo single:
+  // 0/1 puesto del catálogo → reemplaza el join; ≥2 puestos → read-only (la
+  // ficha es la fuente de la gestión multi), no tocamos joins. Re-check
+  // server-side defensivo ante página stale.
+  type JoinPlan = { action: 'none' } | { action: 'clear' } | { action: 'set'; puestoId: string };
+  let joinPlan: JoinPlan = { action: 'none' };
+  let asignadosCount = 0;
+  if ('puesto_id' in patchParsed.data) {
+    const { data: joins } = await supabase
+      .from('empleados_puestos')
+      .select('puesto_id')
+      .eq('empleado_id', empleadoId);
+    asignadosCount = joins?.length ?? 0;
 
-  if (isDniUniqueViolation(error)) {
-    const newDni = typeof payload.dni === 'string' ? payload.dni : 'el DNI enviado';
-    return {
-      ok: false,
-      code: 'DUPLICATE_DNI',
-      fieldErrors: { dni: ['Ya existe un empleado activo con este DNI en este cliente.'] },
-      message: `Ya existe un empleado activo con DNI ${newDni} en este cliente. Si lo reemplazás, archivá el anterior primero.`,
-    };
+    if (asignadosCount >= 2) {
+      // read-only ≥2: no tocar joins.
+    } else if (puesto_id) {
+      const puesto = await resolveActivePuestoForTenant(supabase, puesto_id);
+      if (!puesto) {
+        return {
+          ok: false,
+          code: 'PUESTO_NOT_FOUND',
+          fieldErrors: { puesto_id: ['El puesto elegido no está disponible.'] },
+          message: 'El puesto elegido no está disponible. Actualizá la página y reintentá.',
+        };
+      }
+      joinPlan = { action: 'set', puestoId: puesto.id };
+    } else {
+      // limpiar (puesto_id === null): quitar la asignación del join.
+      joinPlan = { action: 'clear' };
+    }
   }
 
-  if (error?.code === RLS_VIOLATION_CODE) {
-    logger.warn(
-      { userId: user.id, consultoraId: consultora.id, empleadoId, err: error.message },
-      'updateEmpleadoAction: RLS rejected update (drift — any-member gate expected)',
-    );
-    return {
-      ok: false,
-      code: 'INTERNAL_ERROR',
-      message: 'No se pudo actualizar el empleado. Reintentá en unos minutos.',
-    };
+  // UPDATE empleado — solo si hay algo que escribir. Con el selector read-only
+  // ≥2 (o un cambio de solo-puesto, que ahora vive en el join) y sin otros
+  // cambios, el payload puede quedar vacío.
+  if (Object.keys(payload).length > 0) {
+    const { data, error } = await supabase
+      .from('empleados')
+      .update(payload)
+      .eq('id', empleadoId)
+      .select('id')
+      .single();
+
+    if (isDniUniqueViolation(error)) {
+      const newDni = typeof payload.dni === 'string' ? payload.dni : 'el DNI enviado';
+      return {
+        ok: false,
+        code: 'DUPLICATE_DNI',
+        fieldErrors: { dni: ['Ya existe un empleado activo con este DNI en este cliente.'] },
+        message: `Ya existe un empleado activo con DNI ${newDni} en este cliente. Si lo reemplazás, archivá el anterior primero.`,
+      };
+    }
+
+    if (error?.code === RLS_VIOLATION_CODE) {
+      logger.warn(
+        { userId: user.id, consultoraId: consultora.id, empleadoId, err: error.message },
+        'updateEmpleadoAction: RLS rejected update (drift — any-member gate expected)',
+      );
+      return {
+        ok: false,
+        code: 'INTERNAL_ERROR',
+        message: 'No se pudo actualizar el empleado. Reintentá en unos minutos.',
+      };
+    }
+
+    if (error?.code === CHECK_VIOLATION_CODE) {
+      logger.warn(
+        { userId: user.id, consultoraId: consultora.id, empleadoId, err: error.message },
+        'updateEmpleadoAction: SQL CHECK violation (drift Zod-vs-SQL)',
+      );
+      return {
+        ok: false,
+        code: 'INTERNAL_ERROR',
+        message: 'Algún campo no cumple las restricciones. Revisá el formulario.',
+      };
+    }
+
+    if (error || !data) {
+      logger.error(
+        { err: error, userId: user.id, consultoraId: consultora.id, empleadoId },
+        'updateEmpleadoAction: update failed',
+      );
+      return {
+        ok: false,
+        code: 'INTERNAL_ERROR',
+        message: 'Hubo un error actualizando el empleado. Reintentá en unos minutos.',
+      };
+    }
   }
 
-  if (error?.code === CHECK_VIOLATION_CODE) {
-    logger.warn(
-      { userId: user.id, consultoraId: consultora.id, empleadoId, err: error.message },
-      'updateEmpleadoAction: SQL CHECK violation (drift Zod-vs-SQL)',
-    );
-    return {
-      ok: false,
-      code: 'INTERNAL_ERROR',
-      message: 'Algún campo no cumple las restricciones. Revisá el formulario.',
-    };
-  }
-
-  if (error || !data) {
-    logger.error(
-      { err: error, userId: user.id, consultoraId: consultora.id, empleadoId },
-      'updateEmpleadoAction: update failed',
-    );
-    return {
-      ok: false,
-      code: 'INTERNAL_ERROR',
-      message: 'Hubo un error actualizando el empleado. Reintentá en unos minutos.',
-    };
+  // Sync del join (write separado, no-fatal). Para reemplazar: INSERT del nuevo
+  // ANTES del DELETE del viejo — así un fallo del insert nunca deja al empleado
+  // con 0 joins. 23505 = ya asignado (idempotente).
+  let puestoWarning = false;
+  if (joinPlan.action === 'set') {
+    const { error: joinError } = await supabase.from('empleados_puestos').insert({
+      empleado_id: empleadoId,
+      puesto_id: joinPlan.puestoId,
+      consultora_id: consultora.id,
+      asignado_por: user.id,
+    });
+    if (joinError && joinError.code !== UNIQUE_VIOLATION_CODE) {
+      logger.error(
+        {
+          err: joinError,
+          userId: user.id,
+          consultoraId: consultora.id,
+          empleadoId,
+          puesto_id: joinPlan.puestoId,
+        },
+        'updateEmpleadoAction: join insert failed (asignación de puesto pendiente)',
+      );
+      puestoWarning = true;
+    } else if (asignadosCount === 1) {
+      // Reemplazo OK: quitar el puesto previo. Si el delete falla, el empleado
+      // queda con 2 joins (nuevo + viejo) — avisamos en vez de silenciarlo.
+      const { error: delError } = await supabase
+        .from('empleados_puestos')
+        .delete()
+        .eq('empleado_id', empleadoId)
+        .eq('consultora_id', consultora.id)
+        .neq('puesto_id', joinPlan.puestoId);
+      if (delError) {
+        logger.error(
+          {
+            err: delError,
+            userId: user.id,
+            consultoraId: consultora.id,
+            empleadoId,
+            puesto_id: joinPlan.puestoId,
+          },
+          'updateEmpleadoAction: join replace delete failed (puesto previo residual)',
+        );
+        puestoWarning = true;
+      }
+    }
+  } else if (joinPlan.action === 'clear' && asignadosCount === 1) {
+    const { error: delError } = await supabase
+      .from('empleados_puestos')
+      .delete()
+      .eq('empleado_id', empleadoId)
+      .eq('consultora_id', consultora.id);
+    if (delError) {
+      logger.error(
+        { err: delError, userId: user.id, consultoraId: consultora.id, empleadoId },
+        'updateEmpleadoAction: join clear failed (asignación residual)',
+      );
+      puestoWarning = true;
+    }
   }
 
   revalidatePath('/empleados');
@@ -419,7 +583,7 @@ export async function updateEmpleadoAction(
     },
     'updateEmpleadoAction: updated',
   );
-  return { ok: true, empleadoId };
+  return { ok: true, empleadoId, ...(puestoWarning ? { puestoWarning: true } : {}) };
 }
 
 export async function archiveEmpleadoAction(id: unknown): Promise<ArchiveEmpleadoResult> {

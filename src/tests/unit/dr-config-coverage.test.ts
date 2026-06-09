@@ -198,21 +198,21 @@ describe('guard: afirmaciones verificables del runbook DR vs repo (T-082-FU5)', 
     ).toEqual([]);
   });
 
-  it('sanity · el parser de src/env.ts captura las 27 keys esperadas', () => {
+  it('sanity · el parser de src/env.ts captura las 28 keys esperadas', () => {
     expect(
       envKeysFromSource().size,
-      'El parser de src/env.ts dejó de capturar 27 keys. O agregaste/sacaste una env var (en ese ' +
+      'El parser de src/env.ts dejó de capturar 28 keys. O agregaste/sacaste una env var (en ese ' +
         'caso actualizá la tabla §4 + este número), o el regex se rompió por un cambio de formato ' +
         '(indent ≠ 2 espacios). Revisá envKeysFromSource().',
-    ).toBe(27);
+    ).toBe(28);
   });
 
-  it('sanity · el parser de la tabla §4 captura las 26 vars esperadas', () => {
+  it('sanity · el parser de la tabla §4 captura las 27 vars esperadas', () => {
     expect(
       section4VarsFromRunbook().size,
-      'El parser de la tabla §4 dejó de capturar 26 vars. O editaste la tabla (actualizá este ' +
+      'El parser de la tabla §4 dejó de capturar 27 vars. O editaste la tabla (actualizá este ' +
         'número), o el scope/regex se rompió (¿renombraron el header §4/§5? ¿cambió el formato de fila?).',
-    ).toBe(26);
+    ).toBe(27);
   });
 
   it('allowlist no se pudre · ENV_NOT_IN_TABLE: cada entrada sigue en env.ts y fuera de §4', () => {

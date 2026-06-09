@@ -3,6 +3,7 @@ import 'server-only';
 import type { Database } from '@/shared/supabase/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { getEmpleadoPuestosLabel } from '@/app/(app)/empleados/queries';
 import { createSignedEppFirmaUrl } from '@/shared/storage/epp-firmas';
 
 export type EntregaRow = Database['public']['Tables']['epp_entregas']['Row'];
@@ -48,9 +49,10 @@ export type EntregaForPlanilla = EntregaRow & {
     apellido: string;
     dni: string | null;
     cuil: string | null;
-    puesto: string | null;
     fecha_ingreso: string | null;
   } | null;
+  /** T-129: puestos vigentes del catálogo concatenados (reemplaza `empleado.puesto`). */
+  puestos_label: string | null;
   cliente: {
     id: string;
     razon_social: string;
@@ -228,8 +230,8 @@ export async function getEntregaById(
  *
  * Mismo flow que `getEntregaById` pero con campos adicionales requeridos por
  * la planilla legal: CUIT/domicilio/localidad/provincia del cliente,
- * CUIL/puesto/fecha_ingreso del empleado, y normativa/categoría de cada item
- * del catálogo.
+ * CUIL/fecha_ingreso del empleado, los puestos del catálogo (T-129) y
+ * normativa/categoría de cada item del catálogo.
  *
  * RLS-aware. Cross-tenant entrega → null.
  */
@@ -241,7 +243,7 @@ export async function getEntregaForPlanilla(
     .from('epp_entregas')
     .select(
       '*, ' +
-        'empleado:empleados!inner(id, nombre, apellido, dni, cuil, puesto, fecha_ingreso), ' +
+        'empleado:empleados!inner(id, nombre, apellido, dni, cuil, fecha_ingreso), ' +
         'cliente:clientes!inner(id, razon_social, cuit, nombre_fantasia, domicilio, localidad, provincia)',
     )
     .eq('id', id)
@@ -280,10 +282,16 @@ export async function getEntregaForPlanilla(
   };
 
   const { empleado, cliente, ...rest } = e;
+
+  // T-129: puesto desde el catálogo (concatenado) en vez de `empleado.puesto`.
+  // Single-empleado → 1 query extra, sin N+1.
+  const puestos_label = empleado ? await getEmpleadoPuestosLabel(supabase, empleado.id) : null;
+
   return {
     ...rest,
     empleado,
     cliente,
+    puestos_label,
     items,
   };
 }
