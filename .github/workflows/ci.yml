@@ -367,7 +367,10 @@ jobs:
       # verifica el gate de abajo). NUNCA usa --linked → imposible tocar prod. Falla el
       # job si la suite falla (el script propaga el exit code).
       - name: E2E tests (Supabase local efímero)
-        run: pnpm test:e2e:local
+        # T-132 TEMP gate de determinismo (REVERTIR antes del merge): corre solo el caso
+        # del guard EXEC_NOT_DRAFT, 20 repeticiones, retries=0. retries=0 es clave: el
+        # config pone 2 en CI, que enmascararía justo el flake que queremos medir.
+        run: pnpm test:e2e:local -- --grep "guard EXEC_NOT_DRAFT" --repeat-each=20 --retries=0
 
       # GATE DURO (T-112): probamos que el build SERVIDO quedó horneado apuntando al
       # Supabase LOCAL y NO a prod. Verificado empíricamente (no es obvio):
