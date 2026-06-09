@@ -39,6 +39,27 @@ export async function listInformes(supabase: SupabaseClient<Database>): Promise<
   return data ?? [];
 }
 
+/**
+ * T-131 · Conteo exacto de informes en borrador para el contador del dashboard.
+ *
+ * `head: true` no trae filas (solo el count); RLS scopea el tenant. El filtro
+ * `status='draft'` espeja el subset que el dashboard lista como "Seguir con lo
+ * tuyo" (`listInformes` filtrado a `draft`) → contador y lista no se contradicen.
+ * No usamos `listInformes().length` porque está cap a 50 y subcontaría.
+ */
+export async function countInformesEnBorrador(supabase: SupabaseClient<Database>): Promise<number> {
+  const { count, error } = await supabase
+    .from('informes')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'draft');
+
+  if (error) {
+    logger.error({ err: error }, 'countInformesEnBorrador: count fallo');
+    return 0;
+  }
+  return count ?? 0;
+}
+
 export async function getInformeById(
   supabase: SupabaseClient<Database>,
   id: string,
