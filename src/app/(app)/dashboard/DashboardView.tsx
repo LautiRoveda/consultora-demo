@@ -30,9 +30,6 @@ type DashboardViewProps = {
 export function DashboardView({ showResetSuccess, consultoraNombre }: DashboardViewProps) {
   return (
     <div className="space-y-8 pb-24 md:pb-8">
-      {/* TEMP T-131 · overflow intencional para demo red→green del assert responsive
-          (dashboard-responsive.spec). Se quita en el commit siguiente → CI E2E verde. */}
-      <div aria-hidden="true" className="h-px min-w-[700px]" data-testid="t131-overflow-demo" />
       {showResetSuccess ? (
         <Alert>
           <AlertTitle>Contraseña actualizada</AlertTitle>
