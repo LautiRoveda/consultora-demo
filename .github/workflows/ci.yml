@@ -236,12 +236,15 @@ jobs:
       # `git diff --exit-code` es read-only en CI: NO commitea, solo falla
       # (mostrando el diff) si el generado difiere del committeado → hay que
       # correr `pnpm db:types` y commitear.
+      # T-137 · El gate y db:types comparten scripts/gen-types.mjs, que stripea el bloque
+      # `__InternalSupabase` (PostgrestVersion). Acá usamos --local (Supabase efímero, cero
+      # secrets de prod); db:types usa --linked (dev sin Docker). Misma normalización en los
+      # dos lados → idempotentes entre sí pese al skew PostgREST prod 14.5 ↔ local 14.x.
       - name: types.ts sin drift (db:types gate)
         run: |
           pnpm exec supabase start
           pnpm exec supabase db reset
-          pnpm exec supabase gen types typescript --local > src/shared/supabase/types.ts
-          pnpm exec prettier --write src/shared/supabase/types.ts
+          node scripts/gen-types.mjs --local
           git diff --exit-code src/shared/supabase/types.ts
 
       # `pnpm test:integration` = scripts/test-integration-local.mjs:
