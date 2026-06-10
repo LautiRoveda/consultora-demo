@@ -767,6 +767,56 @@ en estas tablas — el cliente persiste el turno que mostró vía la server acti
 (`src/app/(app)/asistente/actions.ts`); el orquestador/route quedan intactos. Detalle del flujo en
 la entrada de T-126 en `docs/sprints/operativo.md`.
 
+### Plantillas de informes (T-139)
+
+Presets de personalización de informes ("Mis plantillas", cierre de la épica templates
+moldeables). Implementado en T-139 — fuente de verdad:
+`supabase/migrations/20260610000001_t139_informe_plantillas.sql`. Particularidades:
+**RLS per-consultora** (activo del negocio: cualquier member ve/aplica/edita — lo opuesto al
+chat T-126), **snapshot-on-apply** (la config se COPIA a `informe_metadata.data` al aplicar;
+sin FK informe→plantilla — editar/archivar la plantilla no toca informes creados),
+**soft-delete** (`archived_at`) con **unique parcial case-insensitive** sobre activas,
+**sin audit trigger** (preset de configuración UX, no dominio de compliance HyS), `config jsonb`
+con check estructural mínimo (el shape per-tipo lo valida Zod en el borde:
+`PLANTILLA_CONFIG_SCHEMA_BY_TIPO`, `.strict()` — estructura, nunca datos del cliente).
+
+```sql
+create table public.informe_plantillas (
+  id            uuid primary key default gen_random_uuid(),
+  consultora_id uuid not null references public.consultoras(id) on delete cascade,
+  tipo          text not null                          -- espeja el check de informes.tipo
+                check (tipo in ('relevamiento','capacitacion','rgrl','accidente','otros')),
+  nombre        text not null check (length(trim(nombre)) between 1 and 80),
+  config        jsonb not null check (jsonb_typeof(config) = 'object'),
+  created_by    uuid references auth.users(id) on delete set null,  -- atribución, no ownership
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  archived_at   timestamptz                            -- soft delete (archivar libera el nombre)
+);
+
+create unique index idx_informe_plantillas_nombre
+  on public.informe_plantillas(consultora_id, tipo, lower(nombre))
+  where archived_at is null;
+
+alter table public.informe_plantillas enable row level security;
+
+-- RLS PER-CONSULTORA: la plantilla es de la consultora, no del user que la creó.
+create policy informe_plantillas_select_members on public.informe_plantillas for select
+  using (public.is_member_of_consultora(consultora_id));
+create policy informe_plantillas_insert_members on public.informe_plantillas for insert
+  with check (public.is_member_of_consultora(consultora_id) and created_by = auth.uid());
+create policy informe_plantillas_update_members on public.informe_plantillas for update
+  using (public.is_member_of_consultora(consultora_id))
+  with check (public.is_member_of_consultora(consultora_id));
+-- sin DELETE policy: soft-delete via archived_at; hard-delete solo service-role/cascade.
+```
+
+El shape de `config` es el subset de personalización de los `<tipo>MetadataSchema` (T-138):
+`campos_personalizados?` / `instrucciones_adicionales?` / `secciones?` (solo
+relevamiento/capacitacion/otros — rgrl/accidente tienen estructura legal fija). Al aplicar,
+`degradePlantillaConfig` filtra refs a secciones que ya no existen en el catálogo (degradar,
+no romper). Detalle del flujo en la entrada de T-139 en `docs/sprints/operativo.md`.
+
 ### Tablas de fases siguientes (placeholders)
 
 Estas tablas se incluyen vacías desde el principio para que la base las soporte sin migración disruptiva cuando llegue su fase. Ver detalle completo en sus migraciones específicas.
