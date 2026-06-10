@@ -19,10 +19,23 @@ import { z } from 'zod';
  */
 export const DNI_REGEX_INPUT = /^\d[\d.\s-]{6,11}$/;
 
+/** Forma canónica post-normalización — espejo 1:1 del CHECK SQL `^\d{7,8}$` (empleados:46). */
+const DNI_REGEX_CANONICAL = /^\d{7,8}$/;
+
 /** Schema field reusable: DNI validado por regex permisivo. */
-export const dniField = z.string().trim().regex(DNI_REGEX_INPUT, {
-  message: 'DNI inválido. Formato: 7-8 dígitos (con o sin puntos/espacios).',
-});
+export const dniField = z
+  .string()
+  .trim()
+  .regex(DNI_REGEX_INPUT, {
+    message: 'DNI inválido. Formato: 7-8 dígitos (con o sin puntos/espacios).',
+  })
+  // T-135 (L-2) · El regex permisivo tolera separadores hasta 12 chars, pero
+  // también deja pasar 9-12 dígitos puros que recién revientan en el CHECK SQL
+  // con error genérico. El refine cierra el rango real post-normalización.
+  // .refine y NO .transform: transform rompe la inferencia RHF (07-zod-rhf-gotchas).
+  .refine((v) => DNI_REGEX_CANONICAL.test(normalizeDni(v)), {
+    message: 'El DNI debe tener 7 u 8 dígitos.',
+  });
 
 /**
  * DNI con separadores → digits-only. Idempotente.
@@ -38,7 +51,7 @@ export function normalizeDni(raw: string): string {
  * defensivo — los rows de DB ya cumplen CHECK `^\d{7,8}$`).
  */
 export function formatDni(normalized: string): string {
-  if (!/^\d{7,8}$/.test(normalized)) return normalized;
+  if (!DNI_REGEX_CANONICAL.test(normalized)) return normalized;
   if (normalized.length === 8) {
     return `${normalized.slice(0, 2)}.${normalized.slice(2, 5)}.${normalized.slice(5, 8)}`;
   }
