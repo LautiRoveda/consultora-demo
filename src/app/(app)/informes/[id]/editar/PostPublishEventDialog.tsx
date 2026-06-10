@@ -1,6 +1,6 @@
 'use client';
 
-import type { CalendarEventTipo } from '@/app/(app)/calendario/defaults';
+import type { UserCreatableEventTipo } from '@/app/(app)/calendario/defaults';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CalendarIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { createCalendarEventAction } from '@/app/(app)/calendario/actions';
 import {
   DEFAULT_REMINDER_OFFSETS_BY_TYPE,
-  EVENT_TIPO_VALUES,
+  USER_CREATABLE_EVENT_TIPOS,
 } from '@/app/(app)/calendario/defaults';
 import { civilIsoToDate, dateToCivilIso } from '@/app/(app)/calendario/event-form-helpers';
 import { EVENT_TIPO_LABELS } from '@/app/(app)/calendario/labels';
@@ -55,14 +55,15 @@ import { type InformeTipo } from '../../schema';
  */
 
 type FormValues = {
-  tipo: CalendarEventTipo;
+  tipo: UserCreatableEventTipo;
   titulo: string;
   fecha_vencimiento: string; // YYYY-MM-DD
   crearRecordatorios: boolean;
 };
 
 const dialogSchema = z.object({
-  tipo: z.enum(EVENT_TIPO_VALUES, { message: 'Elegí un tipo de vencimiento.' }),
+  // T-133: solo tipos user-creatable (espejo de createCalendarEventSchema).
+  tipo: z.enum(USER_CREATABLE_EVENT_TIPOS, { message: 'Elegí un tipo de vencimiento.' }),
   titulo: z
     .string()
     .trim()
@@ -98,7 +99,7 @@ export function PostPublishEventDialog({
   const config = useMemo(() => mapInformeTipoToEventoConfig(informeTipo), [informeTipo]);
 
   const defaultValues = useMemo<FormValues>(() => {
-    const eventTipo: CalendarEventTipo = config?.eventTipo ?? 'custom';
+    const eventTipo: UserCreatableEventTipo = config?.eventTipo ?? 'custom';
     const months = config?.recurrenceMonths ?? 12;
     const todayIso = new Date().toISOString().slice(0, 10);
     return {
@@ -194,7 +195,7 @@ export function PostPublishEventDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {EVENT_TIPO_VALUES.map((t) => (
+                      {USER_CREATABLE_EVENT_TIPOS.map((t) => (
                         <SelectItem key={t} value={t}>
                           {EVENT_TIPO_LABELS[t]}
                         </SelectItem>

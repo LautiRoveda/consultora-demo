@@ -16,7 +16,7 @@ import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
 import { createServiceRoleClient } from '@/shared/supabase/service-role';
 
-import { DEFAULT_REMINDER_OFFSETS_BY_TYPE } from './defaults';
+import { DEFAULT_REMINDER_OFFSETS_BY_TYPE, SYSTEM_GENERATED_EVENT_TIPOS } from './defaults';
 import {
   cancelReasonSchema,
   createCalendarEventSchema,
@@ -295,7 +295,7 @@ export async function updateCalendarEventAction(
 
   const { data: event } = await supabase
     .from('calendar_events')
-    .select('id, created_by, consultora_id, fecha_vencimiento, status')
+    .select('id, created_by, consultora_id, fecha_vencimiento, status, tipo')
     .eq('id', eventId)
     .maybeSingle();
   if (!event) {
@@ -309,6 +309,31 @@ export async function updateCalendarEventAction(
   }
 
   const patchData = patchCheck.data;
+
+  // T-133 · Los eventos system-generated (gen_*) usan metadata como linkage al
+  // dominio (semáforo / contexto EPP) y nunca llevan recurrencia: un patch de
+  // esos campos rompería la derivación. titulo/descripcion/fecha/reminders
+  // siguen editables (la fecha propaga al origen vía trigger T-118 — feature).
+  // `recurrence_months: null` pasa: EventForm edit lo manda incondicionalmente
+  // (checkbox apagado) y des-setear recurrencia es remediación, no riesgo. El
+  // trigger calendar_events_guard_system_rows (DB) es el backstop de este guard.
+  if ((SYSTEM_GENERATED_EVENT_TIPOS as readonly string[]).includes(event.tipo)) {
+    const fieldErrors: Record<string, string[]> = {};
+    if (patchData.metadata !== undefined) {
+      fieldErrors.metadata = ['No editable en eventos generados por el sistema.'];
+    }
+    if (patchData.recurrence_months !== undefined && patchData.recurrence_months !== null) {
+      fieldErrors.recurrence_months = ['Los eventos del sistema no admiten recurrencia.'];
+    }
+    if (Object.keys(fieldErrors).length > 0) {
+      return {
+        ok: false,
+        code: 'INVALID_INPUT',
+        fieldErrors,
+        message: 'Este vencimiento lo genera el sistema: su metadata y recurrencia no se editan.',
+      };
+    }
+  }
   const updatePayload: Database['public']['Tables']['calendar_events']['Update'] = {};
   if (patchData.titulo !== undefined) updatePayload.titulo = patchData.titulo;
   if (patchData.descripcion !== undefined) updatePayload.descripcion = patchData.descripcion;

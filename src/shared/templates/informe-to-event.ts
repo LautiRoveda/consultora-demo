@@ -12,11 +12,13 @@
  * Components (modal). Sin side effects.
  */
 
-import type { CalendarEventTipo } from '@/app/(app)/calendario/defaults';
+import type { CalendarEventTipo, UserCreatableEventTipo } from '@/app/(app)/calendario/defaults';
 import type { InformeTipo } from '@/app/(app)/informes/schema';
 
 export type InformeToEventConfig = {
-  eventTipo: CalendarEventTipo;
+  // T-133: el mapping solo produce tipos user-creatable (el create schema ya no
+  // acepta los system) — el tipo angosto lo garantiza en compile-time.
+  eventTipo: UserCreatableEventTipo;
   recurrenceMonths: number;
 };
 
