@@ -245,6 +245,18 @@ El guard `EXEC_NOT_DRAFT` flapeaba dentro del mega-test del runner de checklists
 - Probado **red→green** en CI (viejo 5/20 rojo → nuevo 20/20 verde). Test-only, sin migración.
 - PR #236, merge `ee11408`.
 
+## T-133 ✅ Calendar hardening: M-1 (input trust) + L-1 (re-scope semáforo) — EN PR
+
+Auditoría de seguridad (Opus 4.8), hallazgos M-1 + L-1. Cierra en el borde de input la raíz del vector del semáforo (antes solo mitigado downstream con el regex UUID de T-131) y cubre la superficie UPDATE directo (PostgREST) que RLS no puede expresar.
+
+- **M-1 borde Zod**: partición `SYSTEM_GENERATED_EVENT_TIPOS` (`epp_entrega`/`accion_correctiva` — solo los crean las RPCs `gen_*` service-role) vs `USER_CREATABLE_EVENT_TIPOS` (derivado, no lista duplicada) en `calendario/defaults.ts`. `createCalendarEventSchema` y los dropdowns (`EventForm`; `PostPublishEventDialog`, que ofrecía los 8 tipos con enum propio) solo aceptan user-creatable. `metadataField` (compartido create/update) rechaza las claves del namespace system (`SYSTEM_METADATA_KEYS` — las escriben las gen_* y las leen el semáforo y el contexto EPP). `updateCalendarEventAction` bloquea patches de `metadata` y de `recurrence_months` no-null en eventos system (`null` pasa: EventForm edit lo manda incondicionalmente; el trigger DB es el backstop).
+- **M-1 defensa DB** (migración `20260609000002_t133_calendar_hardening.sql`): la policy INSERT excluye tipos system para authenticated (las gen_* son security definer vía service-role → bypassean RLS) + trigger BEFORE UPDATE `calendar_events_guard_system_rows`: `tipo` inmutable global (la WITH CHECK de UPDATE no ve OLD → no expresable en RLS) y metadata/recurrencia congeladas en filas system solo si `auth.role()='authenticated'`, con carve-out `cancel_reason` (el motivo de cancelación vive DENTRO de metadata y lo escribe el user-client al cancelar). Anti-drift SQL↔TS: test-meta `t133-system-tipos-sql-sync.test.ts` + comentarios cruzados.
+- **L-1**: `semaforo_clientes` re-valida el id DERIVADO contra el tenant en las 3 ramas (joins a `clientes`/`empleados` con `my_consultora_ids()` — antes solo se scopeaba `ce.consultora_id`). El cast `::uuid` de metadata quedó envuelto en `CASE WHEN <regex>` (plan-independiente; la versión T-131 dependía del push-down del predicado del WHERE). Degradado granular intacto; misma firma → sin drift de types.ts.
+- **Auditoría prod**: `scripts/dev-audit-system-events.ts` (READ-ONLY, lo corre el owner tras su OK; cuenta eventos system sin origen de dominio + con `recurrence_months`). Las filas pre-fix siguen siendo válidas; si una tiene recurrencia y se completa, el clon authenticated choca la policy → `auto_recurrence_failed` logueado y el complete cierra igual (diseño existente).
+- **Residuales/FU**: FK compuesto `calendar_events(informe_id, consultora_id)` cerraría la rama 1 de raíz (candidato a FU). DNI drift Zod↔SQL · rate-limit guard · `.or()` injection = tickets aparte (hallazgos menores de la misma auditoría).
+- Tests red→green: unit `calendar-schema.test.ts` (partición + tipos + claves reservadas) · integration: alta EPP manual reconvertida a negativo, guards de update/cancel (carve-out incluido), policy + trigger ambos sentidos (bloqueo authenticated / paso service-role, R3 `auth.role()`), anti-poisoning cross-tenant en las 3 ramas del semáforo.
+- PR #TBD.
+
 ## T-127 Tanda 7 🔜 pulido
 
 Lo único pendiente de T-127: pulido de tipografía/densidad + barrido de headers compartidos + guard anti-drift del dashboard (`QUICK_LINKS` ↔ `NAV_ITEMS`, fuente única + test-meta). El owner sigue cuando quiera.
