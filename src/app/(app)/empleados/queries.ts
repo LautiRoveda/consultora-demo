@@ -5,6 +5,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { normalizeDni } from '@/shared/templates/common/dni';
 
+import { sanitizeNombreSearchTerm } from './search-term';
+
 export type EmpleadoRow = Database['public']['Tables']['empleados']['Row'];
 
 /**
@@ -97,25 +99,26 @@ export async function getEmpleadoPuestosLabel(
  * y T-058 (EPP planilla Res 299/11).
  *
  * Case-insensitive ILIKE sobre apellido + nombre (con OR), solo empleados
- * activos, cap 10. Sanitiza wildcards `%` y `_` para evitar wildcard injection.
- * Returns `[]` si `q` trimmed tiene menos de 2 chars (UX: dropdown solo aparece
- * con 2+ chars para evitar queries innecesarios al tipear la 1ra letra).
+ * activos, cap 10. T-134: el término pasa por `sanitizeNombreSearchTerm` antes
+ * de interpolarse — el `.or()` recibe un string CRUDO de sintaxis PostgREST
+ * (`,` `(` `)` `"` son estructurales, ≠ `.ilike()` parametrizado), así que se
+ * restringe a charset name-safe para que no pueda aportar sintaxis.
+ * Returns `[]` si el término SANEADO tiene menos de 2 chars (UX: dropdown solo
+ * aparece con 2+ chars para evitar queries innecesarios al tipear la 1ra letra;
+ * el guard corre post-saneo para que ",a" no llegue a la query).
  */
 export async function searchEmpleadosByNombre(
   supabase: SupabaseClient<Database>,
   q: string,
 ): Promise<EmpleadoSummary[]> {
-  const trimmed = q.trim().slice(0, 100);
-  if (trimmed.length < 2) return [];
-
-  // Escape orden importante: primero backslash, después % y _.
-  const escaped = trimmed.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+  const term = sanitizeNombreSearchTerm(q);
+  if (term.length < 2) return [];
 
   const { data } = await supabase
     .from('empleados')
     .select('id, nombre, apellido, dni, cuil')
     .is('archived_at', null)
-    .or(`apellido.ilike.%${escaped}%,nombre.ilike.%${escaped}%`)
+    .or(`apellido.ilike.%${term}%,nombre.ilike.%${term}%`)
     .order('apellido', { ascending: true })
     .order('nombre', { ascending: true })
     .limit(10);
