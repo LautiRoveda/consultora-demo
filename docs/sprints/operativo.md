@@ -258,22 +258,22 @@ Auditoría de seguridad (Opus 4.8), hallazgos M-1 + L-1. Cierra en el borde de i
 - Migración aplicada a prod (diff-gate `migration list --linked` + `db push --dry-run` + OK del owner) ANTES del merge. Auditoría read-only de filas pre-fix: pendiente, la dispara el owner.
 - PR #240, merge `fd9588e`.
 
-## T-134 ✅ Sanitizar el término del `.or()` en búsqueda de empleados (PostgREST injection L-4) — EN PR
+## T-134 ✅ Sanitizar el término del `.or()` en búsqueda de empleados (PostgREST injection L-4) — EN PROD
 
 Auditoría de seguridad (Opus 4.8), hallazgo L-4 (bajo). `searchEmpleadosByNombre` escapaba solo wildcards LIKE e interpolaba el término en el string CRUDO del `.or()`, donde `,` `(` `)` `"` son sintaxis estructural de PostgREST (y `*` es alias de `%` en like/ilike, tampoco cubierto) → un término con coma inyectaba condiciones de filtro extra (intra-tenant; RLS contiene cross-tenant) y un paréntesis producía un 400 que la query se tragaba (`{ data }` sin chequear `error`). **Fix: allowlist name-safe** — `sanitizeNombreSearchTerm` (`empleados/search-term.ts`, pura, sin `'server-only'` → unit-testeable): letras con acentos (`\p{L}\p{M}`, NFD incluido) + dígitos + espacio + apóstrofo recto/tipográfico + punto + guion; el resto se descarta ANTES de interpolar. El escape de wildcards queda como defensa en profundidad (hoy no-op) y el guard de 2 chars pasa a evaluar el término SANEADO (`",a"` ya no llega a la query).
 
 - **Barrido de la clase**: ese `.or()` era el ÚNICO con interpolación en todo el repo; los `.not()` existentes usan la forma parametrizada de 3 args. `searchClientesByRazonSocial` (`.ilike()` parametrizado por el builder) y `searchEmpleadosByDni` (digits-only + `.ilike()`) confirmados seguros — sin cambio.
 - Tests red→green: unit del saneador (`empleados-search-term.test.ts` — estructurales + `*` + no-sobre-bloqueo "O'Brien"/"García-López"/NFD por escape) · integration test 18 (término inyectado `a,nombre.ilike.%` no trae la carnada que termina en "a"; paréntesis ya no produce el 400 tragado y matchea literal; apóstrofo sigue matcheando).
-- Solo código, sin migración → no toca prod-DB; el deploy del merge alcanza. PR #TBD.
+- Solo código, sin migración → no toca prod-DB; el deploy del merge alcanza. PR #242, merge `54c56e4`.
 
-## T-135 ✅ Cierre de bajos de la auditoría: L-2 (drift DNI Zod↔SQL) + L-3 (guard Upstash en prod) — EN PR
+## T-135 ✅ Cierre de bajos de la auditoría: L-2 (drift DNI Zod↔SQL) + L-3 (guard Upstash en prod) — EN PROD
 
 Auditoría de seguridad (Opus 4.8), últimos dos hallazgos bajos (batcheados en un ticket; commits separados por concern). Solo código, sin migración → no toca prod-DB; el deploy del merge alcanza.
 
 - **L-2 (UX, no vuln — la DB falla cerrado)**: `DNI_REGEX_INPUT` (permisivo, hasta 12 chars para tolerar separadores) dejaba pasar 9-12 dígitos puros que el CHECK SQL `^\d{7,8}$` (`20260519114309_empleados.sql:46`) rechazaba recién en el INSERT con error genérico. **Fix**: `.refine` en `dniField` (`shared/templates/common/dni.ts`) que valida la forma canónica POST-`normalizeDni` — `.refine` y NO `.transform` (rompe la inferencia RHF, 07-zod-rhf-gotchas). La regex canónica quedó extraída a `DNI_REGEX_CANONICAL` (fuente única, reusada por `formatDni`). Consumers verificados: `dniField` solo vive en el form de alta/edición (`empleados/schema.ts:67,81`); `searchEmpleadosByDni` tiene su propio normalize+guard (prefijo 3-8 dígitos, `queries.ts:140-142`) y NO se toca.
 - **L-3 (señal de ops)**: `UPSTASH_REDIS_REST_URL/TOKEN` son `.optional()` en `env.ts` → si faltan en prod, `getRateLimiter` cae al noop (siempre allow) y TODOS los límites (signup/login/IA/webhooks) se desactivan en silencio (abuso/costo). **Fix**: warn de boot en `env.ts`, mismo molde que `BILLING_GATE_DISABLED`/`MP_TEST_PAYER_EMAIL` (console.warn — el logger pino no existe al boot del módulo; sale en stdout → EasyPanel logs). **WARN y no throw** (decisión del owner): seguro para disponibilidad. Condición extraída a la función pura `shouldWarnMissingRateLimit(env, nodeEnv)` para unit-testearla sin ejecutar el side-effect top-level del módulo (safeParse + throw al cargar).
 - Tests red→green: unit `dni.test.ts` (9 y 12 dígitos puros + 9 con puntos rechazados; 7-8 dígitos y `12.345.678` siguen pasando) · unit `env.test.ts` (la pura: true en prod con ausencia total o parcial; false con ambas presentes, en development y con NODE_ENV undefined). Demo rojo→verde ejecutada en local (refine comentado / guard mutilado → rojo → restaurado → verde).
-- PR #TBD.
+- PR #243, merge `8723791`.
 
 ## T-127 Tanda 7 🔜 pulido
 

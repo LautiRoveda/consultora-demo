@@ -24,6 +24,21 @@ URL productiva: <https://consultora-demo.test-ia.cloud>. Detalle en `docs/techni
 
 Detalle en `docs/technical/01-principles.md`.
 
+## Economía de tokens (CC + orquestador)
+
+Reglas de eficiencia: ahorran contexto SIN cambiar el resultado ni saltear el workflow. Ante conflicto, ganan los principios no negociables y las paradas plan-first.
+
+1. **Contexto antes de actuar.** Leé los archivos/docs relevantes antes de codear o planificar. Si falta contexto, preguntá; no asumas.
+2. **Leé lo justo.** `offset`/`limit` para secciones puntuales; Read directo si sabés la ruta; no releas un archivo ya leído salvo que haya cambiado.
+3. **Tool calls en paralelo.** Lecturas/búsquedas independientes en un solo mensaje.
+4. **Grep/Read antes que Agent.** Agent solo para búsquedas amplias o tareas multi-paso.
+5. **Edit, no Write.** Write solo si el cambio es >80% del archivo. No copies el archivo editado en la respuesta: alcanza el diff.
+6. **Respuestas al grano.** Tan cortas como la tarea permita, sin preámbulo ni resumen final, sin repetir lo que dijo el owner, sin adulación. Un briefing o un review pueden ser largos si el contenido lo exige; el ruido no.
+7. **Alcance mínimo, seguridad incluida.** Implementá lo pedido, sin features ni abstracciones especulativas. Pero Zod en cada borde, auth en cada action, RLS y tests NO son extras: son el alcance. El minimalismo nunca recorta seguridad/validación/tests.
+8. **Discrepancia técnica = breve y seguís.** Si discrepás, 1-2 oraciones y procedés con el criterio del owner — EXCEPTO si toca seguridad o una parada del workflow: ahí parás.
+9. **No narres lo trivial.** Nada de "ahora voy a leer X"; los tool calls se ven. El plan-first formal (plan → review → OK) NO es narración: ese gate se mantiene siempre.
+10. **Validá antes de declarar "listo".** Corré/testeá/verificá. Nunca "hecho" sin evidencia.
+
 ## Estructura del repo
 
 `docs/` (discovery + technical + adr + sprints + operations + lessons-learned.md) · `src/` (`app/` rutas Next.js + los 14 módulos co-localizados en `app/(app)/<modulo>/` · `shared/` UI base + supabase + ai + observability · `tests/` unit + integration + e2e) · `supabase/` (migrations + seed.sql) · `public/` · `.github/workflows/`. Detalle en `docs/technical/04-folder-structure.md`.
