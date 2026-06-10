@@ -245,7 +245,7 @@ El guard `EXEC_NOT_DRAFT` flapeaba dentro del mega-test del runner de checklists
 - Probado **red→green** en CI (viejo 5/20 rojo → nuevo 20/20 verde). Test-only, sin migración.
 - PR #236, merge `ee11408`.
 
-## T-133 ✅ Calendar hardening: M-1 (input trust) + L-1 (re-scope semáforo) — EN PR
+## T-133 ✅ Calendar hardening: M-1 (input trust) + L-1 (re-scope semáforo) — EN PROD
 
 Auditoría de seguridad (Opus 4.8), hallazgos M-1 + L-1. Cierra en el borde de input la raíz del vector del semáforo (antes solo mitigado downstream con el regex UUID de T-131) y cubre la superficie UPDATE directo (PostgREST) que RLS no puede expresar.
 
@@ -255,7 +255,8 @@ Auditoría de seguridad (Opus 4.8), hallazgos M-1 + L-1. Cierra en el borde de i
 - **Auditoría prod**: `scripts/dev-audit-system-events.ts` (READ-ONLY, lo corre el owner tras su OK; cuenta eventos system sin origen de dominio + con `recurrence_months`). Las filas pre-fix siguen siendo válidas; si una tiene recurrencia y se completa, el clon authenticated choca la policy → `auto_recurrence_failed` logueado y el complete cierra igual (diseño existente).
 - **Residuales/FU**: FK compuesto `calendar_events(informe_id, consultora_id)` cerraría la rama 1 de raíz (candidato a FU). DNI drift Zod↔SQL · rate-limit guard · `.or()` injection = tickets aparte (hallazgos menores de la misma auditoría).
 - Tests red→green: unit `calendar-schema.test.ts` (partición + tipos + claves reservadas) · integration: alta EPP manual reconvertida a negativo, guards de update/cancel (carve-out incluido), policy + trigger ambos sentidos (bloqueo authenticated / paso service-role, R3 `auth.role()`), anti-poisoning cross-tenant en las 3 ramas del semáforo.
-- PR #TBD.
+- Migración aplicada a prod (diff-gate `migration list --linked` + `db push --dry-run` + OK del owner) ANTES del merge. Auditoría read-only de filas pre-fix: pendiente, la dispara el owner.
+- PR #240, merge `fd9588e`.
 
 ## T-127 Tanda 7 🔜 pulido
 
