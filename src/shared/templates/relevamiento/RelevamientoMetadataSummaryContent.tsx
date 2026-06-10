@@ -1,5 +1,6 @@
 import type { RelevamientoMetadata } from './schema';
 
+import { PersonalizacionSummaryContent } from '../common/PersonalizacionSummary';
 import { provinciaName } from '../common/site';
 import { agenteHysLabel } from './schema';
 
@@ -76,6 +77,11 @@ export function RelevamientoMetadataSummaryContent({ metadata: m }: Props) {
           <p className="pdf-summary-prose">{m.equipos_medicion}</p>
         </div>
       )}
+
+      <PersonalizacionSummaryContent
+        campos={m.campos_personalizados}
+        instrucciones={m.instrucciones_adicionales}
+      />
     </section>
   );
 }

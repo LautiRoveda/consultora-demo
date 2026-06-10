@@ -472,4 +472,67 @@ describe('POST /api/informes/[id]/generate-stream — flow', () => {
       .eq('entity_id', abortInformeId);
     expect(count).toBe(0);
   });
+
+  it('6. T-138: personalizacion en user message; system[0] estatico aun con bloque SRT en system[1]', async () => {
+    await signInAs(emailOwnerA);
+
+    // Relevamiento con agente 'ruido' (dispara la inyeccion SRT T-107 como
+    // system[1]) + personalizacion T-138. La combinacion prueba que ninguno
+    // de los dos mecanismos toca el prompt estatico del tipo (system[0]).
+    const { data: freshInforme } = await admin
+      .from('informes')
+      .insert({
+        consultora_id: cAId,
+        tipo: 'relevamiento',
+        titulo: 'T138 stream personalizacion',
+        created_by: ownerAId,
+      })
+      .select('id')
+      .single();
+    const relevamientoId = freshInforme!.id;
+    await admin.from('informe_metadata').insert({
+      informe_id: relevamientoId,
+      data: {
+        razon_social: 'Talleres T138 SA',
+        cuit: '30-88888888-8',
+        domicilio: 'Av. Test 200',
+        localidad: 'Tigre',
+        provincia: 'BA',
+        fecha_relevamiento: '2026-06-01',
+        areas_relevadas: ['Producción / planta'],
+        agentes_a_relevar: ['ruido'],
+        campos_personalizados: [{ label: 'Norma interna', valor: 'IRAM 3800' }],
+        instrucciones_adicionales: 'priorizá recomendaciones de bajo costo',
+      } as Json,
+    });
+
+    mockMessagesStream.mockReturnValueOnce(makeStreamMock({ chunks: ['# Informe stub\n'] }));
+
+    const { POST } = await import('@/app/api/informes/[id]/generate-stream/route');
+    const res = await POST(makeReq(relevamientoId, { userPrompt: '' }), {
+      params: Promise.resolve({ id: relevamientoId }),
+    });
+    expect(res.status).toBe(200);
+    await consumeStream(res);
+
+    const call = mockMessagesStream.mock.calls[0]![0];
+    const userMsg: string = call.messages[0].content;
+
+    // Bloques de personalizacion presentes y ANTES del footer de re-anclaje.
+    expect(userMsg).toContain('**Campos personalizados (definidos por el consultor):**');
+    expect(userMsg).toContain('- Norma interna: IRAM 3800');
+    expect(userMsg).toContain('> priorizá recomendaciones de bajo costo');
+    expect(userMsg.indexOf('Generá el informe de relevamiento técnico')).toBeGreaterThan(
+      userMsg.indexOf('> priorizá recomendaciones de bajo costo'),
+    );
+
+    // system[0] EXACTAMENTE el prompt estatico del tipo: compliance intacto y
+    // cache preservado (T-138 no agrega nada al system por-request).
+    const { SYSTEM_PROMPT_RELEVAMIENTO } = await import('@/shared/ai/prompts/relevamiento');
+    expect(call.system[0].text).toBe(SYSTEM_PROMPT_RELEVAMIENTO);
+
+    // El bloque SRT (T-107) sigue viniendo aparte como system[1].
+    expect(call.system).toHaveLength(2);
+    expect(call.system[1].text).toContain('Criterios SRT');
+  });
 });

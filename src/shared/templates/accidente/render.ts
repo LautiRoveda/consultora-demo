@@ -1,5 +1,9 @@
 import type { AccidenteMetadata } from './schema';
 
+import {
+  renderCamposPersonalizadosBlock,
+  renderInstruccionesAdicionalesBlock,
+} from '../common/render-extra';
 import { renderAsBlockquote, sanitizeField } from '../common/sanitize';
 import { gravedadLabel, parteCuerpoLabel, tipoLesionLabel } from './schema';
 
@@ -56,6 +60,11 @@ export function renderAccidenteMetadataAsPromptContext(metadata: AccidenteMetada
   lines.push('**Descripción inicial (entrada del consultor):**');
   lines.push(renderAsBlockquote(sanitizeField(m.descripcion_inicial)));
   lines.push('');
+
+  // T-138 · Personalizacion (campos → instrucciones), siempre ANTES del
+  // footer de re-anclaje: la ultima palabra la tiene el sistema.
+  lines.push(...renderCamposPersonalizadosBlock(m.campos_personalizados));
+  lines.push(...renderInstruccionesAdicionalesBlock(m.instrucciones_adicionales));
 
   // Footer de re-anclaje — defensa anti-alucinacion critica para este tipo.
   lines.push('---');

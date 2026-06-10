@@ -1,5 +1,6 @@
 import type { RgrlMetadata } from './schema';
 
+import { PersonalizacionSummaryContent } from '../common/PersonalizacionSummary';
 import {
   distribucionTurnoLabel,
   modalidadOperativaLabel,
@@ -95,6 +96,11 @@ export function RgrlMetadataSummaryContent({ metadata: m }: Props) {
           <p className="pdf-summary-prose">{m.riesgos_pre_detectados}</p>
         </div>
       )}
+
+      <PersonalizacionSummaryContent
+        campos={m.campos_personalizados}
+        instrucciones={m.instrucciones_adicionales}
+      />
     </section>
   );
 }

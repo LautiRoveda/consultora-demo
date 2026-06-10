@@ -1,5 +1,6 @@
 import type { CapacitacionMetadata } from './schema';
 
+import { PersonalizacionSummaryContent } from '../common/PersonalizacionSummary';
 import { modalidadCapacitacionLabel } from './schema';
 
 /**
@@ -65,6 +66,11 @@ export function CapacitacionMetadataSummaryContent({ metadata: m }: Props) {
           <p className="pdf-summary-prose">{m.contenidos_resumen}</p>
         </div>
       )}
+
+      <PersonalizacionSummaryContent
+        campos={m.campos_personalizados}
+        instrucciones={m.instrucciones_adicionales}
+      />
     </section>
   );
 }

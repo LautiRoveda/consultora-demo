@@ -1,5 +1,9 @@
 import type { RelevamientoMetadata } from './schema';
 
+import {
+  renderCamposPersonalizadosBlock,
+  renderInstruccionesAdicionalesBlock,
+} from '../common/render-extra';
 import { renderAsBlockquote, sanitizeField } from '../common/sanitize';
 import { provinciaName } from '../common/site';
 import { agenteHysLabel } from './schema';
@@ -48,6 +52,11 @@ export function renderRelevamientoMetadataAsPromptContext(metadata: Relevamiento
     lines.push(renderAsBlockquote(sanitizeField(m.equipos_medicion)));
     lines.push('');
   }
+
+  // T-138 · Personalizacion (campos → instrucciones), siempre ANTES del
+  // footer de re-anclaje: la ultima palabra la tiene el sistema.
+  lines.push(...renderCamposPersonalizadosBlock(m.campos_personalizados));
+  lines.push(...renderInstruccionesAdicionalesBlock(m.instrucciones_adicionales));
 
   // Footer de re-anclaje
   lines.push('---');

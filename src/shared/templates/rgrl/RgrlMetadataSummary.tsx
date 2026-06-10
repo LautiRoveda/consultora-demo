@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/shared/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/ui/collapsible';
 import { Separator } from '@/shared/ui/separator';
 
+import { PersonalizacionSummary } from '../common/PersonalizacionSummary';
 import {
   distribucionTurnoLabel,
   modalidadOperativaLabel,
@@ -143,6 +144,11 @@ export function RgrlMetadataSummary({ metadata: m }: Props) {
                 <dd className="mt-1 whitespace-pre-wrap">{m.riesgos_pre_detectados}</dd>
               </div>
             )}
+
+            <PersonalizacionSummary
+              campos={m.campos_personalizados}
+              instrucciones={m.instrucciones_adicionales}
+            />
           </CollapsibleContent>
         </Collapsible>
       </CardContent>

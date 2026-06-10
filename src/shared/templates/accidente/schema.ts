@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+import {
+  camposPersonalizadosField,
+  instruccionesAdicionalesField,
+  normalizeCamposPersonalizados,
+  normalizeInstruccionesAdicionales,
+} from '../common/campos-extra';
 import { normalizeCuit } from '../common/cuit';
 import { HORA_HHMM_REGEX } from '../common/sanitize';
 import { commonClientFields, fechaIsoField } from '../common/schema';
@@ -135,6 +141,12 @@ export const accidenteMetadataSchema = z.object({
     .trim()
     .min(10, { message: 'Mínimo 10 caracteres — describí brevemente el accidente.' })
     .max(4000, { message: 'Máximo 4000 caracteres.' }),
+
+  // — PERSONALIZACION (T-138 fase 1, compartida por los 5 tipos) —
+  // Aditiva: agrega datos/foco al user message; la estructura legal del
+  // informe de accidente NO es configurable.
+  campos_personalizados: camposPersonalizadosField(),
+  instrucciones_adicionales: instruccionesAdicionalesField(),
 });
 
 export type AccidenteMetadata = z.infer<typeof accidenteMetadataSchema>;
@@ -148,6 +160,8 @@ export function normalizeAccidenteMetadata(m: AccidenteMetadata): AccidenteMetad
     ...m,
     cuit: normalizeCuit(m.cuit),
     // `dias_baja_estimados` ya viene como number | undefined del schema; nada que limpiar.
+    campos_personalizados: normalizeCamposPersonalizados(m.campos_personalizados),
+    instrucciones_adicionales: normalizeInstruccionesAdicionales(m.instrucciones_adicionales),
   };
 }
 

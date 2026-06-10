@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+import {
+  camposPersonalizadosField,
+  instruccionesAdicionalesField,
+  normalizeCamposPersonalizados,
+  normalizeInstruccionesAdicionales,
+} from '../common/campos-extra';
 import { normalizeCuit } from '../common/cuit';
 import { commonClientFields } from '../common/schema';
 
@@ -36,6 +42,10 @@ export const otrosMetadataSchema = z.object({
 
   /** Opcional. Contexto libre que orienta al LLM sobre estructura y profundidad. */
   objetivos: z.string().trim().max(2000, { message: 'Máximo 2000 caracteres.' }).optional(),
+
+  // — PERSONALIZACION (T-138 fase 1, compartida por los 5 tipos) —
+  campos_personalizados: camposPersonalizadosField(),
+  instrucciones_adicionales: instruccionesAdicionalesField(),
 });
 
 export type OtrosMetadata = z.infer<typeof otrosMetadataSchema>;
@@ -49,5 +59,7 @@ export function normalizeOtrosMetadata(m: OtrosMetadata): OtrosMetadata {
     ...m,
     cuit: normalizeCuit(m.cuit),
     objetivos: m.objetivos && m.objetivos.length > 0 ? m.objetivos : undefined,
+    campos_personalizados: normalizeCamposPersonalizados(m.campos_personalizados),
+    instrucciones_adicionales: normalizeInstruccionesAdicionales(m.instrucciones_adicionales),
   };
 }

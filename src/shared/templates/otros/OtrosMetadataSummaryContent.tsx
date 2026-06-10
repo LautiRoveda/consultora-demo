@@ -1,5 +1,7 @@
 import type { OtrosMetadata } from './schema';
 
+import { PersonalizacionSummaryContent } from '../common/PersonalizacionSummary';
+
 /**
  * T-023-FU4 · SummaryContent print-safe para tipo='otros'.
  *
@@ -40,6 +42,11 @@ export function OtrosMetadataSummaryContent({ metadata: m }: Props) {
           <p className="pdf-summary-prose">{m.objetivos}</p>
         </div>
       )}
+
+      <PersonalizacionSummaryContent
+        campos={m.campos_personalizados}
+        instrucciones={m.instrucciones_adicionales}
+      />
     </section>
   );
 }

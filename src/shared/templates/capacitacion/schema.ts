@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+import {
+  camposPersonalizadosField,
+  instruccionesAdicionalesField,
+  normalizeCamposPersonalizados,
+  normalizeInstruccionesAdicionales,
+} from '../common/campos-extra';
 import { normalizeCuit } from '../common/cuit';
 import { commonClientFields, fechaIsoField } from '../common/schema';
 
@@ -86,6 +92,10 @@ export const capacitacionMetadataSchema = z.object({
     .trim()
     .max(2000, { message: 'Máximo 2000 caracteres.' })
     .optional(),
+
+  // — PERSONALIZACION (T-138 fase 1, compartida por los 5 tipos) —
+  campos_personalizados: camposPersonalizadosField(),
+  instrucciones_adicionales: instruccionesAdicionalesField(),
 });
 
 export type CapacitacionMetadata = z.infer<typeof capacitacionMetadataSchema>;
@@ -109,6 +119,8 @@ export function normalizeCapacitacionMetadata(m: CapacitacionMetadata): Capacita
         : undefined,
     contenidos_resumen:
       m.contenidos_resumen && m.contenidos_resumen.length > 0 ? m.contenidos_resumen : undefined,
+    campos_personalizados: normalizeCamposPersonalizados(m.campos_personalizados),
+    instrucciones_adicionales: normalizeInstruccionesAdicionales(m.instrucciones_adicionales),
   };
 }
 

@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/shared/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/ui/collapsible';
 import { Separator } from '@/shared/ui/separator';
 
+import { PersonalizacionSummary } from '../common/PersonalizacionSummary';
 import { Item, StatusBadge } from '../common/summary-ui';
 
 /**
@@ -28,6 +29,12 @@ export function OtrosMetadataSummary({ metadata: m }: Props) {
   const effectiveOpen = open ?? isDesktop;
 
   const isComplete = m.objetivos !== undefined;
+  // El Collapsible solo existe si hay detalle que mostrar (objetivos y/o
+  // personalizacion T-138) — sin detalle, el resumen compacto es todo.
+  const hasPersonalizacion =
+    (m.campos_personalizados !== undefined && m.campos_personalizados.length > 0) ||
+    m.instrucciones_adicionales !== undefined;
+  const hasDetalle = m.objetivos !== undefined || hasPersonalizacion;
 
   return (
     <Card>
@@ -47,14 +54,14 @@ export function OtrosMetadataSummary({ metadata: m }: Props) {
               </dl>
             </div>
 
-            {m.objetivos && (
+            {hasDetalle && (
               <CollapsibleTrigger asChild>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   className="shrink-0"
-                  aria-label={effectiveOpen ? 'Ocultar objetivos' : 'Ver objetivos'}
+                  aria-label={effectiveOpen ? 'Ocultar datos completos' : 'Ver datos completos'}
                 >
                   <ChevronDown
                     className={`size-4 transition-transform ${effectiveOpen ? 'rotate-180' : ''}`}
@@ -64,13 +71,20 @@ export function OtrosMetadataSummary({ metadata: m }: Props) {
             )}
           </div>
 
-          {m.objetivos && (
+          {hasDetalle && (
             <CollapsibleContent className="space-y-3 pt-4">
               <Separator />
-              <div className="pt-2 text-sm">
-                <dt className="text-muted-foreground">Objetivos / contexto:</dt>
-                <dd className="mt-1 whitespace-pre-wrap">{m.objetivos}</dd>
-              </div>
+              {m.objetivos && (
+                <div className="pt-2 text-sm">
+                  <dt className="text-muted-foreground">Objetivos / contexto:</dt>
+                  <dd className="mt-1 whitespace-pre-wrap">{m.objetivos}</dd>
+                </div>
+              )}
+
+              <PersonalizacionSummary
+                campos={m.campos_personalizados}
+                instrucciones={m.instrucciones_adicionales}
+              />
             </CollapsibleContent>
           )}
         </Collapsible>
