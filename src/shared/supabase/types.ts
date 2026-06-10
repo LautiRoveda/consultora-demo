@@ -1716,6 +1716,50 @@ export type Database = {
           },
         ];
       };
+      informe_plantillas: {
+        Row: {
+          archived_at: string | null;
+          config: Json;
+          consultora_id: string;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          nombre: string;
+          tipo: string;
+          updated_at: string;
+        };
+        Insert: {
+          archived_at?: string | null;
+          config: Json;
+          consultora_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          nombre: string;
+          tipo: string;
+          updated_at?: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          config?: Json;
+          consultora_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          nombre?: string;
+          tipo?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'informe_plantillas_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       informes: {
         Row: {
           cliente_id: string | null;
