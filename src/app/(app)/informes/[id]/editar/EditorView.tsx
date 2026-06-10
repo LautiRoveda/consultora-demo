@@ -1,6 +1,7 @@
 'use client';
 
 import type { FieldValues, UseFormReturn } from 'react-hook-form';
+import type { PlantillaClientItem } from '../../plantillas/PlantillaControls';
 import type { InformeStatus, InformeTipo } from '../../schema';
 import type { UpdateInformeContentInput } from '../schema';
 import type { AttachmentClientRow } from './AttachmentsSection';
@@ -40,6 +41,7 @@ import { Label } from '@/shared/ui/label';
 import { Separator } from '@/shared/ui/separator';
 import { Textarea } from '@/shared/ui/textarea';
 
+import { PlantillaControls } from '../../plantillas/PlantillaControls';
 import { INFORME_TIPO_LABELS } from '../../schema';
 import { updateInformeContentAction, updateInformeMetadataAction } from '../actions';
 import { MarkdownPreview } from '../MarkdownPreview';
@@ -99,6 +101,7 @@ export function EditorView({
   autoCreateEventOnSign,
   hasLinkedEvent,
   razonSocial,
+  plantillas,
 }: {
   informeId: string;
   tipo: InformeTipo;
@@ -121,6 +124,8 @@ export function EditorView({
   hasLinkedEvent: boolean;
   /** T-036: razon_social del metadata para prepop del PostPublishEventDialog. */
   razonSocial: string | null;
+  /** T-139: plantillas activas del tipo del informe (filtradas server-side). */
+  plantillas: PlantillaClientItem[];
 }) {
   const router = useRouter();
   const [state, setState] = useState<EditorState>('idle');
@@ -546,6 +551,14 @@ export function EditorView({
                   className="space-y-6 pt-2"
                   noValidate
                 >
+                  {/* T-139 · Aplicar/guardar plantillas de personalizacion.
+                      Snapshot-on-apply: copia al form; persiste el flujo normal. */}
+                  <PlantillaControls
+                    tipo={tipo}
+                    form={metadataForm as UseFormReturn<FieldValues>}
+                    plantillas={plantillas}
+                    disabled={isPending}
+                  />
                   <FormComponent
                     form={metadataForm as UseFormReturn<FieldValues>}
                     disabled={isPending}

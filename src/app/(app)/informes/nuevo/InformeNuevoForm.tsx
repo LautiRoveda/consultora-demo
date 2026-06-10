@@ -7,6 +7,7 @@ import type { OtrosMetadata } from '@/shared/templates/otros/schema';
 import type { RelevamientoMetadata } from '@/shared/templates/relevamiento/schema';
 import type { RgrlMetadata } from '@/shared/templates/rgrl/schema';
 import type { FieldValues, UseFormReturn } from 'react-hook-form';
+import type { PlantillaClientItem } from '../plantillas/PlantillaControls';
 import type { CreateInformeInput, InformeTipo } from '../schema';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -43,6 +44,7 @@ import { Input } from '@/shared/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select';
 
 import { createInformeAction } from '../actions';
+import { PlantillaControls } from '../plantillas/PlantillaControls';
 import { createInformeSchema, INFORME_TIPO_LABELS, INFORME_TIPOS } from '../schema';
 import { mapClienteToFormValues } from './cliente-form-mapper';
 import { ClienteAutocomplete } from './ClienteAutocomplete';
@@ -123,7 +125,7 @@ function useFormsByTipo(): {
   return { rgrl, capacitacion, relevamiento, accidente, otros };
 }
 
-export function InformeNuevoForm() {
+export function InformeNuevoForm({ plantillas }: { plantillas: PlantillaClientItem[] }) {
   const router = useRouter();
   const [step, setStep] = useState<WizardStep>('tipo');
   const [isPending, setIsPending] = useState(false);
@@ -352,6 +354,15 @@ export function InformeNuevoForm() {
                   disabled={isPending}
                 />
               </div>
+
+              {/* T-139 · Aplicar/guardar plantillas de personalizacion del tipo
+                  activo. Snapshot-on-apply: copia la config a este form. */}
+              <PlantillaControls
+                tipo={tipoWatch}
+                form={activeForm as unknown as UseFormReturn<FieldValues>}
+                plantillas={plantillas.filter((p) => p.tipo === tipoWatch)}
+                disabled={isPending}
+              />
 
               <FormComponent form={activeForm} disabled={isPending} />
 
