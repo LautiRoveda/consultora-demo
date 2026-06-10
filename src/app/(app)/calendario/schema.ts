@@ -5,14 +5,15 @@ import { fechaIsoField } from '@/shared/templates/common/schema';
 import {
   CANCEL_REASON_MAX_LENGTH,
   DESCRIPCION_MAX_LENGTH,
-  EVENT_TIPO_VALUES,
   OFFSET_DAYS_MAX,
   OFFSET_DAYS_MIN,
   RECURRENCE_MONTHS_MAX,
   RECURRENCE_MONTHS_MIN,
   REMINDER_OFFSETS_MAX_COUNT,
+  SYSTEM_METADATA_KEYS,
   TITULO_MAX_LENGTH,
   TITULO_MIN_LENGTH,
+  USER_CREATABLE_EVENT_TIPOS,
 } from './defaults';
 
 /**
@@ -60,11 +61,23 @@ const descripcionField = z
 /**
  * jsonb metadata. `unknown` para que el caller pueda persistir shape arbitrario;
  * el CHECK SQL `pg_column_size <= 4 KB` actua como hard cap server-side.
+ *
+ * T-133: las claves del namespace system (SYSTEM_METADATA_KEYS) se rechazan en
+ * TODO input de usuario — las escriben solo las RPCs gen_* y alimentan la
+ * derivación del semáforo / contexto EPP. Compartido entre create y update
+ * patch. `.refine`, NO `.transform` (rompe RHF, docs 07-zod-rhf-gotchas.md).
  */
-const metadataField = z.record(z.string(), z.unknown()).nullable();
+const metadataField = z
+  .record(z.string(), z.unknown())
+  .nullable()
+  .refine((m) => m === null || !SYSTEM_METADATA_KEYS.some((k) => k in m), {
+    message: 'La metadata contiene claves reservadas de eventos generados por el sistema.',
+  });
 
 export const createCalendarEventSchema = z.object({
-  tipo: z.enum(EVENT_TIPO_VALUES, { message: 'Elegí un tipo de vencimiento.' }),
+  // T-133: solo tipos user-creatable — epp_entrega / accion_correctiva los crean
+  // exclusivamente las RPCs gen_* (service-role).
+  tipo: z.enum(USER_CREATABLE_EVENT_TIPOS, { message: 'Elegí un tipo de vencimiento.' }),
   titulo: tituloField,
   fecha_vencimiento: fechaIsoField,
   descripcion: descripcionField.optional(),

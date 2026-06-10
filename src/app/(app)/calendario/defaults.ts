@@ -25,6 +25,51 @@ export const EVENT_TIPO_VALUES = [
 ] as const;
 export type CalendarEventTipo = (typeof EVENT_TIPO_VALUES)[number];
 
+/**
+ * T-133 · Partición system-generated vs user-creatable.
+ *
+ * SYSTEM_GENERATED: solo los escriben las RPCs service-role
+ * (`gen_epp_planificaciones_y_calendar_for`, `gen_acciones_calendar_for`) — su
+ * metadata es el linkage al dominio (semáforo / contexto EPP) y un alta o
+ * edición manual la envenenaría. La policy INSERT `calendar_events_insert_own`
+ * y el trigger `calendar_events_guard_system_rows` (migración
+ * t133_calendar_hardening) HARDCODEAN esta lista en SQL — mantener en sync
+ * (guard automatizado: `src/tests/unit/t133-system-tipos-sql-sync.test.ts`).
+ */
+export const SYSTEM_GENERATED_EVENT_TIPOS = ['epp_entrega', 'accion_correctiva'] as const;
+export type SystemGeneratedEventTipo = (typeof SYSTEM_GENERATED_EVENT_TIPOS)[number];
+
+export type UserCreatableEventTipo = Exclude<CalendarEventTipo, SystemGeneratedEventTipo>;
+
+/**
+ * Derivado de EVENT_TIPO_VALUES (no lista duplicada): un tipo NUEVO cae acá por
+ * default salvo que se sume a SYSTEM_GENERATED_EVENT_TIPOS — default deliberado
+ * (crear a mano es el caso general; system es la excepción). El cast a tupla es
+ * porque `.filter()` pierde el tuple type que `z.enum` necesita.
+ */
+export const USER_CREATABLE_EVENT_TIPOS = EVENT_TIPO_VALUES.filter(
+  (t): t is UserCreatableEventTipo =>
+    !(SYSTEM_GENERATED_EVENT_TIPOS as readonly string[]).includes(t),
+) as [UserCreatableEventTipo, ...UserCreatableEventTipo[]];
+
+/**
+ * T-133 · Namespace de metadata del sistema: claves que escriben exclusivamente
+ * las RPCs gen_* y consumen la derivación del semáforo (`semaforo_clientes`,
+ * ramas 2-3) y el contexto EPP (`getEppContextForEvents`). Se rechazan en TODO
+ * input de usuario (refine de `metadataField` en schema.ts) — ningún flujo
+ * legítimo de usuario manda metadata.
+ */
+export const SYSTEM_METADATA_KEYS = [
+  'empleado_id',
+  'cliente_id',
+  'epp_item_id',
+  'epp_entrega_id',
+  'execution_id',
+  'accion_id',
+  'respuesta_id',
+  'source_module',
+] as const;
+
 export const EVENT_STATUS_VALUES = ['pending', 'completed', 'cancelled'] as const;
 export type CalendarEventStatus = (typeof EVENT_STATUS_VALUES)[number];
 

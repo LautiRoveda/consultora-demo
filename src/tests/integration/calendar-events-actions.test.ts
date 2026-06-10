@@ -3,9 +3,13 @@
  * Calendario.
  *
  * Cobertura:
- *  - createCalendarEventAction: defaults por tipo (3 tipos), override custom,
+ *  - createCalendarEventAction: defaults por tipo, override custom,
  *    skip pasado + log warn, cross-tenant FORBIDDEN, member non-creator OK,
- *    INVALID_INPUT, UNAUTHENTICATED.
+ *    INVALID_INPUT, UNAUTHENTICATED. T-133: tipos system-generated y claves de
+ *    metadata del namespace system rechazados.
+ *  - T-133 eventos system: update de metadata/recurrencia bloqueado (guard del
+ *    action), titulo/fecha siguen editables, cancel con reason preserva la
+ *    metadata system (carve-out cancel_reason).
  *  - updateCalendarEventAction: gates (creator/owner/member), recompute por
  *    fecha, recompute por offsets (preserva sent/failed).
  *  - completeCalendarEventAction: sin recurrencia, con recurrencia 12 meses
@@ -189,24 +193,24 @@ describe('createCalendarEventAction', () => {
     expect(rems?.every((r) => r.status === 'pending')).toBe(true);
   });
 
-  it('2. happy path EPP: defaults [14,3,0]', async () => {
+  it('2. T-133: tipos system-generated → INVALID_INPUT (epp_entrega / accion_correctiva)', async () => {
+    // Reconversión del viejo happy-path EPP: epp_entrega ya no es creable a mano
+    // (solo la RPC gen_epp_planificaciones_y_calendar_for). Los defaults [14,3,0]
+    // del camino legítimo los cubre epp-schema.test.ts.
     await signInAs(emailOwnerA);
     const { createCalendarEventAction } = await import('@/app/(app)/calendario/actions');
-    const result = await createCalendarEventAction({
-      tipo: 'epp_entrega',
-      titulo: 'EPP Juan Perez',
-      fecha_vencimiento: futureDateIso(30),
-    });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.remindersCreated).toBe(3);
-
-    const { data: rems } = await admin
-      .from('calendar_event_reminders')
-      .select('offset_days')
-      .eq('event_id', result.eventId)
-      .order('offset_days', { ascending: false });
-    expect(rems?.map((r) => r.offset_days)).toEqual([14, 3, 0]);
+    for (const tipo of ['epp_entrega', 'accion_correctiva']) {
+      const result = await createCalendarEventAction({
+        tipo,
+        titulo: 'Alta manual de tipo system',
+        fecha_vencimiento: futureDateIso(30),
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) continue;
+      expect(result.code).toBe('INVALID_INPUT');
+      if (result.code !== 'INVALID_INPUT') continue;
+      expect(result.fieldErrors.tipo).toBeDefined();
+    }
   });
 
   it('3. happy path Calibracion: defaults [60,14,0]', async () => {
@@ -928,5 +932,128 @@ describe('queries', () => {
     const sb = await createServerClient();
     const beyond = await getEventsBeyondDays(sb, 30);
     expect(beyond.map((e) => e.id)).not.toContain(evCa!.id);
+  });
+});
+
+describe('T-133 · eventos system-generated: guard de update + carve-out de cancel', () => {
+  /**
+   * Siembra un evento system vía admin, replicando lo que escriben las RPCs
+   * gen_* (la policy INSERT ya no deja crearlos como authenticated).
+   * created_by = ownerAId para que el caller pase el gate creator-or-owner.
+   */
+  async function seedEppEvent(): Promise<string> {
+    const { data, error } = await admin
+      .from('calendar_events')
+      .insert({
+        consultora_id: cAId,
+        tipo: 'epp_entrega',
+        titulo: 'Vencimiento EPP system seed',
+        fecha_vencimiento: futureDateIso(60),
+        reminder_offsets_days: [14, 3, 0],
+        created_by: ownerAId,
+        metadata: {
+          empleado_id: '11111111-1111-4111-8111-111111111111',
+          epp_item_id: '22222222-2222-4222-8222-222222222222',
+          epp_entrega_id: '33333333-3333-4333-8333-333333333333',
+        },
+      })
+      .select('id')
+      .single();
+    if (error || !data) throw new Error(`seedEppEvent: ${error?.message}`);
+    return data.id;
+  }
+
+  it('29. update de metadata sobre evento system → INVALID_INPUT.metadata', async () => {
+    const eventId = await seedEppEvent();
+    await signInAs(emailOwnerA);
+    const { updateCalendarEventAction } = await import('@/app/(app)/calendario/actions');
+    // metadata inocua (pasa el Zod): la bloquea el guard del action por el TIPO
+    // del evento, no por el contenido del patch.
+    const result = await updateCalendarEventAction(eventId, { metadata: { nota: 'x' } });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe('INVALID_INPUT');
+    if (result.code !== 'INVALID_INPUT') return;
+    expect(result.fieldErrors.metadata).toBeDefined();
+  });
+
+  it('30. recurrence_months no-null sobre evento system → INVALID_INPUT; null → ok (regresión EventForm edit)', async () => {
+    const eventId = await seedEppEvent();
+    await signInAs(emailOwnerA);
+    const { updateCalendarEventAction } = await import('@/app/(app)/calendario/actions');
+
+    const conRecurrencia = await updateCalendarEventAction(eventId, { recurrence_months: 6 });
+    expect(conRecurrencia.ok).toBe(false);
+    if (!conRecurrencia.ok && conRecurrencia.code === 'INVALID_INPUT') {
+      expect(conRecurrencia.fieldErrors.recurrence_months).toBeDefined();
+    }
+
+    // EventForm edit manda recurrence_months: null incondicionalmente (checkbox
+    // apagado) — un guard estricto rompería editar el título de un evento EPP.
+    const conNull = await updateCalendarEventAction(eventId, {
+      titulo: 'Titulo editado en evento system',
+      recurrence_months: null,
+    });
+    expect(conNull.ok).toBe(true);
+  });
+
+  it('31. titulo/fecha sobre evento system → ok (no sobre-bloqueo; fecha propaga vía T-118)', async () => {
+    const eventId = await seedEppEvent();
+    await signInAs(emailOwnerA);
+    const { updateCalendarEventAction } = await import('@/app/(app)/calendario/actions');
+    const result = await updateCalendarEventAction(eventId, {
+      titulo: 'EPP reprogramado',
+      fecha_vencimiento: futureDateIso(90),
+    });
+    expect(result.ok).toBe(true);
+
+    const { data: ev } = await admin
+      .from('calendar_events')
+      .select('titulo, fecha_vencimiento, metadata')
+      .eq('id', eventId)
+      .single();
+    expect(ev?.titulo).toBe('EPP reprogramado');
+    expect(ev?.fecha_vencimiento).toBe(futureDateIso(90));
+    // La metadata system quedó intacta.
+    const meta = ev?.metadata as Record<string, unknown>;
+    expect(meta.empleado_id).toBe('11111111-1111-4111-8111-111111111111');
+  });
+
+  it('32. cancel con reason de evento system → ok; metadata preserva claves + cancel_reason (carve-out)', async () => {
+    // Cubre el carve-out del trigger: cancelCalendarEventAction mergea
+    // cancel_reason DENTRO de metadata con el client del usuario (authenticated)
+    // — sin el carve-out, el trigger lo rechazaría.
+    const eventId = await seedEppEvent();
+    await signInAs(emailOwnerA);
+    const { cancelCalendarEventAction } = await import('@/app/(app)/calendario/actions');
+    const result = await cancelCalendarEventAction(eventId, 'Empleado desvinculado');
+    expect(result.ok).toBe(true);
+
+    const { data: ev } = await admin
+      .from('calendar_events')
+      .select('status, metadata')
+      .eq('id', eventId)
+      .single();
+    expect(ev?.status).toBe('cancelled');
+    const meta = ev?.metadata as Record<string, unknown>;
+    expect(meta.cancel_reason).toBe('Empleado desvinculado');
+    expect(meta.empleado_id).toBe('11111111-1111-4111-8111-111111111111');
+    expect(meta.epp_entrega_id).toBe('33333333-3333-4333-8333-333333333333');
+  });
+
+  it('33. create con clave de namespace system en metadata (tipo custom) → INVALID_INPUT.metadata', async () => {
+    await signInAs(emailOwnerA);
+    const { createCalendarEventAction } = await import('@/app/(app)/calendario/actions');
+    const result = await createCalendarEventAction({
+      tipo: 'custom',
+      titulo: 'Custom con metadata forjada',
+      fecha_vencimiento: futureDateIso(30),
+      metadata: { empleado_id: '11111111-1111-4111-8111-111111111111' },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe('INVALID_INPUT');
+    if (result.code !== 'INVALID_INPUT') return;
+    expect(result.fieldErrors.metadata).toBeDefined();
   });
 });

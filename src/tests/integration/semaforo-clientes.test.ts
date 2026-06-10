@@ -14,6 +14,9 @@
  *  - Metadata basura (empleado_id no-uuid): la RPC NO revienta, degrada SOLO ese evento.
  *  - Aislamiento multi-tenant: aunque la RPC sea security definer (bypassa RLS), filtra por
  *    my_consultora_ids() → cada caller ve solo sus clientes; service-role ve 0.
+ *  - T-133 (L-1) anti-poisoning: eventos forjados EN el tenant propio con referencias
+ *    cross-tenant (cliente_id/empleado_id en metadata, informe_id) NO filtran el cliente
+ *    ajeno — cada rama re-valida el id DERIVADO contra my_consultora_ids().
  *
  * Setup SECUENCIAL (lesson T-047 — Promise.all sa-east-1 flaky).
  * Correr local: `set -a && source .env.local && set +a && pnpm test:integration`.
@@ -88,6 +91,9 @@ let cliMas30: string;
 let cliJunk: string;
 let cliToday: string;
 let cliB: string;
+// T-133 anti-poisoning: recursos de B referenciados por eventos forjados en A.
+let cliBEmp: string;
+let cliBInf: string;
 
 let cuitCounter = 10_000_000;
 function nextCuit(): string {
@@ -312,6 +318,62 @@ beforeAll(async () => {
     createdBy: ownerBId,
     metadata: { cliente_id: cliB },
   });
+
+  // --- T-133 anti-poisoning (L-1): eventos EN A con referencias forjadas a
+  // recursos de B. Sembrados vía admin (la policy INSERT bloquea el alta
+  // authenticated de tipos system; estos simulan filas pre-fix o forjadas).
+  // (a) accion_correctiva con metadata.cliente_id del cliente de B.
+  await insEvent({
+    consultoraId: cAId,
+    tipo: 'accion_correctiva',
+    fecha: isoPlus(P_HOY, -1),
+    createdBy: ownerAId,
+    metadata: { cliente_id: cliB },
+  });
+  // (b) epp_entrega con metadata.empleado_id de un empleado de B.
+  cliBEmp = await insCliente(cBId, ownerBId);
+  const { data: empB, error: eEmpB } = await admin
+    .from('empleados')
+    .insert({
+      consultora_id: cBId,
+      cliente_id: cliBEmp,
+      nombre: 'Ana',
+      apellido: 'Gómez',
+      dni: nextDni(),
+      created_by: ownerBId,
+    })
+    .select('id')
+    .single();
+  if (eEmpB) throw eEmpB;
+  await insEvent({
+    consultoraId: cAId,
+    tipo: 'epp_entrega',
+    fecha: isoPlus(P_HOY, -1),
+    createdBy: ownerAId,
+    metadata: { empleado_id: empB.id },
+  });
+  // (c) evento con informe_id de un informe de B (sembrable: el FK de
+  // calendar_events.informe_id no es compuesto por consultora).
+  cliBInf = await insCliente(cBId, ownerBId);
+  const { data: infB, error: eInfB } = await admin
+    .from('informes')
+    .insert({
+      consultora_id: cBId,
+      tipo: 'rgrl',
+      titulo: 'Informe de B (forjable)',
+      created_by: ownerBId,
+      cliente_id: cliBInf,
+    })
+    .select('id')
+    .single();
+  if (eInfB) throw eInfB;
+  await insEvent({
+    consultoraId: cAId,
+    tipo: 'protocolo_anual',
+    fecha: isoPlus(P_HOY, -1),
+    createdBy: ownerAId,
+    informeId: infB.id,
+  });
 });
 
 afterAll(async () => {
@@ -427,5 +489,32 @@ describe('semaforo_clientes RPC', () => {
     const { data: adminRows, error } = await admin.rpc('semaforo_clientes', { p_hoy: P_HOY });
     expect(error).toBeNull();
     expect(adminRows ?? []).toHaveLength(0);
+  });
+});
+
+describe('T-133 · anti-poisoning cross-tenant (L-1)', () => {
+  // Los tres eventos forjados viven EN A apuntando a recursos de B (seeds del
+  // beforeAll). Pre-fix, las 3 ramas de la RPC emitían el cliente AJENO para A.
+  it('10. accion_correctiva forjada con metadata.cliente_id de B → A no lo ve', async () => {
+    const rowsA = await semaforoAs(emailOwnerA, P_HOY);
+    expect(rowFor(rowsA, cliB)).toBeUndefined();
+  });
+
+  it('11. epp_entrega forjado con empleado_id de B → su cliente NO aparece para A', async () => {
+    const rowsA = await semaforoAs(emailOwnerA, P_HOY);
+    expect(rowFor(rowsA, cliBEmp)).toBeUndefined();
+  });
+
+  it('12. evento con informe_id de B → su cliente NO aparece para A', async () => {
+    const rowsA = await semaforoAs(emailOwnerA, P_HOY);
+    expect(rowFor(rowsA, cliBInf)).toBeUndefined();
+  });
+
+  it('13. los forjados tampoco contaminan la vista de B (viven en A, fuera de su scope)', async () => {
+    const rowsB = await semaforoAs(emailOwnerB, P_HOY);
+    // B sigue viendo SOLO su evento legítimo (cliB, accion vencida sembrada en B).
+    expect(rowFor(rowsB, cliB)).toBeDefined();
+    expect(rowFor(rowsB, cliBEmp)).toBeUndefined();
+    expect(rowFor(rowsB, cliBInf)).toBeUndefined();
   });
 });

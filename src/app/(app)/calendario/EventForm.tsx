@@ -30,9 +30,10 @@ import {
 } from './actions';
 import {
   DEFAULT_REMINDER_OFFSETS_BY_TYPE,
-  EVENT_TIPO_VALUES,
   RECURRENCE_MONTHS_MAX,
   RECURRENCE_MONTHS_MIN,
+  SYSTEM_GENERATED_EVENT_TIPOS,
+  USER_CREATABLE_EVENT_TIPOS,
 } from './defaults';
 import { civilIsoToDate, dateToCivilIso, findOffsetsInPast } from './event-form-helpers';
 import { EVENT_TIPO_LABELS } from './labels';
@@ -147,6 +148,16 @@ export function EventForm(props: Props) {
 
   const [submitting, setSubmitting] = useState(false);
   const [remindersDirty, setRemindersDirty] = useState(false);
+
+  // T-133 · Los tipos system-generated no se ofrecen en el alta manual. Al
+  // editar un evento system el Select muestra SOLO su tipo actual, disabled:
+  // el tipo nunca viaja en el patch (cosmético), pero sin el item el trigger
+  // del Select quedaría vacío.
+  const editTipo = props.mode === 'edit' ? (props.event.tipo as CalendarEventTipo) : null;
+  const isSystemTipo =
+    editTipo !== null && (SYSTEM_GENERATED_EVENT_TIPOS as readonly string[]).includes(editTipo);
+  const tipoOptions: readonly CalendarEventTipo[] =
+    isSystemTipo && editTipo !== null ? [editTipo] : USER_CREATABLE_EVENT_TIPOS;
 
   // useWatch en lugar de form.watch: evita warning del React Compiler sobre
   // memoizacion (form.watch retorna funciones no-memoizables).
@@ -308,15 +319,16 @@ export function EventForm(props: Props) {
             <FormItem>
               <FormLabel>Tipo *</FormLabel>
               <FormControl>
-                <Select value={field.value} onValueChange={field.onChange} disabled={submitting}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={submitting || isSystemTipo}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Elegí un tipo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {/* accion_correctiva es system-generated (la inyecta la RPC al
-                        cerrar una inspección RGRL, T-057) → no se ofrece como tipo
-                        creable a mano. */}
-                    {EVENT_TIPO_VALUES.filter((t) => t !== 'accion_correctiva').map((t) => (
+                    {tipoOptions.map((t) => (
                       <SelectItem key={t} value={t}>
                         {EVENT_TIPO_LABELS[t]}
                       </SelectItem>
