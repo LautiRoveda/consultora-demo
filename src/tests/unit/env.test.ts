@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { envSchema } from '@/env';
+import { envSchema, shouldWarnMissingRateLimit } from '@/env';
 
 // Vitest hoist `vi.mock(...)` automáticamente al tope del archivo en runtime,
 // aunque visualmente quede después de los imports por el plugin sort-imports.
@@ -325,5 +325,46 @@ describe('envSchema', () => {
       ARS_PRICE_MONTHLY: '5000000',
     });
     expect(result.success).toBe(true);
+  });
+});
+
+// T-135 (L-3) · La condición del warn de boot es función pura — el bloque
+// `if + console.warn` de env.ts es glue trivial (mismo molde que los warns de
+// BILLING_GATE_DISABLED / MP_TEST_PAYER_EMAIL); lo que protege es la condición.
+describe('shouldWarnMissingRateLimit (T-135 L-3)', () => {
+  const upstashPresent = {
+    UPSTASH_REDIS_REST_URL: 'https://example.upstash.io',
+    UPSTASH_REDIS_REST_TOKEN: 'upstash-token',
+  };
+
+  it('true en production con ambas envs ausentes (rate limits caen al noop sin señal)', () => {
+    expect(shouldWarnMissingRateLimit({}, 'production')).toBe(true);
+  });
+
+  it('true en production con solo el TOKEN presente (getRedisClient exige ambas)', () => {
+    expect(
+      shouldWarnMissingRateLimit({ UPSTASH_REDIS_REST_TOKEN: 'upstash-token' }, 'production'),
+    ).toBe(true);
+  });
+
+  it('true en production con solo la URL presente', () => {
+    expect(
+      shouldWarnMissingRateLimit(
+        { UPSTASH_REDIS_REST_URL: 'https://example.upstash.io' },
+        'production',
+      ),
+    ).toBe(true);
+  });
+
+  it('false en production con ambas presentes (configuración correcta, sin ruido)', () => {
+    expect(shouldWarnMissingRateLimit(upstashPresent, 'production')).toBe(false);
+  });
+
+  it('false en development sin envs (dev local sin Upstash es el diseño de T-081)', () => {
+    expect(shouldWarnMissingRateLimit({}, 'development')).toBe(false);
+  });
+
+  it('false con NODE_ENV undefined sin envs', () => {
+    expect(shouldWarnMissingRateLimit({}, undefined)).toBe(false);
   });
 });
