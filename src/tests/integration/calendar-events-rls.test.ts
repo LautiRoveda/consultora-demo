@@ -10,6 +10,10 @@
  * - ON DELETE CASCADE: consultora -> events -> reminders.
  * - Audit trigger: row escrita en audit_log al INSERT/UPDATE/DELETE de
  *   calendar_events con shape esperado + diff guard sobre campos mutables.
+ * - T-133 DB hardening: policy INSERT bloquea tipos system-generated para
+ *   authenticated; trigger guard_system_rows congela tipo (global) y
+ *   metadata/recurrence de filas system (solo authenticated); service-role
+ *   pasa libre (regresión gen_*).
  *
  * Correr local: `set -a && source .env.local && set +a && pnpm test:integration`.
  */
@@ -575,5 +579,131 @@ describe('calendar_events audit_log', () => {
     expect(before.titulo).toBe('audit delete test');
     expect(before.tipo).toBe('capacitacion');
     expect(before.status).toBe('pending');
+  });
+});
+
+describe('T-133 · DB hardening: policy INSERT + trigger guard_system_rows', () => {
+  const SYSTEM_TIPOS = ['epp_entrega', 'accion_correctiva'] as const;
+  const META_UUID = '11111111-1111-4111-8111-111111111111';
+
+  /** Evento system sembrado vía admin (como las gen_*), creator = ownerA. */
+  async function seedSystemEvent(tipo: string): Promise<string> {
+    const { data, error } = await admin
+      .from('calendar_events')
+      .insert({
+        consultora_id: cAId,
+        tipo,
+        titulo: `T133 system seed ${tipo}`,
+        fecha_vencimiento: futureDateIso(60),
+        reminder_offsets_days: [],
+        created_by: ownerAId,
+        metadata: { empleado_id: META_UUID },
+      })
+      .select('id')
+      .single();
+    if (error || !data) throw new Error(`seedSystemEvent: ${error?.message}`);
+    return data.id;
+  }
+
+  /** Evento custom creado COMO authenticated (pasa la policy nueva). */
+  async function seedCustomEventAsOwnerA(): Promise<string> {
+    const { data, error } = await clientOwnerA
+      .from('calendar_events')
+      .insert({
+        consultora_id: cAId,
+        tipo: 'custom',
+        titulo: 'T133 custom seed',
+        fecha_vencimiento: futureDateIso(45),
+        reminder_offsets_days: [],
+        created_by: ownerAId,
+      })
+      .select('id')
+      .single();
+    if (error || !data) throw new Error(`seedCustomEventAsOwnerA: ${error?.message}`);
+    return data.id;
+  }
+
+  it('20. INSERT de tipo system como authenticated → bloqueado por la policy', async () => {
+    for (const tipo of SYSTEM_TIPOS) {
+      const { error } = await clientOwnerA.from('calendar_events').insert({
+        consultora_id: cAId,
+        tipo,
+        titulo: `Insert system directo ${tipo}`,
+        fecha_vencimiento: futureDateIso(30),
+        reminder_offsets_days: [],
+        created_by: ownerAId,
+      });
+      expect(error).not.toBeNull();
+      expect(error?.message.toLowerCase()).toMatch(/row[- ]level security|policy|violates/);
+    }
+  });
+
+  it('21. INSERT system + UPDATE de su metadata vía service-role → OK (regresión gen_*; R3: rama auth.role() != authenticated del trigger)', async () => {
+    // Si la detección de rol del trigger fallara (p. ej. auth.role() devolviera
+    // 'authenticated' bajo service key), este UPDATE de metadata reventaría.
+    const eventId = await seedSystemEvent('epp_entrega');
+    const { error } = await admin
+      .from('calendar_events')
+      .update({ metadata: { empleado_id: META_UUID, vida_util_meses: 6 } })
+      .eq('id', eventId);
+    expect(error).toBeNull();
+  });
+
+  it('22. UPDATE de tipo custom → epp_entrega como authenticated → bloqueado por trigger', async () => {
+    const eventId = await seedCustomEventAsOwnerA();
+    const { error } = await clientOwnerA
+      .from('calendar_events')
+      .update({ tipo: 'epp_entrega' })
+      .eq('id', eventId);
+    expect(error).not.toBeNull();
+    expect(error?.message).toMatch(/inmutable|T-133/);
+  });
+
+  it('23. UPDATE de tipo vía service-role → también bloqueado (freeze de tipo es global)', async () => {
+    const eventId = await seedSystemEvent('epp_entrega');
+    const { error } = await admin
+      .from('calendar_events')
+      .update({ tipo: 'custom' })
+      .eq('id', eventId);
+    expect(error).not.toBeNull();
+    expect(error?.message).toMatch(/inmutable|T-133/);
+  });
+
+  it('24. PATCH de metadata de fila system como authenticated → bloqueado por trigger', async () => {
+    const eventId = await seedSystemEvent('accion_correctiva');
+    const { error } = await clientOwnerA
+      .from('calendar_events')
+      .update({ metadata: { cliente_id: META_UUID } })
+      .eq('id', eventId);
+    expect(error).not.toBeNull();
+    expect(error?.message).toMatch(/no editable|T-133/);
+  });
+
+  it('25. recurrence_months en fila system como authenticated → bloqueado por trigger', async () => {
+    const eventId = await seedSystemEvent('epp_entrega');
+    const { error } = await clientOwnerA
+      .from('calendar_events')
+      .update({ recurrence_months: 6 })
+      .eq('id', eventId);
+    expect(error).not.toBeNull();
+    expect(error?.message).toMatch(/no editable|T-133/);
+  });
+
+  it('26. PATCH de metadata de fila custom propia como authenticated → sigue OK (no sobre-bloqueo)', async () => {
+    const eventId = await seedCustomEventAsOwnerA();
+    const { error } = await clientOwnerA
+      .from('calendar_events')
+      .update({ metadata: { nota: 'libre en eventos user-creatable' } })
+      .eq('id', eventId);
+    expect(error).toBeNull();
+  });
+
+  it('27. status de fila system como authenticated → sigue OK (complete/cancel no se bloquean)', async () => {
+    const eventId = await seedSystemEvent('epp_entrega');
+    const { error } = await clientOwnerA
+      .from('calendar_events')
+      .update({ status: 'completed', completed_at: new Date().toISOString() })
+      .eq('id', eventId);
+    expect(error).toBeNull();
   });
 });
