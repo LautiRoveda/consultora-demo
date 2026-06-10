@@ -834,7 +834,7 @@ supabase/
 Después de cada migración, Supabase CLI genera tipos TypeScript que reflejan el schema:
 
 ```bash
-pnpm supabase gen types typescript --linked > src/shared/supabase/types.ts
+pnpm db:types
 ```
 
-Esto se corre en CI cuando hay cambios en migrations. El archivo `types.ts` queda en repo. Cualquier desync entre código y schema rompe en compilación.
+`db:types` (T-137) corre `scripts/gen-types.mjs --linked`: `gen types` + strip del bloque `__InternalSupabase` (`PostgrestVersion`, info de entorno) + `prettier`. NO usar `supabase gen types --linked` pelado: reintroduce ese bloque y rompe el gate de drift de CI (`gen types --local`), que usa el mismo script. El archivo `types.ts` queda en repo. Cualquier desync entre código y schema rompe en compilación.

@@ -283,9 +283,9 @@ Lo único pendiente de T-127: pulido de tipografía/densidad + barrido de header
 
 Mejoras de producto sobre la persistencia del chat: renombrar/buscar conversaciones · RPC transaccional `create + insert` (hoy son 2 statements desde la action) · títulos de conversación generados por IA.
 
-## Skew PostgREST local↔prod (`db:types`) 🔜
+## T-137 ✅ Skew PostgREST local↔prod (`db:types`) — RESUELTO
 
-Prod corre PostgREST 14.5; la imagen de Supabase local es 14.x → `pnpm db:types` reintroduce el bloque `__InternalSupabase` que el gate `gen types --local` (drift de CI) rechaza. Fix de raíz: bumpear la imagen de Supabase local a 14.5, o stripear ese bloque en el script `db:types`. Detectado en T-126.
+Prod corre PostgREST 14.5; la imagen de Supabase local es 14.x → `pnpm db:types` (`gen types --linked`) reintroducía el bloque `__InternalSupabase` (`PostgrestVersion`) que el gate `gen types --local` (drift de CI) rechaza, obligando a hand-editear `types.ts` en cada migración. Detectado en T-126. **Fix**: `db:types` y el gate comparten `scripts/gen-types.mjs`, que stripea ese bloque con la misma normalización en los dos lados (dev usa `--linked` sin Docker, CI usa `--local` sin secrets de prod) → idempotentes entre sí. Se descartó bumpear la imagen local (opción A): perseguir la versión de un PostgREST de prod managed = blanco móvil que rompería en cada patch. El bloque es info de entorno, no de schema (el footer ya hace `Omit<Database, '__InternalSupabase'>`), así que borrarlo es no-op a nivel de tipos.
 
 ## Doc-sync · limpiar refs Vercel pre-T-022.5 en docs de planning 🔜
 
