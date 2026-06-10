@@ -152,12 +152,14 @@ export function EditorView({
   // T-022: form del tipo activo. Schema y defaults vienen del registry +
   // SCHEMA_BY_TIPO. useForm con generic FieldValues para evitar variance
   // issues — el resolver garantiza shape correcto en runtime.
+  // T-138: merge con defaults — la metadata persistida pre-T-138 no trae los
+  // campos de personalizacion y RHF necesita defaults para TODOS los fields.
   const tipoEntry = TEMPLATE_CLIENT_REGISTRY[tipo];
   const metadataForm = useForm<FieldValues>({
     resolver: zodResolver(SCHEMA_BY_TIPO[tipo]),
     defaultValues:
       initialMetadata && typeof initialMetadata === 'object'
-        ? initialMetadata
+        ? { ...tipoEntry.defaults(), ...initialMetadata }
         : tipoEntry.defaults(),
   });
 

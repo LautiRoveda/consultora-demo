@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/shared/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/ui/collapsible';
 import { Separator } from '@/shared/ui/separator';
 
+import { PersonalizacionSummary } from '../common/PersonalizacionSummary';
 import { formatFecha, Item, StatusBadge } from '../common/summary-ui';
 import { gravedadLabel, parteCuerpoLabel, tipoLesionLabel } from './schema';
 
@@ -95,6 +96,11 @@ export function AccidenteMetadataSummary({ metadata: m }: Props) {
               <dt className="text-muted-foreground">Descripción inicial:</dt>
               <dd className="mt-1 whitespace-pre-wrap">{m.descripcion_inicial}</dd>
             </div>
+
+            <PersonalizacionSummary
+              campos={m.campos_personalizados}
+              instrucciones={m.instrucciones_adicionales}
+            />
           </CollapsibleContent>
         </Collapsible>
       </CardContent>

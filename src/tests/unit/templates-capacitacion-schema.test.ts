@@ -91,3 +91,56 @@ describe('capacitacionMetadataSchema', () => {
     expect(out).toMatch(/Generá el informe de capacitación/);
   });
 });
+
+describe('capacitacion · personalizacion (T-138 fase 1)', () => {
+  it('backward-compat: la fixture pre-T-138 parsea con los campos nuevos undefined', () => {
+    const r = capacitacionMetadataSchema.safeParse(validFixture);
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.data.campos_personalizados).toBeUndefined();
+    expect(r.data.instrucciones_adicionales).toBeUndefined();
+  });
+
+  it('acepta campos_personalizados + instrucciones_adicionales', () => {
+    const r = capacitacionMetadataSchema.safeParse({
+      ...validFixture,
+      campos_personalizados: [{ label: 'Convenio aplicable', valor: 'UOCRA 76/75' }],
+      instrucciones_adicionales: 'incluí cronograma tentativo por bloque',
+    });
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.data.campos_personalizados).toHaveLength(1);
+  });
+
+  it('rechaza campos_personalizados sobre el cap (10)', () => {
+    const r = capacitacionMetadataSchema.safeParse({
+      ...validFixture,
+      campos_personalizados: Array.from({ length: 11 }, () => ({ label: 'L', valor: 'v' })),
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("normalize: [] y '' de personalizacion → undefined", () => {
+    const n = normalizeCapacitacionMetadata({
+      ...validFixture,
+      campos_personalizados: [],
+      instrucciones_adicionales: '',
+    });
+    expect(n.campos_personalizados).toBeUndefined();
+    expect(n.instrucciones_adicionales).toBeUndefined();
+  });
+
+  it('render: bloques de personalizacion entre los datos y el footer', () => {
+    const out = renderCapacitacionMetadataAsPromptContext({
+      ...validFixture,
+      campos_personalizados: [{ label: 'Convenio aplicable', valor: 'UOCRA 76/75' }],
+      instrucciones_adicionales: 'cronograma por bloque',
+    });
+    const camposIdx = out.indexOf('Campos personalizados');
+    const instruccionesIdx = out.indexOf('Instrucciones adicionales del consultor');
+    const footerIdx = out.indexOf('Generá el informe de capacitación');
+    expect(camposIdx).toBeGreaterThan(out.indexOf('**Actividad formativa:**'));
+    expect(instruccionesIdx).toBeGreaterThan(camposIdx);
+    expect(footerIdx).toBeGreaterThan(instruccionesIdx);
+  });
+});

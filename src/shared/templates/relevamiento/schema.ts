@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+import {
+  camposPersonalizadosField,
+  instruccionesAdicionalesField,
+  normalizeCamposPersonalizados,
+  normalizeInstruccionesAdicionales,
+} from '../common/campos-extra';
 import { normalizeCuit } from '../common/cuit';
 import { commonClientFieldsWithSite, fechaIsoField } from '../common/schema';
 
@@ -82,6 +88,10 @@ export const relevamientoMetadataSchema = z.object({
 
   /** Opcional. Listado libre de equipos disponibles. */
   equipos_medicion: z.string().trim().max(2000, { message: 'Máximo 2000 caracteres.' }).optional(),
+
+  // — PERSONALIZACION (T-138 fase 1, compartida por los 5 tipos) —
+  campos_personalizados: camposPersonalizadosField(),
+  instrucciones_adicionales: instruccionesAdicionalesField(),
 });
 
 export type RelevamientoMetadata = z.infer<typeof relevamientoMetadataSchema>;
@@ -96,6 +106,8 @@ export function normalizeRelevamientoMetadata(m: RelevamientoMetadata): Relevami
     cuit: normalizeCuit(m.cuit),
     equipos_medicion:
       m.equipos_medicion && m.equipos_medicion.length > 0 ? m.equipos_medicion : undefined,
+    campos_personalizados: normalizeCamposPersonalizados(m.campos_personalizados),
+    instrucciones_adicionales: normalizeInstruccionesAdicionales(m.instrucciones_adicionales),
   };
 }
 

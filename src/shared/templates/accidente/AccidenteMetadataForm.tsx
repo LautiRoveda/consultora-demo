@@ -19,6 +19,7 @@ import { Separator } from '@/shared/ui/separator';
 import { Textarea } from '@/shared/ui/textarea';
 
 import { normalizeCuit } from '../common/cuit';
+import { PersonalizacionSection } from '../common/PersonalizacionSection';
 import { GRAVEDAD, PARTES_CUERPO, TIPO_LESION } from './schema';
 
 /**
@@ -51,6 +52,8 @@ export const accidenteMetadataDefaults = (): AccidenteMetadata => ({
   dias_baja_estimados: undefined,
   testigos_presentes: false,
   descripcion_inicial: '',
+  campos_personalizados: [],
+  instrucciones_adicionales: '',
 });
 
 type Props = {
@@ -411,6 +414,9 @@ export function AccidenteMetadataForm({ form, disabled }: Props) {
           )}
         />
       </section>
+
+      {/* T-138 · Personalizacion compartida (campos + instrucciones). */}
+      <PersonalizacionSection form={form} disabled={disabled} />
     </div>
   );
 }

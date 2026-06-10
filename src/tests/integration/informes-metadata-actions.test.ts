@@ -432,3 +432,87 @@ describe.each(tipoFixtures)(
     });
   },
 );
+
+// =============================================================================
+// T-138 fase 1 · Personalizacion (campos_personalizados + instrucciones)
+// =============================================================================
+
+describe('updateInformeMetadataAction · T-138 personalizacion', () => {
+  async function createInforme(tipo: 'rgrl' | 'relevamiento', titulo: string): Promise<string> {
+    const { data: nuevo } = await admin
+      .from('informes')
+      .insert({ consultora_id: cAId, tipo, titulo, created_by: ownerAId })
+      .select('id')
+      .single();
+    return nuevo!.id;
+  }
+
+  it('7. UPSERT persiste la personalizacion; [] y "" se normalizan fuera del jsonb', async () => {
+    await signInAs(emailOwnerA);
+    const { updateInformeMetadataAction } = await import('@/app/(app)/informes/[id]/actions');
+    const targetId = await createInforme('rgrl', 'T-138 personalizacion UPSERT');
+
+    // Con valores: persisten.
+    const r1 = await updateInformeMetadataAction(targetId, {
+      tipo: 'rgrl',
+      data: {
+        ...validRgrl,
+        campos_personalizados: [{ label: 'N° de contrato ART', valor: '887766' }],
+        instrucciones_adicionales: 'priorizá el plan de mejoras por costo',
+      },
+    });
+    expect(r1.ok).toBe(true);
+
+    const { data: row1 } = await admin
+      .from('informe_metadata')
+      .select('data')
+      .eq('informe_id', targetId)
+      .single();
+    const data1 = row1?.data as Record<string, unknown>;
+    expect(data1.campos_personalizados).toEqual([{ label: 'N° de contrato ART', valor: '887766' }]);
+    expect(data1.instrucciones_adicionales).toBe('priorizá el plan de mejoras por costo');
+
+    // Vacios (defaults RHF): normalize los dropea → el jsonb queda lean,
+    // identico al de un informe pre-T-138.
+    const r2 = await updateInformeMetadataAction(targetId, {
+      tipo: 'rgrl',
+      data: { ...validRgrl, campos_personalizados: [], instrucciones_adicionales: '' },
+    });
+    expect(r2.ok).toBe(true);
+
+    const { data: row2 } = await admin
+      .from('informe_metadata')
+      .select('data')
+      .eq('informe_id', targetId)
+      .single();
+    const data2 = row2?.data as Record<string, unknown>;
+    expect('campos_personalizados' in data2).toBe(false);
+    expect('instrucciones_adicionales' in data2).toBe(false);
+  });
+
+  it('8. INVALID_INPUT con campos_personalizados sobre el cap (10)', async () => {
+    await signInAs(emailOwnerA);
+    const { updateInformeMetadataAction } = await import('@/app/(app)/informes/[id]/actions');
+    const targetId = await createInforme('relevamiento', 'T-138 cap test');
+
+    const result = await updateInformeMetadataAction(targetId, {
+      tipo: 'relevamiento',
+      data: {
+        ...validRelevamiento,
+        campos_personalizados: Array.from({ length: 11 }, () => ({ label: 'L', valor: 'v' })),
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.code).toBe('INVALID_INPUT');
+  });
+
+  it('9. payload pre-T-138 (sin campos de personalizacion) sigue siendo valido', async () => {
+    await signInAs(emailOwnerA);
+    const { updateInformeMetadataAction } = await import('@/app/(app)/informes/[id]/actions');
+    const targetId = await createInforme('rgrl', 'T-138 backward-compat payload');
+
+    const result = await updateInformeMetadataAction(targetId, { tipo: 'rgrl', data: validRgrl });
+    expect(result.ok).toBe(true);
+  });
+});

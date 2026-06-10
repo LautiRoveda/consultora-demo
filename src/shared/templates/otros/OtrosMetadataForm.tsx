@@ -16,6 +16,7 @@ import { Separator } from '@/shared/ui/separator';
 import { Textarea } from '@/shared/ui/textarea';
 
 import { normalizeCuit } from '../common/cuit';
+import { PersonalizacionSection } from '../common/PersonalizacionSection';
 
 /**
  * T-022 · Form "Otros" (tipo wildcard). Form minimal: 4 fields.
@@ -35,6 +36,8 @@ export const otrosMetadataDefaults = (): OtrosMetadata => ({
   cuit: '',
   tema_informe: '',
   objetivos: '',
+  campos_personalizados: [],
+  instrucciones_adicionales: '',
 });
 
 type Props = {
@@ -150,6 +153,9 @@ export function OtrosMetadataForm({ form, disabled }: Props) {
           )}
         />
       </section>
+
+      {/* T-138 · Personalizacion compartida (campos + instrucciones). */}
+      <PersonalizacionSection form={form} disabled={disabled} />
     </div>
   );
 }

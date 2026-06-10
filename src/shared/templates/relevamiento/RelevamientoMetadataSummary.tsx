@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/shared/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/ui/collapsible';
 import { Separator } from '@/shared/ui/separator';
 
+import { PersonalizacionSummary } from '../common/PersonalizacionSummary';
 import { provinciaName } from '../common/site';
 import { formatFecha, Item, StatusBadge } from '../common/summary-ui';
 import { agenteHysLabel } from './schema';
@@ -106,6 +107,11 @@ export function RelevamientoMetadataSummary({ metadata: m }: Props) {
                 <dd className="mt-1 whitespace-pre-wrap">{m.equipos_medicion}</dd>
               </div>
             )}
+
+            <PersonalizacionSummary
+              campos={m.campos_personalizados}
+              instrucciones={m.instrucciones_adicionales}
+            />
           </CollapsibleContent>
         </Collapsible>
       </CardContent>

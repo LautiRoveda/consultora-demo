@@ -20,6 +20,7 @@ import { Textarea } from '@/shared/ui/textarea';
 
 import { AREAS_RELEVADAS_PRESETS } from '../common/areas';
 import { normalizeCuit } from '../common/cuit';
+import { PersonalizacionSection } from '../common/PersonalizacionSection';
 import { PROVINCIAS_AR } from '../common/site';
 import { AGENTES_HYS } from './schema';
 
@@ -46,6 +47,8 @@ export const relevamientoMetadataDefaults = (): RelevamientoMetadata => ({
   areas_relevadas: ['Oficinas administrativas', 'Producción / planta'],
   agentes_a_relevar: ['ruido', 'iluminacion'],
   equipos_medicion: '',
+  campos_personalizados: [],
+  instrucciones_adicionales: '',
 });
 
 type Props = {
@@ -347,6 +350,9 @@ export function RelevamientoMetadataForm({ form, disabled }: Props) {
           )}
         />
       </section>
+
+      {/* T-138 · Personalizacion compartida (campos + instrucciones). */}
+      <PersonalizacionSection form={form} disabled={disabled} />
     </div>
   );
 }

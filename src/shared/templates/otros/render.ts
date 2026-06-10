@@ -1,5 +1,9 @@
 import type { OtrosMetadata } from './schema';
 
+import {
+  renderCamposPersonalizadosBlock,
+  renderInstruccionesAdicionalesBlock,
+} from '../common/render-extra';
 import { renderAsBlockquote, sanitizeField } from '../common/sanitize';
 
 /**
@@ -35,6 +39,11 @@ export function renderOtrosMetadataAsPromptContext(metadata: OtrosMetadata): str
     lines.push(renderAsBlockquote(sanitizeField(m.objetivos)));
     lines.push('');
   }
+
+  // T-138 · Personalizacion (campos → instrucciones), siempre ANTES del
+  // footer de re-anclaje: la ultima palabra la tiene el sistema.
+  lines.push(...renderCamposPersonalizadosBlock(m.campos_personalizados));
+  lines.push(...renderInstruccionesAdicionalesBlock(m.instrucciones_adicionales));
 
   // Footer de re-anclaje minimalista — no impone estructura, deja que el tema
   // y los objetivos del consultor guien la salida.

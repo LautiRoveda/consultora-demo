@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+import {
+  camposPersonalizadosField,
+  instruccionesAdicionalesField,
+  normalizeCamposPersonalizados,
+  normalizeInstruccionesAdicionales,
+} from '../common/campos-extra';
 import { normalizeCuit } from '../common/cuit';
 import { commonClientFieldsWithSite, fechaIsoField } from '../common/schema';
 
@@ -159,6 +165,12 @@ export const rgrlMetadataSchema = z.object({
     .optional(),
 
   fecha_relevamiento: fechaIsoField,
+
+  // — PERSONALIZACION (T-138 fase 1, compartida por los 5 tipos) —
+  // Aditiva: agrega datos/foco al user message; la estructura legal del RGRL
+  // (10 secciones SRT) NO es configurable.
+  campos_personalizados: camposPersonalizadosField(),
+  instrucciones_adicionales: instruccionesAdicionalesField(),
 });
 
 export type RgrlMetadata = z.infer<typeof rgrlMetadataSchema>;
@@ -181,6 +193,8 @@ export function normalizeRgrlMetadata(m: RgrlMetadata): RgrlMetadata {
       m.riesgos_pre_detectados && m.riesgos_pre_detectados.length > 0
         ? m.riesgos_pre_detectados
         : undefined,
+    campos_personalizados: normalizeCamposPersonalizados(m.campos_personalizados),
+    instrucciones_adicionales: normalizeInstruccionesAdicionales(m.instrucciones_adicionales),
   };
 }
 

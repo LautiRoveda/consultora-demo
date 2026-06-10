@@ -1,5 +1,6 @@
 import type { AccidenteMetadata } from './schema';
 
+import { PersonalizacionSummaryContent } from '../common/PersonalizacionSummary';
 import { gravedadLabel, parteCuerpoLabel, tipoLesionLabel } from './schema';
 
 /**
@@ -71,6 +72,11 @@ export function AccidenteMetadataSummaryContent({ metadata: m }: Props) {
         <p className="pdf-summary-list-title">Descripción inicial</p>
         <p className="pdf-summary-prose">{m.descripcion_inicial}</p>
       </div>
+
+      <PersonalizacionSummaryContent
+        campos={m.campos_personalizados}
+        instrucciones={m.instrucciones_adicionales}
+      />
     </section>
   );
 }

@@ -17,6 +17,7 @@ import { Separator } from '@/shared/ui/separator';
 import { Textarea } from '@/shared/ui/textarea';
 
 import { normalizeCuit } from '../common/cuit';
+import { PersonalizacionSection } from '../common/PersonalizacionSection';
 import { MODALIDAD_CAPACITACION } from './schema';
 
 /**
@@ -44,6 +45,8 @@ export const capacitacionMetadataDefaults = (): CapacitacionMetadata => ({
   capacitador_matricula: '',
   cantidad_asistentes_prevista: 10,
   contenidos_resumen: '',
+  campos_personalizados: [],
+  instrucciones_adicionales: '',
 });
 
 type Props = {
@@ -310,6 +313,9 @@ export function CapacitacionMetadataForm({ form, disabled }: Props) {
           )}
         />
       </section>
+
+      {/* T-138 · Personalizacion compartida (campos + instrucciones). */}
+      <PersonalizacionSection form={form} disabled={disabled} />
     </div>
   );
 }

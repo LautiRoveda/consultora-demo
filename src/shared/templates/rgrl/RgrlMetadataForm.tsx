@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/shared/ui/separator';
 import { Textarea } from '@/shared/ui/textarea';
 
+import { PersonalizacionSection } from '../common/PersonalizacionSection';
 import {
   AREAS_RELEVADAS_PRESETS,
   DISTRIBUCION_TURNO,
@@ -66,6 +67,8 @@ export const rgrlMetadataDefaults = (): RgrlMetadata => ({
   areas_relevadas: ['Oficinas administrativas', 'Producción / planta'],
   riesgos_pre_detectados: '',
   fecha_relevamiento: TODAY_ISO(),
+  campos_personalizados: [],
+  instrucciones_adicionales: '',
 });
 
 type Props = {
@@ -514,6 +517,9 @@ export function RgrlMetadataForm({ form, disabled }: Props) {
           )}
         />
       </section>
+
+      {/* T-138 · Personalizacion compartida (campos + instrucciones). */}
+      <PersonalizacionSection form={form} disabled={disabled} />
     </div>
   );
 }
