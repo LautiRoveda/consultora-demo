@@ -839,4 +839,62 @@ describe('queries', () => {
     const rDniNonDigit = await searchEmpleadosByDni(sb, 'abc');
     expect(rDniNonDigit).toEqual([]);
   });
+
+  it('18. T-134 · searchEmpleadosByNombre sanea estructurales PostgREST del .or() (inyección + no-sobre-bloqueo)', async () => {
+    await signInAs(emailOwnerA);
+    const { createClient: createServerClient } = await import('@/shared/supabase/server');
+    const { searchEmpleadosByNombre } = await import('@/app/(app)/empleados/queries');
+
+    const prefix = `T18-${runId}`;
+    // Carnada: apellido que termina en "a" — la condición inyectada
+    // `apellido.ilike.%a` (lo que PostgREST parsearía si la coma del término
+    // separara condiciones) lo traería.
+    const apellidoCarnada = `${prefix}-Mendoza`;
+    const apellidoApostrofo = `${prefix}-O'Brien`;
+
+    await admin.from('empleados').insert([
+      {
+        consultora_id: cAId,
+        cliente_id: clienteAId,
+        nombre: 'José',
+        apellido: apellidoCarnada,
+        dni: nextDni(),
+        created_by: ownerAId,
+      },
+      {
+        consultora_id: cAId,
+        cliente_id: clienteAId,
+        nombre: 'Aileen',
+        apellido: apellidoApostrofo,
+        dni: nextDni(),
+        created_by: ownerAId,
+      },
+    ]);
+
+    const sb = await createServerClient();
+
+    // (a) Término inyectado: con el código viejo la coma spliteaba el .or(),
+    // `apellido.ilike.%a` leakeaba la carnada y la primera aserción fallaba
+    // (rojo). Saneado queda el literal "anombre.ilike." → ninguno de los
+    // sembrados puede aparecer. Aserción scopeada a los seeds del run (no `[]`
+    // global) para no depender de filas que otros tests dejaron en el tenant.
+    const rInyectado = await searchEmpleadosByNombre(sb, 'a,nombre.ilike.%');
+    const apellidosInyectado = rInyectado.map((e) => e.apellido);
+    expect(apellidosInyectado).not.toContain(apellidoCarnada);
+    expect(apellidosInyectado).not.toContain(apellidoApostrofo);
+
+    // (b) Paréntesis: con el código viejo el `(` malformaba el .or() → 400 que
+    // la query se traga ({ data } sin chequear error) → [] → esta aserción
+    // fallaba (rojo). Saneado, el `(` se descarta y el match literal de
+    // O'Brien funciona — cubre "no tira 400" de forma observable, con
+    // apóstrofo y paréntesis conviviendo en el mismo término.
+    const rParen = await searchEmpleadosByNombre(sb, `${apellidoApostrofo}(`);
+    expect(rParen.map((e) => e.apellido)).toContain(apellidoApostrofo);
+
+    // (c) No-sobre-bloqueo: el apóstrofo es char válido de nombre y sigue
+    // matcheando (no lo elimina el allowlist). Guard de regresión: verde
+    // también con el código viejo.
+    const rApostrofo = await searchEmpleadosByNombre(sb, apellidoApostrofo);
+    expect(rApostrofo.map((e) => e.apellido)).toContain(apellidoApostrofo);
+  });
 });
