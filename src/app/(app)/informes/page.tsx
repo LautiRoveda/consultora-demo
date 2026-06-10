@@ -34,11 +34,17 @@ export default async function InformesPage() {
             Generá informes técnicos con IA en minutos.
           </p>
         </div>
-        {informes.length > 0 && (
-          <Button asChild>
-            <Link href="/informes/nuevo">Crear informe</Link>
+        <div className="flex shrink-0 gap-2">
+          {/* T-139 · Gestion de plantillas de personalizacion. */}
+          <Button asChild variant="outline">
+            <Link href="/informes/plantillas">Mis plantillas</Link>
           </Button>
-        )}
+          {informes.length > 0 && (
+            <Button asChild>
+              <Link href="/informes/nuevo">Crear informe</Link>
+            </Button>
+          )}
+        </div>
       </div>
       <InformesList informes={informes} />
     </div>

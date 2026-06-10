@@ -156,6 +156,10 @@ Limpiar dependientes antes que padres (informes → clientes → users) evita FK
 
 **Origen**: T-047. Test 3 (anon NO ve clientes) ajustada: `error.code === '42501' permission denied for function is_member_of_consultora` porque los helpers T-015 tienen grant `to authenticated, service_role` (NO anon); defensa en profundidad esperada — anon NUNCA debe llegar a evaluar el filtro RLS porque el helper rechaza antes.
 
+### Unique parcial case-insensitive: testear el duplicado con case SOLO-ASCII
+
+**Origen**: T-139. El índice `unique (consultora_id, tipo, lower(nombre))` se testea insertando un duplicado con case distinto. El fold de `lower()` sobre no-ASCII (`'Ó'→'ó'`) depende del locale/ctype de la DB (en locale `C` solo foldea ASCII) → un fixture tipo `'CAPACITACIÓN'` vs `'Capacitación'` puede dar 23505 en prod y pasar limpio en el Supabase local de CI (o viceversa). Variar el case solo en caracteres ASCII (`'capacitación incendio'` vs `'Capacitación incendio'`) hace el test locale-independiente.
+
 ### red→green ejecutado en CI (2 commits) cuando no hay Docker local
 
 **Origen**: T-114. El gate 'demo red→green ejecutada' choca sin Docker (integration necesita `supabase start`). Solución: commit 1 = solo el test (sin la migración) → job Integration ROJO real; commit 2 = agrega la migración → VERDE. El squash colapsa. NO sirve 'diferir a CI' sin el commit-1-sin-migración (CI siempre corre la branch completa → siempre verde). Aplicado T-114 #204 (run rojo `26963251304` → verde `26963914133`).

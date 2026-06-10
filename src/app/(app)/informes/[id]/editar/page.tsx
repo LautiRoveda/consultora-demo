@@ -6,6 +6,8 @@ import { createSignedAttachmentUrls } from '@/shared/storage/attachments';
 import { SIGNED_URL_TTL_UI_SEC } from '@/shared/storage/types';
 import { createClient } from '@/shared/supabase/server';
 
+import { type PlantillaClientItem } from '../../plantillas/PlantillaControls';
+import { getPlantillasActivas } from '../../plantillas/queries';
 import { getInformeById, getInformeMetadata } from '../../queries';
 import { type InformeStatus, type InformeTipo } from '../../schema';
 import { getInformeAttachments } from '../attachments/queries';
@@ -39,6 +41,11 @@ export default async function InformeEditarPage({ params }: { params: Promise<{ 
 
   const tipo = informe.tipo as InformeTipo;
   const metadataRow = await getInformeMetadata(supabase, informe.id, tipo);
+
+  // T-139: plantillas activas del tipo para los PlantillaControls del editor.
+  const plantillas: PlantillaClientItem[] = (await getPlantillasActivas(supabase, tipo)).map(
+    (row) => ({ id: row.id, tipo, nombre: row.nombre, config: row.config }),
+  );
 
   const attachments = await getInformeAttachments(supabase, informe.id);
   const signedUrls = await createSignedAttachmentUrls(
@@ -85,6 +92,7 @@ export default async function InformeEditarPage({ params }: { params: Promise<{ 
       autoCreateEventOnSign={consultora.autoCreateEventOnSign}
       hasLinkedEvent={linkedEvents.length > 0}
       razonSocial={razonSocial}
+      plantillas={plantillas}
     />
   );
 }
