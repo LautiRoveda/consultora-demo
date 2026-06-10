@@ -31,7 +31,7 @@
     "db:push": "supabase db push",
     "db:diff": "supabase db diff",
     "db:migration:new": "supabase migration new",
-    "db:types": "supabase gen types typescript --linked > src/shared/supabase/types.ts && prettier --write src/shared/supabase/types.ts",
+    "db:types": "node scripts/gen-types.mjs --linked",
     "dev:recovery-link": "tsx --env-file=.env.local scripts/dev-generate-recovery-link.ts",
     "dev:smoke-rls-helpers": "tsx --env-file=.env.local scripts/dev-smoke-rls-helpers.ts",
     "dev:smoke-auth-hook": "tsx --env-file=.env.local scripts/dev-smoke-auth-hook.ts",
