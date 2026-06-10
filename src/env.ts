@@ -198,6 +198,27 @@ if (parsed.data.MP_TEST_PAYER_EMAIL && process.env.NODE_ENV === 'production') {
 }
 
 /**
+ * T-135 (L-3) · Sin las envs de Upstash, `getRateLimiter` cae al noop (siempre
+ * allow) y TODOS los límites (signup, login, IA, webhooks) quedan desactivados
+ * sin señal — este warn ES la señal. WARN y no throw: consistente con los
+ * guards de arriba y seguro para disponibilidad. Condición extraída a función
+ * pura para unit-testearla sin ejecutar el side-effect top-level de este
+ * módulo (safeParse + throw al cargar).
+ */
+export function shouldWarnMissingRateLimit(
+  env: Pick<Env, 'UPSTASH_REDIS_REST_URL' | 'UPSTASH_REDIS_REST_TOKEN'>,
+  nodeEnv: string | undefined,
+): boolean {
+  return nodeEnv === 'production' && (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN);
+}
+
+if (shouldWarnMissingRateLimit(parsed.data, process.env.NODE_ENV)) {
+  console.warn(
+    '⚠️  UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN ausentes en NODE_ENV=production — los rate limits están DESACTIVADOS (getRateLimiter cae al noop que siempre permite: signup, login, IA, webhooks sin límite). Setear ambas en EasyPanel (docs/operations/rate-limiting.md).',
+  );
+}
+
+/**
  * Variables de entorno validadas y tipadas.
  *
  * **Server-only.** Este módulo importa `server-only` al tope: si un Client

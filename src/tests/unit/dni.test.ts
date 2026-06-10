@@ -70,6 +70,21 @@ describe('dniField', () => {
   it('rechaza DNI muy corto', () => {
     expect(dniField.safeParse('123').success).toBe(false);
   });
+
+  // T-135 (L-2) · digits-only 9-12 pasan DNI_REGEX_INPUT (permisivo por los
+  // separadores) pero violan el CHECK SQL `^\d{7,8}$` — sin el refine llegaban
+  // al INSERT y reventaban con error genérico.
+  it('rechaza 9 dígitos puros (pasaba el regex permisivo, violaba el CHECK SQL)', () => {
+    expect(dniField.safeParse('123456789').success).toBe(false);
+  });
+
+  it('rechaza 12 dígitos puros (extremo superior del regex permisivo)', () => {
+    expect(dniField.safeParse('123456789012').success).toBe(false);
+  });
+
+  it('rechaza 9 dígitos con puntos (el refine valida post-normalización)', () => {
+    expect(dniField.safeParse('123.456.789').success).toBe(false);
+  });
 });
 
 describe('DNI_REGEX_INPUT', () => {
