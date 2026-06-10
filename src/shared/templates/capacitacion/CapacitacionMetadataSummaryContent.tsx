@@ -2,6 +2,7 @@ import type { CapacitacionMetadata } from './schema';
 
 import { PersonalizacionSummaryContent } from '../common/PersonalizacionSummary';
 import { modalidadCapacitacionLabel } from './schema';
+import { SECCION_LABEL_BY_ID_CAPACITACION } from './secciones';
 
 /**
  * T-023-FU4 · SummaryContent print-safe para tipo='capacitacion'.
@@ -70,6 +71,8 @@ export function CapacitacionMetadataSummaryContent({ metadata: m }: Props) {
       <PersonalizacionSummaryContent
         campos={m.campos_personalizados}
         instrucciones={m.instrucciones_adicionales}
+        secciones={m.secciones}
+        seccionLabelById={SECCION_LABEL_BY_ID_CAPACITACION}
       />
     </section>
   );

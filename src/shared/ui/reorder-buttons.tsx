@@ -16,7 +16,12 @@ interface Props {
 /**
  * Botones ↑/↓ accesibles para reordenar (sin drag&drop). Disabled en los extremos
  * (también requisito WCAG: evita un control que no hace nada). El padre computa el
- * array reordenado completo y lo manda a la action two-phase.
+ * reorden (array completo a una action two-phase en checklists; useFieldArray.move
+ * en la config de secciones de templates).
+ *
+ * T-138 · Hoisteado desde checklists/[id]/ReorderButtons.tsx: templates (shared)
+ * no puede importar de un módulo de app. `size="none"` + clase manual evita el
+ * leak de `md:pointer-fine:*` de tailwind-merge (gotcha T-127).
  */
 export function ReorderButtons({ index, total, label, onMove, disabled = false }: Props) {
   const isFirst = index === 0;

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   renderCamposPersonalizadosBlock,
+  renderEstructuraSolicitadaBlock,
   renderInstruccionesAdicionalesBlock,
 } from '@/shared/templates/common/render-extra';
 
@@ -42,6 +43,42 @@ describe('renderCamposPersonalizadosBlock', () => {
       "- Equipo 'critico': linea 1 linea 2 # heading",
       '',
     ]);
+  });
+});
+
+describe('renderEstructuraSolicitadaBlock (T-138 fase 2)', () => {
+  const LABELS = { objeto: 'Objeto del informe', alcance: 'Alcance' };
+
+  it('ausente o vacio → [] (informe en estructura estandar, sin bloque)', () => {
+    expect(renderEstructuraSolicitadaBlock(undefined, LABELS)).toEqual([]);
+    expect(renderEstructuraSolicitadaBlock([], LABELS)).toEqual([]);
+  });
+
+  it('lista numerada: catalogo por label (trusted) + custom sanitizada con descripcion', () => {
+    const lines = renderEstructuraSolicitadaBlock(
+      [
+        { kind: 'catalogo', seccion_id: 'alcance' },
+        { kind: 'custom', titulo: 'Plan de izaje', descripcion: 'Secuencia y señalero' },
+        { kind: 'catalogo', seccion_id: 'objeto' },
+      ],
+      LABELS,
+    );
+    expect(lines).toEqual([
+      '**Estructura solicitada (el informe debe contener SOLO estas secciones, en este orden):**',
+      '1. Alcance',
+      '2. [Sección personalizada] Plan de izaje — Secuencia y señalero',
+      '3. Objeto del informe',
+      '',
+    ]);
+  });
+
+  it('custom sin descripcion: solo titulo; titulo malicioso queda sanitizado e inline', () => {
+    const lines = renderEstructuraSolicitadaBlock(
+      [{ kind: 'custom', titulo: 'Izaje `critico`\n# inyectado' }],
+      LABELS,
+    );
+    expect(lines[1]).toBe("1. [Sección personalizada] Izaje 'critico' # inyectado");
+    expect(lines.join('\n')).not.toContain('`');
   });
 });
 

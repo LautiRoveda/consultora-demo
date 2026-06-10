@@ -13,6 +13,7 @@ import { Separator } from '@/shared/ui/separator';
 import { PersonalizacionSummary } from '../common/PersonalizacionSummary';
 import { formatFecha, Item, StatusBadge } from '../common/summary-ui';
 import { modalidadCapacitacionLabel } from './schema';
+import { SECCION_LABEL_BY_ID_CAPACITACION } from './secciones';
 
 /**
  * T-022 · Summary read view para tipo='capacitacion'.
@@ -92,6 +93,8 @@ export function CapacitacionMetadataSummary({ metadata: m }: Props) {
             <PersonalizacionSummary
               campos={m.campos_personalizados}
               instrucciones={m.instrucciones_adicionales}
+              secciones={m.secciones}
+              seccionLabelById={SECCION_LABEL_BY_ID_CAPACITACION}
             />
           </CollapsibleContent>
         </Collapsible>

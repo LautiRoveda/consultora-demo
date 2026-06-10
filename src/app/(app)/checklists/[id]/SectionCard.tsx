@@ -7,13 +7,13 @@ import { useTransition } from 'react';
 
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader } from '@/shared/ui/card';
+import { ReorderButtons } from '@/shared/ui/reorder-buttons';
 
 import { deleteSectionAction, reorderItemsAction } from '../actions';
 import { ConfirmDeleteButton } from './ConfirmDeleteButton';
 import { handleCommonFailure } from './feedback';
 import { ItemEditDialog } from './ItemEditDialog';
 import { ItemRow } from './ItemRow';
-import { ReorderButtons } from './ReorderButtons';
 import { SectionEditDialog } from './SectionEditDialog';
 
 interface Props {

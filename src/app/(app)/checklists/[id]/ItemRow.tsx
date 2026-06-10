@@ -5,13 +5,13 @@ import { Pencil } from 'lucide-react';
 
 import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
+import { ReorderButtons } from '@/shared/ui/reorder-buttons';
 
 import { deleteItemAction } from '../actions';
 import { RESPONSE_TYPE_LABELS } from '../labels';
 import { type ResponseType } from '../schema';
 import { ConfirmDeleteButton } from './ConfirmDeleteButton';
 import { ItemEditDialog } from './ItemEditDialog';
-import { ReorderButtons } from './ReorderButtons';
 
 interface Props {
   item: TemplateItemRow;

@@ -1,0 +1,57 @@
+# Estructura mínima del informe genérico
+
+Estas son las secciones obligatorias. Si el user prompt sugiere secciones adicionales o un orden distinto, podés adaptarte siempre que las 4 obligatorias estén presentes.
+
+## 1. Objeto del informe
+
+Una o dos oraciones claras describiendo qué se viene a aportar con este informe. Fiel al user prompt — no infles.
+
+## 2. Alcance
+
+Definí qué cubre y qué NO cubre el informe:
+- Áreas / puestos / tareas / equipos / agentes incluidos.
+- Períodos cubiertos (si aplica).
+- Lo que queda explícitamente fuera del alcance.
+
+## 3. Datos del establecimiento / cliente
+
+- Razón social: [A COMPLETAR]
+- CUIT: [A COMPLETAR]
+- Domicilio: [A COMPLETAR]
+- Actividad principal: [A COMPLETAR]
+- ART: [A COMPLETAR]
+- Solicitante del informe: [Nombre y cargo en la empresa]
+
+## 4. Marco normativo aplicable
+
+Listá las normas que aplican al objeto del informe. Sé honesto sobre nivel de certeza:
+- "Ley 19.587 y Decreto 351/79 art. 211" — número estable, OK citar.
+- "Resolución SRT vigente sobre [tema]" — sin inventar número exacto.
+
+## 5. Desarrollo
+
+El cuerpo del informe. Adaptá la estructura interna al objeto:
+- Si es auditoría: criterios + hallazgos + brechas.
+- Si es evaluación de puesto: descripción del puesto + agentes de riesgo + medidas existentes + brechas.
+- Si es plan de evacuación: rutas + puntos de encuentro + responsables + simulacros previstos.
+- Si es informe de simulacro: cronología + observaciones + tiempos + falencias detectadas.
+- etc.
+
+Usá subsecciones `###` cuando el contenido lo amerite.
+
+## 6. Conclusiones
+
+Resumen de los hallazgos clave del desarrollo. Listado o párrafos cortos. Cualitativo (sin inventar métricas).
+
+## 7. Recomendaciones
+
+Recomendaciones priorizadas (alta / media / baja prioridad). Para cada una:
+- Descripción.
+- Plazo sugerido.
+- Responsable sugerido.
+
+Mantené la jerarquía de controles (control en fuente > control administrativo > EPP) cuando aplique.
+
+## 8. Anexos
+
+Listá los anexos que el profesional adjuntará al firmar (fotografías, planimetría, certificados, procedimientos de referencia, etc.). Si no hay anexos previstos, indicalo: "Sin anexos."

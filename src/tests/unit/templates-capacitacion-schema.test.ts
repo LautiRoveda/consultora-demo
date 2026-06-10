@@ -6,6 +6,7 @@ import {
   capacitacionMetadataSchema,
   normalizeCapacitacionMetadata,
 } from '@/shared/templates/capacitacion/schema';
+import { SECCION_IDS_CAPACITACION } from '@/shared/templates/capacitacion/secciones';
 
 /**
  * T-022 · Tests del schema + render de Capacitacion.
@@ -142,5 +143,55 @@ describe('capacitacion · personalizacion (T-138 fase 1)', () => {
     expect(camposIdx).toBeGreaterThan(out.indexOf('**Actividad formativa:**'));
     expect(instruccionesIdx).toBeGreaterThan(camposIdx);
     expect(footerIdx).toBeGreaterThan(instruccionesIdx);
+  });
+});
+
+describe('capacitacion · secciones configurables (T-138 fase 2)', () => {
+  const config = [
+    { kind: 'catalogo', seccion_id: 'datos_generales' },
+    { kind: 'catalogo', seccion_id: 'contenidos' },
+    { kind: 'custom', titulo: 'Compromisos del empleador' },
+  ];
+
+  it('acepta config valida; rechaza seccion_id de otro tipo', () => {
+    expect(
+      capacitacionMetadataSchema.safeParse({ ...validFixture, secciones: config }).success,
+    ).toBe(true);
+    expect(
+      capacitacionMetadataSchema.safeParse({
+        ...validFixture,
+        secciones: [{ kind: 'catalogo', seccion_id: 'mediciones' }], // id de relevamiento
+      }).success,
+    ).toBe(false);
+  });
+
+  it('normalize: config default → undefined; no-default se preserva', () => {
+    const def = SECCION_IDS_CAPACITACION.map((id) => ({
+      kind: 'catalogo' as const,
+      seccion_id: id,
+    }));
+    const r = capacitacionMetadataSchema.safeParse({ ...validFixture, secciones: def });
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(normalizeCapacitacionMetadata(r.data).secciones).toBeUndefined();
+
+    const r2 = capacitacionMetadataSchema.safeParse({ ...validFixture, secciones: config });
+    expect(r2.success).toBe(true);
+    if (!r2.success) return;
+    expect(normalizeCapacitacionMetadata(r2.data).secciones).toHaveLength(3);
+  });
+
+  it('render: bloque "Estructura solicitada" con labels del catalogo + custom', () => {
+    const r = capacitacionMetadataSchema.safeParse({ ...validFixture, secciones: config });
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+
+    const out = renderCapacitacionMetadataAsPromptContext(r.data);
+    expect(out).toContain('1. Datos generales de la capacitación');
+    expect(out).toContain('2. Contenidos dictados');
+    expect(out).toContain('3. [Sección personalizada] Compromisos del empleador');
+    expect(out.indexOf('Generá el informe de capacitación')).toBeGreaterThan(
+      out.indexOf('Estructura solicitada'),
+    );
   });
 });

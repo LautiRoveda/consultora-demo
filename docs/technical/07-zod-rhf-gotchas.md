@@ -152,6 +152,33 @@ Checklist forward para T-022, cada nuevo template:
 - [ ] Normalizadores en helpers exportados aparte.
 - [ ] `z.infer<typeof schema>` como única fuente de verdad para el tipo.
 
+## Gotchas adicionales (T-138)
+
+### 4. `useFieldArray` inyecta su key interna como `id` y shadowea tu campo `id`
+
+**Síntoma.** Los elementos de `fields[]` que devuelve `useFieldArray` traen un `id` propio de RHF (la key estable de render). Si tu dato también tiene un campo `id`, el de RHF lo pisa en el objeto del field y el dato queda inaccesible/corrupto en el map del render.
+
+**Solución.** Nombrar el campo de datos distinto. En la config de secciones (T-138 fase 2) la ref al catálogo es `seccion_id`, NO `id`:
+
+```ts
+z.object({ kind: z.literal('catalogo'), seccion_id: z.enum(ids) })
+```
+
+Ver [`src/shared/templates/common/secciones.ts`](../../src/shared/templates/common/secciones.ts) + [`SeccionesConfigField.tsx`](../../src/shared/templates/common/SeccionesConfigField.tsx).
+
+### `z.discriminatedUnion` NO rompe `zodResolver`
+
+A diferencia de `coerce`/`preprocess`/`transform`, las discriminated unions mantienen `z.input === z.output` → la inferencia de RHF queda intacta. `.refine` sobre el array (dedup, caps) tampoco la rompe. El campo `secciones` (T-138 fase 2) combina ambos con `useFieldArray` (move/append/remove/replace sobre la union) sin degradar el tipado:
+
+```ts
+z.array(
+  z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('catalogo'), seccion_id: z.enum(ids) }),
+    z.object({ kind: z.literal('custom'), titulo: z.string().trim().min(3).max(80) }),
+  ]),
+).min(1).max(15).refine(/* dedup refs */).optional()
+```
+
 ## Anti-patterns
 
 - `z.coerce.number()` / `z.coerce.string()` — input type `unknown`, rompe RHF.

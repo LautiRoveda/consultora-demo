@@ -8,6 +8,8 @@ import {
 } from '../common/campos-extra';
 import { normalizeCuit } from '../common/cuit';
 import { commonClientFields, fechaIsoField } from '../common/schema';
+import { normalizeSecciones, seccionesField } from '../common/secciones';
+import { SECCION_IDS_CAPACITACION } from './secciones';
 
 /**
  * T-022 · Schema del template Capacitación.
@@ -96,6 +98,9 @@ export const capacitacionMetadataSchema = z.object({
   // — PERSONALIZACION (T-138 fase 1, compartida por los 5 tipos) —
   campos_personalizados: camposPersonalizadosField(),
   instrucciones_adicionales: instruccionesAdicionalesField(),
+
+  // — SECCIONES CONFIGURABLES (T-138 fase 2, solo tipos sin estructura legal) —
+  secciones: seccionesField(SECCION_IDS_CAPACITACION),
 });
 
 export type CapacitacionMetadata = z.infer<typeof capacitacionMetadataSchema>;
@@ -121,6 +126,7 @@ export function normalizeCapacitacionMetadata(m: CapacitacionMetadata): Capacita
       m.contenidos_resumen && m.contenidos_resumen.length > 0 ? m.contenidos_resumen : undefined,
     campos_personalizados: normalizeCamposPersonalizados(m.campos_personalizados),
     instrucciones_adicionales: normalizeInstruccionesAdicionales(m.instrucciones_adicionales),
+    secciones: normalizeSecciones(m.secciones, SECCION_IDS_CAPACITACION),
   };
 }
 

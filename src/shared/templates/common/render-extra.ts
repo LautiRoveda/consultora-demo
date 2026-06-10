@@ -1,4 +1,5 @@
 import type { CampoPersonalizado } from './campos-extra';
+import type { SeccionConfig } from './secciones';
 
 import { renderAsBlockquote, sanitizeField } from './sanitize';
 
@@ -40,6 +41,40 @@ export function renderCamposPersonalizadosBlock(
     const valor = sanitizeField(collapseWhitespace(campo.valor));
     lines.push(`- ${label}: ${valor}`);
   }
+  lines.push('');
+  return lines;
+}
+
+/**
+ * T-138 fase 2 · Bloque "Estructura solicitada" (solo tipos configurables:
+ * relevamiento / capacitacion / otros). Lista numerada de la seleccion del
+ * consultor: las refs de catalogo se renderizan por LABEL (trusted, viene del
+ * codigo) y las custom con titulo/descripcion sanitizados (user-controlled).
+ * El system prompt define los cuerpos del catalogo y la regla condicional
+ * "generá SOLO estas secciones en este orden".
+ *
+ * `normalizeSecciones` ya dropeo la config igual al default → si el campo
+ * existe, hay una estructura distinta a la canonica para emitir.
+ */
+export function renderEstructuraSolicitadaBlock(
+  secciones: readonly SeccionConfig[] | undefined,
+  labelById: Record<string, string>,
+): string[] {
+  if (!secciones || secciones.length === 0) return [];
+
+  const lines: string[] = [];
+  lines.push(
+    '**Estructura solicitada (el informe debe contener SOLO estas secciones, en este orden):**',
+  );
+  secciones.forEach((s, i) => {
+    if (s.kind === 'catalogo') {
+      lines.push(`${i + 1}. ${labelById[s.seccion_id] ?? s.seccion_id}`);
+    } else {
+      const titulo = sanitizeField(collapseWhitespace(s.titulo));
+      const desc = s.descripcion ? ` — ${sanitizeField(collapseWhitespace(s.descripcion))}` : '';
+      lines.push(`${i + 1}. [Sección personalizada] ${titulo}${desc}`);
+    }
+  });
   lines.push('');
   return lines;
 }

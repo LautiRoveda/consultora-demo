@@ -408,6 +408,32 @@ create policy informes_consultora on informes for all
 create policy norm_templates_read on norm_templates for select using (true);  -- catálogo público
 ```
 
+#### `informe_metadata` — shape real de `data` (T-021/T-022/T-138)
+
+> El bloque SQL de arriba es el schema de planning (drift conocido vs prod — ver operativo.md). En la implementación real, la metadata estructurada del template vive en la tabla `informe_metadata` (1:1 con `informes` por `informe_id`, RLS via el informe padre) con un único campo `data jsonb` validado con el schema Zod del tipo (`TEMPLATE_SERVER_REGISTRY[tipo].schema`) en cada borde: UPSERT pre-persist + lectura defensiva con `safeParse` (drift → null, la UI cae al fallback "sin datos").
+
+Shape por tipo = campos propios del template (`templates/{tipo}/schema.ts`) + personalización T-138 (todas las keys opcionales → backward-compat sin migración):
+
+```jsonc
+{
+  // ...campos del tipo (razon_social, cuit, areas_relevadas, ...)
+
+  // — T-138 fase 1 (los 5 tipos) —
+  "campos_personalizados": [                      // cap 10 items
+    { "label": "N° de expediente", "valor": "EXP-2026-001" }  // label ≤60 · valor ≤500
+  ],
+  "instrucciones_adicionales": "priorizá recomendaciones de bajo costo",  // ≤1500 chars
+
+  // — T-138 fase 2 (SOLO relevamiento | capacitacion | otros) —
+  "secciones": [                                  // min 1 · cap 15 · customs ≤5
+    { "kind": "catalogo", "seccion_id": "mediciones" },  // id del catálogo del tipo (templates/{tipo}/secciones.ts)
+    { "kind": "custom", "titulo": "Plan de izaje", "descripcion": "≤300, opcional" }
+  ]
+}
+```
+
+Normalización pre-persist (`normalize<Tipo>Metadata`): `''` / `[]` → key ausente; `secciones` igual al default del tipo (catálogo completo en orden canónico) → key ausente. Un informe sin personalización persiste el mismo jsonb que pre-T-138 y genera el mismo user message.
+
 ### M7 · EPP
 
 ```sql

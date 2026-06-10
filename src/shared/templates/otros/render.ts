@@ -2,9 +2,11 @@ import type { OtrosMetadata } from './schema';
 
 import {
   renderCamposPersonalizadosBlock,
+  renderEstructuraSolicitadaBlock,
   renderInstruccionesAdicionalesBlock,
 } from '../common/render-extra';
 import { renderAsBlockquote, sanitizeField } from '../common/sanitize';
+import { SECCION_LABEL_BY_ID_OTROS } from './secciones';
 
 /**
  * T-022 · Render del metadata "Otros" como bloque markdown estructurado para
@@ -40,9 +42,10 @@ export function renderOtrosMetadataAsPromptContext(metadata: OtrosMetadata): str
     lines.push('');
   }
 
-  // T-138 · Personalizacion (campos → instrucciones), siempre ANTES del
-  // footer de re-anclaje: la ultima palabra la tiene el sistema.
+  // T-138 · Personalizacion (campos → estructura → instrucciones), siempre
+  // ANTES del footer de re-anclaje: la ultima palabra la tiene el sistema.
   lines.push(...renderCamposPersonalizadosBlock(m.campos_personalizados));
+  lines.push(...renderEstructuraSolicitadaBlock(m.secciones, SECCION_LABEL_BY_ID_OTROS));
   lines.push(...renderInstruccionesAdicionalesBlock(m.instrucciones_adicionales));
 
   // Footer de re-anclaje minimalista — no impone estructura, deja que el tema

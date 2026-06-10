@@ -6,6 +6,7 @@ import {
   normalizeRelevamientoMetadata,
   relevamientoMetadataSchema,
 } from '@/shared/templates/relevamiento/schema';
+import { SECCION_IDS_RELEVAMIENTO } from '@/shared/templates/relevamiento/secciones';
 
 const validFixture: RelevamientoMetadata = {
   razon_social: 'Frigorífico del Sur SRL',
@@ -113,5 +114,72 @@ describe('relevamiento · personalizacion (T-138 fase 1)', () => {
     expect(camposIdx).toBeGreaterThan(out.indexOf('**Alcance:**'));
     expect(instruccionesIdx).toBeGreaterThan(camposIdx);
     expect(footerIdx).toBeGreaterThan(instruccionesIdx);
+  });
+});
+
+describe('relevamiento · secciones configurables (T-138 fase 2)', () => {
+  const config = [
+    { kind: 'catalogo', seccion_id: 'mediciones' },
+    { kind: 'custom', titulo: 'Plan de izaje', descripcion: 'Secuencia y señalero' },
+    { kind: 'catalogo', seccion_id: 'recomendaciones' },
+  ];
+
+  it('acepta config valida; rechaza seccion_id de otro tipo', () => {
+    expect(
+      relevamientoMetadataSchema.safeParse({ ...validFixture, secciones: config }).success,
+    ).toBe(true);
+    expect(
+      relevamientoMetadataSchema.safeParse({
+        ...validFixture,
+        secciones: [{ kind: 'catalogo', seccion_id: 'objeto' }], // id de "otros"
+      }).success,
+    ).toBe(false);
+  });
+
+  it('normalize: config default → undefined; no-default se preserva', () => {
+    const def = SECCION_IDS_RELEVAMIENTO.map((id) => ({
+      kind: 'catalogo' as const,
+      seccion_id: id,
+    }));
+    const r = relevamientoMetadataSchema.safeParse({ ...validFixture, secciones: def });
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(normalizeRelevamientoMetadata(r.data).secciones).toBeUndefined();
+
+    const r2 = relevamientoMetadataSchema.safeParse({ ...validFixture, secciones: config });
+    expect(r2.success).toBe(true);
+    if (!r2.success) return;
+    expect(normalizeRelevamientoMetadata(r2.data).secciones).toHaveLength(3);
+  });
+
+  it('render: bloque "Estructura solicitada" con labels + custom, entre campos e instrucciones', () => {
+    const r = relevamientoMetadataSchema.safeParse({
+      ...validFixture,
+      campos_personalizados: [{ label: 'Norma interna', valor: 'IRAM 3800' }],
+      secciones: config,
+      instrucciones_adicionales: 'foco en EPP',
+    });
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+
+    const out = renderRelevamientoMetadataAsPromptContext(r.data);
+    expect(out).toContain(
+      '**Estructura solicitada (el informe debe contener SOLO estas secciones, en este orden):**',
+    );
+    expect(out).toContain('1. Mediciones realizadas');
+    expect(out).toContain('2. [Sección personalizada] Plan de izaje — Secuencia y señalero');
+    expect(out).toContain('3. Recomendaciones');
+
+    const estructuraIdx = out.indexOf('Estructura solicitada');
+    expect(estructuraIdx).toBeGreaterThan(out.indexOf('Campos personalizados'));
+    expect(out.indexOf('Instrucciones adicionales del consultor')).toBeGreaterThan(estructuraIdx);
+    expect(out.indexOf('Generá el informe de relevamiento técnico')).toBeGreaterThan(
+      out.indexOf('Instrucciones adicionales del consultor'),
+    );
+  });
+
+  it('sin config: user message sin bloque de estructura (comportamiento pre-fase-2)', () => {
+    const out = renderRelevamientoMetadataAsPromptContext(validFixture);
+    expect(out).not.toContain('Estructura solicitada');
   });
 });
