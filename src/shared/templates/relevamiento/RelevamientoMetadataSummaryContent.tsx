@@ -3,6 +3,7 @@ import type { RelevamientoMetadata } from './schema';
 import { PersonalizacionSummaryContent } from '../common/PersonalizacionSummary';
 import { provinciaName } from '../common/site';
 import { agenteHysLabel } from './schema';
+import { SECCION_LABEL_BY_ID_RELEVAMIENTO } from './secciones';
 
 /**
  * T-023-FU4 · SummaryContent print-safe para tipo='relevamiento'.
@@ -81,6 +82,8 @@ export function RelevamientoMetadataSummaryContent({ metadata: m }: Props) {
       <PersonalizacionSummaryContent
         campos={m.campos_personalizados}
         instrucciones={m.instrucciones_adicionales}
+        secciones={m.secciones}
+        seccionLabelById={SECCION_LABEL_BY_ID_RELEVAMIENTO}
       />
     </section>
   );

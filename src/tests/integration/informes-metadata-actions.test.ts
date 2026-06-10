@@ -515,4 +515,86 @@ describe('updateInformeMetadataAction · T-138 personalizacion', () => {
     const result = await updateInformeMetadataAction(targetId, { tipo: 'rgrl', data: validRgrl });
     expect(result.ok).toBe(true);
   });
+
+  it('10. fase 2: secciones no-default persisten; config default se dropea del jsonb', async () => {
+    await signInAs(emailOwnerA);
+    const { updateInformeMetadataAction } = await import('@/app/(app)/informes/[id]/actions');
+    const targetId = await createInforme('relevamiento', 'T-138 secciones UPSERT');
+
+    // Config custom (subset reordenado + seccion personalizada) → persiste.
+    const configCustom = [
+      { kind: 'catalogo' as const, seccion_id: 'mediciones' as const },
+      { kind: 'custom' as const, titulo: 'Plan de izaje', descripcion: 'Secuencia y señalero' },
+      { kind: 'catalogo' as const, seccion_id: 'recomendaciones' as const },
+    ];
+    const r1 = await updateInformeMetadataAction(targetId, {
+      tipo: 'relevamiento',
+      data: { ...validRelevamiento, secciones: configCustom },
+    });
+    expect(r1.ok).toBe(true);
+
+    const { data: row1 } = await admin
+      .from('informe_metadata')
+      .select('data')
+      .eq('informe_id', targetId)
+      .single();
+    expect((row1?.data as Record<string, unknown>).secciones).toEqual(configCustom);
+
+    // Config igual al default (catalogo completo en orden canonico) → la key
+    // desaparece del jsonb: el informe vuelve a comportarse como pre-fase-2.
+    const configDefault = [
+      'datos_establecimiento',
+      'alcance',
+      'metodologia',
+      'mediciones',
+      'conclusiones',
+      'recomendaciones',
+      'anexos',
+    ].map((id) => ({ kind: 'catalogo' as const, seccion_id: id }));
+    const r2 = await updateInformeMetadataAction(targetId, {
+      tipo: 'relevamiento',
+      data: { ...validRelevamiento, secciones: configDefault },
+    });
+    expect(r2.ok).toBe(true);
+
+    const { data: row2 } = await admin
+      .from('informe_metadata')
+      .select('data')
+      .eq('informe_id', targetId)
+      .single();
+    expect('secciones' in (row2?.data as Record<string, unknown>)).toBe(false);
+  });
+
+  it('11. fase 2: INVALID_INPUT con seccion_id de otro tipo o customs sobre el cap', async () => {
+    await signInAs(emailOwnerA);
+    const { updateInformeMetadataAction } = await import('@/app/(app)/informes/[id]/actions');
+    const targetId = await createInforme('relevamiento', 'T-138 secciones invalidas');
+
+    // Id del catalogo de "otros" no parsea en relevamiento.
+    const cross = await updateInformeMetadataAction(targetId, {
+      tipo: 'relevamiento',
+      data: {
+        ...validRelevamiento,
+        secciones: [{ kind: 'catalogo', seccion_id: 'objeto' }],
+      },
+    });
+    expect(cross.ok).toBe(false);
+    if (cross.ok) throw new Error('unreachable');
+    expect(cross.code).toBe('INVALID_INPUT');
+
+    // 6 customs > cap 5.
+    const overCap = await updateInformeMetadataAction(targetId, {
+      tipo: 'relevamiento',
+      data: {
+        ...validRelevamiento,
+        secciones: Array.from({ length: 6 }, (_, i) => ({
+          kind: 'custom' as const,
+          titulo: `Sección ${i + 1}`,
+        })),
+      },
+    });
+    expect(overCap.ok).toBe(false);
+    if (overCap.ok) throw new Error('unreachable');
+    expect(overCap.code).toBe('INVALID_INPUT');
+  });
 });

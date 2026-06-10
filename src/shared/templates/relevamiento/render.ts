@@ -2,11 +2,13 @@ import type { RelevamientoMetadata } from './schema';
 
 import {
   renderCamposPersonalizadosBlock,
+  renderEstructuraSolicitadaBlock,
   renderInstruccionesAdicionalesBlock,
 } from '../common/render-extra';
 import { renderAsBlockquote, sanitizeField } from '../common/sanitize';
 import { provinciaName } from '../common/site';
 import { agenteHysLabel } from './schema';
+import { SECCION_LABEL_BY_ID_RELEVAMIENTO } from './secciones';
 
 /**
  * T-022 · Render del metadata Relevamiento como bloque markdown estructurado
@@ -53,9 +55,10 @@ export function renderRelevamientoMetadataAsPromptContext(metadata: Relevamiento
     lines.push('');
   }
 
-  // T-138 · Personalizacion (campos → instrucciones), siempre ANTES del
-  // footer de re-anclaje: la ultima palabra la tiene el sistema.
+  // T-138 · Personalizacion (campos → estructura → instrucciones), siempre
+  // ANTES del footer de re-anclaje: la ultima palabra la tiene el sistema.
   lines.push(...renderCamposPersonalizadosBlock(m.campos_personalizados));
+  lines.push(...renderEstructuraSolicitadaBlock(m.secciones, SECCION_LABEL_BY_ID_RELEVAMIENTO));
   lines.push(...renderInstruccionesAdicionalesBlock(m.instrucciones_adicionales));
 
   // Footer de re-anclaje

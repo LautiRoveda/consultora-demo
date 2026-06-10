@@ -18,7 +18,10 @@ import { Textarea } from '@/shared/ui/textarea';
 
 import { normalizeCuit } from '../common/cuit';
 import { PersonalizacionSection } from '../common/PersonalizacionSection';
+import { defaultSeccionesConfig, esSeleccionDefault } from '../common/secciones';
+import { SeccionesConfigField } from '../common/SeccionesConfigField';
 import { MODALIDAD_CAPACITACION } from './schema';
+import { SECCION_IDS_CAPACITACION, SECCIONES_CAPACITACION } from './secciones';
 
 /**
  * T-022 · Form Capacitacion. Mismo contrato visual que `RgrlMetadataForm`:
@@ -47,6 +50,7 @@ export const capacitacionMetadataDefaults = (): CapacitacionMetadata => ({
   contenidos_resumen: '',
   campos_personalizados: [],
   instrucciones_adicionales: '',
+  secciones: defaultSeccionesConfig(SECCION_IDS_CAPACITACION),
 });
 
 type Props = {
@@ -314,8 +318,15 @@ export function CapacitacionMetadataForm({ form, disabled }: Props) {
         />
       </section>
 
-      {/* T-138 · Personalizacion compartida (campos + instrucciones). */}
-      <PersonalizacionSection form={form} disabled={disabled} />
+      {/* T-138 · Personalizacion compartida (campos + secciones + instrucciones).
+          abrirSi: estructura guardada distinta del default no debe quedar oculta. */}
+      <PersonalizacionSection
+        form={form}
+        disabled={disabled}
+        abrirSi={!esSeleccionDefault(form.getValues('secciones') ?? [], SECCION_IDS_CAPACITACION)}
+      >
+        <SeccionesConfigField form={form} catalogo={SECCIONES_CAPACITACION} disabled={disabled} />
+      </PersonalizacionSection>
     </div>
   );
 }

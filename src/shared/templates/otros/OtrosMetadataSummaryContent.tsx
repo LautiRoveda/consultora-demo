@@ -1,6 +1,7 @@
 import type { OtrosMetadata } from './schema';
 
 import { PersonalizacionSummaryContent } from '../common/PersonalizacionSummary';
+import { SECCION_LABEL_BY_ID_OTROS } from './secciones';
 
 /**
  * T-023-FU4 · SummaryContent print-safe para tipo='otros'.
@@ -46,6 +47,8 @@ export function OtrosMetadataSummaryContent({ metadata: m }: Props) {
       <PersonalizacionSummaryContent
         campos={m.campos_personalizados}
         instrucciones={m.instrucciones_adicionales}
+        secciones={m.secciones}
+        seccionLabelById={SECCION_LABEL_BY_ID_OTROS}
       />
     </section>
   );

@@ -23,21 +23,26 @@ import { InstruccionesAdicionalesField } from './InstruccionesAdicionalesField';
  *
  * `children`: slot entre campos e instrucciones — fase 2 inserta ahi la
  * configuracion de secciones en los tipos sin estructura legal.
+ *
+ * `abrirSi`: señal extra para el estado inicial (solo primer render). Los
+ * tipos fase-2 la usan para arrancar abierta cuando la estructura guardada
+ * difiere del default — esta seccion no conoce el catalogo del tipo.
  */
 type Props = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: UseFormReturn<any>;
   disabled?: boolean;
   children?: ReactNode;
+  abrirSi?: boolean;
 };
 
-export function PersonalizacionSection({ form, disabled, children }: Props) {
+export function PersonalizacionSection({ form, disabled, children, abrirSi = false }: Props) {
   const [open, setOpen] = useState<boolean>(() => {
     // Asserts puntuales: el form viene como UseFormReturn<any> y el shape real
     // lo garantiza Zod (factories de campos-extra en cada schema).
     const campos = (form.getValues('campos_personalizados') ?? []) as unknown[];
     const instrucciones = (form.getValues('instrucciones_adicionales') ?? '') as string;
-    return campos.length > 0 || instrucciones.length > 0;
+    return abrirSi || campos.length > 0 || instrucciones.length > 0;
   });
 
   return (

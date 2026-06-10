@@ -503,6 +503,12 @@ describe('POST /api/informes/[id]/generate-stream — flow', () => {
         agentes_a_relevar: ['ruido'],
         campos_personalizados: [{ label: 'Norma interna', valor: 'IRAM 3800' }],
         instrucciones_adicionales: 'priorizá recomendaciones de bajo costo',
+        // Fase 2: estructura no-default (subset reordenado + custom).
+        secciones: [
+          { kind: 'catalogo', seccion_id: 'mediciones' },
+          { kind: 'custom', titulo: 'Plan de izaje', descripcion: 'Secuencia y señalero' },
+          { kind: 'catalogo', seccion_id: 'recomendaciones' },
+        ],
       } as Json,
     });
 
@@ -525,6 +531,14 @@ describe('POST /api/informes/[id]/generate-stream — flow', () => {
     expect(userMsg.indexOf('Generá el informe de relevamiento técnico')).toBeGreaterThan(
       userMsg.indexOf('> priorizá recomendaciones de bajo costo'),
     );
+
+    // Fase 2: bloque "Estructura solicitada" con labels + custom, en orden.
+    expect(userMsg).toContain(
+      '**Estructura solicitada (el informe debe contener SOLO estas secciones, en este orden):**',
+    );
+    expect(userMsg).toContain('1. Mediciones realizadas');
+    expect(userMsg).toContain('2. [Sección personalizada] Plan de izaje — Secuencia y señalero');
+    expect(userMsg).toContain('3. Recomendaciones');
 
     // system[0] EXACTAMENTE el prompt estatico del tipo: compliance intacto y
     // cache preservado (T-138 no agrega nada al system por-request).

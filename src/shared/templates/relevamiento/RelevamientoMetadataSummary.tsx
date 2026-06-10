@@ -14,6 +14,7 @@ import { PersonalizacionSummary } from '../common/PersonalizacionSummary';
 import { provinciaName } from '../common/site';
 import { formatFecha, Item, StatusBadge } from '../common/summary-ui';
 import { agenteHysLabel } from './schema';
+import { SECCION_LABEL_BY_ID_RELEVAMIENTO } from './secciones';
 
 /**
  * T-022 · Summary read view para tipo='relevamiento'.
@@ -111,6 +112,8 @@ export function RelevamientoMetadataSummary({ metadata: m }: Props) {
             <PersonalizacionSummary
               campos={m.campos_personalizados}
               instrucciones={m.instrucciones_adicionales}
+              secciones={m.secciones}
+              seccionLabelById={SECCION_LABEL_BY_ID_RELEVAMIENTO}
             />
           </CollapsibleContent>
         </Collapsible>

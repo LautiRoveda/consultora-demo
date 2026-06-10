@@ -21,8 +21,11 @@ import { Textarea } from '@/shared/ui/textarea';
 import { AREAS_RELEVADAS_PRESETS } from '../common/areas';
 import { normalizeCuit } from '../common/cuit';
 import { PersonalizacionSection } from '../common/PersonalizacionSection';
+import { defaultSeccionesConfig, esSeleccionDefault } from '../common/secciones';
+import { SeccionesConfigField } from '../common/SeccionesConfigField';
 import { PROVINCIAS_AR } from '../common/site';
 import { AGENTES_HYS } from './schema';
+import { SECCION_IDS_RELEVAMIENTO, SECCIONES_RELEVAMIENTO } from './secciones';
 
 /**
  * T-022 · Form Relevamiento. Distinto del RGRL: este es un informe tecnico de
@@ -49,6 +52,7 @@ export const relevamientoMetadataDefaults = (): RelevamientoMetadata => ({
   equipos_medicion: '',
   campos_personalizados: [],
   instrucciones_adicionales: '',
+  secciones: defaultSeccionesConfig(SECCION_IDS_RELEVAMIENTO),
 });
 
 type Props = {
@@ -351,8 +355,15 @@ export function RelevamientoMetadataForm({ form, disabled }: Props) {
         />
       </section>
 
-      {/* T-138 · Personalizacion compartida (campos + instrucciones). */}
-      <PersonalizacionSection form={form} disabled={disabled} />
+      {/* T-138 · Personalizacion compartida (campos + secciones + instrucciones).
+          abrirSi: estructura guardada distinta del default no debe quedar oculta. */}
+      <PersonalizacionSection
+        form={form}
+        disabled={disabled}
+        abrirSi={!esSeleccionDefault(form.getValues('secciones') ?? [], SECCION_IDS_RELEVAMIENTO)}
+      >
+        <SeccionesConfigField form={form} catalogo={SECCIONES_RELEVAMIENTO} disabled={disabled} />
+      </PersonalizacionSection>
     </div>
   );
 }

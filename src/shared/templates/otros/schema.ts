@@ -8,6 +8,8 @@ import {
 } from '../common/campos-extra';
 import { normalizeCuit } from '../common/cuit';
 import { commonClientFields } from '../common/schema';
+import { normalizeSecciones, seccionesField } from '../common/secciones';
+import { SECCION_IDS_OTROS } from './secciones';
 
 /**
  * T-022 · Schema del template "Otros" (tipo wildcard).
@@ -46,6 +48,9 @@ export const otrosMetadataSchema = z.object({
   // — PERSONALIZACION (T-138 fase 1, compartida por los 5 tipos) —
   campos_personalizados: camposPersonalizadosField(),
   instrucciones_adicionales: instruccionesAdicionalesField(),
+
+  // — SECCIONES CONFIGURABLES (T-138 fase 2, solo tipos sin estructura legal) —
+  secciones: seccionesField(SECCION_IDS_OTROS),
 });
 
 export type OtrosMetadata = z.infer<typeof otrosMetadataSchema>;
@@ -61,5 +66,6 @@ export function normalizeOtrosMetadata(m: OtrosMetadata): OtrosMetadata {
     objetivos: m.objetivos && m.objetivos.length > 0 ? m.objetivos : undefined,
     campos_personalizados: normalizeCamposPersonalizados(m.campos_personalizados),
     instrucciones_adicionales: normalizeInstruccionesAdicionales(m.instrucciones_adicionales),
+    secciones: normalizeSecciones(m.secciones, SECCION_IDS_OTROS),
   };
 }

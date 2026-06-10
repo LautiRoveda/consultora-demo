@@ -8,6 +8,8 @@ import {
 } from '../common/campos-extra';
 import { normalizeCuit } from '../common/cuit';
 import { commonClientFieldsWithSite, fechaIsoField } from '../common/schema';
+import { normalizeSecciones, seccionesField } from '../common/secciones';
+import { SECCION_IDS_RELEVAMIENTO } from './secciones';
 
 /**
  * T-022 · Schema del template Relevamiento técnico general.
@@ -92,6 +94,9 @@ export const relevamientoMetadataSchema = z.object({
   // — PERSONALIZACION (T-138 fase 1, compartida por los 5 tipos) —
   campos_personalizados: camposPersonalizadosField(),
   instrucciones_adicionales: instruccionesAdicionalesField(),
+
+  // — SECCIONES CONFIGURABLES (T-138 fase 2, solo tipos sin estructura legal) —
+  secciones: seccionesField(SECCION_IDS_RELEVAMIENTO),
 });
 
 export type RelevamientoMetadata = z.infer<typeof relevamientoMetadataSchema>;
@@ -108,6 +113,7 @@ export function normalizeRelevamientoMetadata(m: RelevamientoMetadata): Relevami
       m.equipos_medicion && m.equipos_medicion.length > 0 ? m.equipos_medicion : undefined,
     campos_personalizados: normalizeCamposPersonalizados(m.campos_personalizados),
     instrucciones_adicionales: normalizeInstruccionesAdicionales(m.instrucciones_adicionales),
+    secciones: normalizeSecciones(m.secciones, SECCION_IDS_RELEVAMIENTO),
   };
 }
 

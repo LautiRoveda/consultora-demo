@@ -17,6 +17,9 @@ import { Textarea } from '@/shared/ui/textarea';
 
 import { normalizeCuit } from '../common/cuit';
 import { PersonalizacionSection } from '../common/PersonalizacionSection';
+import { defaultSeccionesConfig, esSeleccionDefault } from '../common/secciones';
+import { SeccionesConfigField } from '../common/SeccionesConfigField';
+import { SECCION_IDS_OTROS, SECCIONES_OTROS } from './secciones';
 
 /**
  * T-022 · Form "Otros" (tipo wildcard). Form minimal: 4 fields.
@@ -38,6 +41,7 @@ export const otrosMetadataDefaults = (): OtrosMetadata => ({
   objetivos: '',
   campos_personalizados: [],
   instrucciones_adicionales: '',
+  secciones: defaultSeccionesConfig(SECCION_IDS_OTROS),
 });
 
 type Props = {
@@ -154,8 +158,15 @@ export function OtrosMetadataForm({ form, disabled }: Props) {
         />
       </section>
 
-      {/* T-138 · Personalizacion compartida (campos + instrucciones). */}
-      <PersonalizacionSection form={form} disabled={disabled} />
+      {/* T-138 · Personalizacion compartida (campos + secciones + instrucciones).
+          abrirSi: estructura guardada distinta del default no debe quedar oculta. */}
+      <PersonalizacionSection
+        form={form}
+        disabled={disabled}
+        abrirSi={!esSeleccionDefault(form.getValues('secciones') ?? [], SECCION_IDS_OTROS)}
+      >
+        <SeccionesConfigField form={form} catalogo={SECCIONES_OTROS} disabled={disabled} />
+      </PersonalizacionSection>
     </div>
   );
 }

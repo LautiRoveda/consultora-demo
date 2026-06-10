@@ -12,6 +12,7 @@ import { Separator } from '@/shared/ui/separator';
 
 import { PersonalizacionSummary } from '../common/PersonalizacionSummary';
 import { Item, StatusBadge } from '../common/summary-ui';
+import { SECCION_LABEL_BY_ID_OTROS } from './secciones';
 
 /**
  * T-022 · Summary read view para tipo='otros' (wildcard).
@@ -33,7 +34,8 @@ export function OtrosMetadataSummary({ metadata: m }: Props) {
   // personalizacion T-138) — sin detalle, el resumen compacto es todo.
   const hasPersonalizacion =
     (m.campos_personalizados !== undefined && m.campos_personalizados.length > 0) ||
-    m.instrucciones_adicionales !== undefined;
+    m.instrucciones_adicionales !== undefined ||
+    (m.secciones !== undefined && m.secciones.length > 0);
   const hasDetalle = m.objetivos !== undefined || hasPersonalizacion;
 
   return (
@@ -84,6 +86,8 @@ export function OtrosMetadataSummary({ metadata: m }: Props) {
               <PersonalizacionSummary
                 campos={m.campos_personalizados}
                 instrucciones={m.instrucciones_adicionales}
+                secciones={m.secciones}
+                seccionLabelById={SECCION_LABEL_BY_ID_OTROS}
               />
             </CollapsibleContent>
           )}
