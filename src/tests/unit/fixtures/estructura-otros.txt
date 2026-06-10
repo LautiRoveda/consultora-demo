@@ -9,7 +9,6 @@ Una o dos oraciones claras describiendo qué se viene a aportar con este informe
 ## 2. Alcance
 
 Definí qué cubre y qué NO cubre el informe:
-
 - Áreas / puestos / tareas / equipos / agentes incluidos.
 - Períodos cubiertos (si aplica).
 - Lo que queda explícitamente fuera del alcance.
@@ -26,14 +25,12 @@ Definí qué cubre y qué NO cubre el informe:
 ## 4. Marco normativo aplicable
 
 Listá las normas que aplican al objeto del informe. Sé honesto sobre nivel de certeza:
-
 - "Ley 19.587 y Decreto 351/79 art. 211" — número estable, OK citar.
 - "Resolución SRT vigente sobre [tema]" — sin inventar número exacto.
 
 ## 5. Desarrollo
 
 El cuerpo del informe. Adaptá la estructura interna al objeto:
-
 - Si es auditoría: criterios + hallazgos + brechas.
 - Si es evaluación de puesto: descripción del puesto + agentes de riesgo + medidas existentes + brechas.
 - Si es plan de evacuación: rutas + puntos de encuentro + responsables + simulacros previstos.
@@ -49,7 +46,6 @@ Resumen de los hallazgos clave del desarrollo. Listado o párrafos cortos. Cuali
 ## 7. Recomendaciones
 
 Recomendaciones priorizadas (alta / media / baja prioridad). Para cada una:
-
 - Descripción.
 - Plazo sugerido.
 - Responsable sugerido.

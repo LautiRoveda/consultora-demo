@@ -20,7 +20,6 @@ Describí qué áreas / puestos / agentes de riesgo se relevaron. Mantenete fiel
 ## 3. Metodología
 
 Por cada tipo de medición que aplique, describí:
-
 - Norma de referencia (genérica si no estás seguro del número exacto).
 - Instrumental utilizado: [MARCA, MODELO, Nº DE SERIE].
 - Fecha de calibración del instrumento: [FECHA].
@@ -37,14 +36,13 @@ Por cada agente de riesgo medido, una subsección con:
 
 Formato de tabla:
 
-| Punto | Ubicación / puesto | Valor medido     | Valor de referencia | Evaluación     |
-| ----- | ------------------ | ---------------- | ------------------- | -------------- |
-| 1     | [PUESTO]           | [VALOR] [unidad] | [REF] [unidad]      | [APTO/NO APTO] |
+| Punto | Ubicación / puesto | Valor medido | Valor de referencia | Evaluación |
+|---|---|---|---|---|
+| 1 | [PUESTO] | [VALOR] [unidad] | [REF] [unidad] | [APTO/NO APTO] |
 
 ## 5. Conclusiones por puesto / área
 
 Para cada puesto relevante:
-
 - Riesgos identificados.
 - Nivel de riesgo (preferentemente cualitativo: bajo / moderado / alto / muy alto — no inventes una metodología cuantitativa salvo que el user prompt la especifique).
 - Cumplimiento del marco normativo en términos generales.
@@ -52,7 +50,6 @@ Para cada puesto relevante:
 ## 6. Recomendaciones
 
 Recomendaciones priorizadas (alta / media / baja). Para cada una:
-
 - Descripción de la medida.
 - Plazo sugerido de implementación.
 - Responsable sugerido (empleador / servicio interno de HyS / contratista externo).
@@ -62,7 +59,6 @@ Distinguí entre **medidas de control en la fuente**, **administrativas** y de *
 ## 7. Anexos
 
 Listá los anexos que el profesional adjuntará al firmar:
-
 - Certificados de calibración del instrumental.
 - Planimetría con ubicación de puntos de medición.
 - Fotografías representativas.

@@ -16,7 +16,6 @@ Generá las siguientes secciones en este orden. Cada heading exactamente como te
 ## 2. Marco normativo
 
 Listá las normas aplicables genéricamente:
-
 - Ley 19.587 (genérico).
 - Decreto 351/79 art. 211 (capacitación obligatoria — número de artículo es estable).
 - Resolución SRT vigente sobre planificación anual.
@@ -26,7 +25,6 @@ Listá las normas aplicables genéricamente:
 ## 3. Audiencia objetivo
 
 Definí a quién estaba dirigida la capacitación:
-
 - Puestos / áreas / sectores incluidos.
 - Cantidad de empleados convocados: [N]
 - Cantidad de empleados que asistieron: [N — completar al cierre]
@@ -49,7 +47,6 @@ Mantenete fiel al user prompt sobre qué temas se cubrieron. No infles con temas
 ## 5. Metodología
 
 Cómo se dictó:
-
 - Exposición teórica / dinámicas grupales / práctica / simulacro / etc.
 - Recursos didácticos (proyector, video, manual impreso, plataforma e-learning, etc.).
 - Idioma de dictado.
@@ -58,21 +55,19 @@ Cómo se dictó:
 ## 6. Evaluación
 
 Si hubo evaluación:
-
 - Modalidad: escrita / oral / práctica / sin evaluación.
 - Criterio de aprobación.
 - Resultado agregado: aprobados / desaprobados / total. Si el user no pasa datos, dejá placeholders.
 
-| Asistente | Legajo   | Resultado              |
-| --------- | -------- | ---------------------- |
-| [Nombre]  | [Legajo] | [Aprobado/Desaprobado] |
+| Asistente | Legajo | Resultado |
+|---|---|---|
+| [Nombre] | [Legajo] | [Aprobado/Desaprobado] |
 
 Si no hubo evaluación formal, indicalo expresamente: "No se realizó evaluación formal — la asistencia y firma del registro constituyen el comprobante de capacitación."
 
 ## 7. Material entregado
 
 Listá el material que cada asistente se llevó:
-
 - Manual / folleto.
 - Hojas de seguridad (si aplica).
 - Procedimiento operativo de la tarea (si aplica).
@@ -81,7 +76,6 @@ Listá el material que cada asistente se llevó:
 ## 8. Conclusiones y observaciones
 
 Observaciones del capacitador sobre el desarrollo de la actividad:
-
 - Nivel de participación.
 - Dudas recurrentes.
 - Brechas detectadas que requieren refuerzo posterior.

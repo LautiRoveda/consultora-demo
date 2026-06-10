@@ -20,17 +20,21 @@ import { SECCIONES_RELEVAMIENTO } from '@/shared/templates/relevamiento/seccione
  * secciones (`templates/{tipo}/secciones.ts` + CUERPO_BY_SECCION). El contrato
  * del RFC: el prompt re-armado produce LAS MISMAS secciones que hoy.
  *
- * Las fixtures `fixtures/estructura-{tipo}.md` se capturaron byte a byte de
+ * Las fixtures `fixtures/estructura-{tipo}.txt` se capturaron byte a byte de
  * los prompts PRE-refactor (scripts/dev-capture-estructura-fixtures.ts) — este
  * test corre verde como baseline antes del refactor y debe SEGUIR verde
  * despues: cualquier byte de drift (whitespace de joins, backticks escapados,
  * labels) lo rompe.
+ *
+ * Extension `.txt` (NO `.md`): el pre-commit hook pasa prettier sobre `*.md`
+ * y reformatearia las fixtures (tablas GFM, espaciado) rompiendo la igualdad
+ * byte a byte — paso en el primer push de fase 2, cazado por CI.
  */
 
 const FIXTURES_DIR = join(fileURLToPath(new URL('.', import.meta.url)), 'fixtures');
 
 function estructuraSnapshot(tipo: 'capacitacion' | 'relevamiento' | 'otros'): string {
-  return readFileSync(join(FIXTURES_DIR, `estructura-${tipo}.md`), 'utf8');
+  return readFileSync(join(FIXTURES_DIR, `estructura-${tipo}.txt`), 'utf8');
 }
 
 const CONFIGURABLES = [
