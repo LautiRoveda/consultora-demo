@@ -391,6 +391,41 @@ describe('publishInformeAction', () => {
     if (result.ok) throw new Error('unreachable');
     expect(result.code).toBe('INVALID_INPUT');
   });
+
+  it('9. T-141: publish promueve contenido_borrador -> contenido (lo firmado == el borrador)', async () => {
+    await setToggle(false);
+    await signinAs(ownerEmail);
+
+    // Informe con contenido canónico VIEJO + un borrador de autosave más nuevo.
+    const { data: nuevo } = await admin
+      .from('informes')
+      .insert({
+        consultora_id: consultoraId,
+        tipo: 'otros',
+        titulo: 'Publish promueve borrador',
+        created_by: ownerId,
+        status: 'draft',
+        contenido: '# Versión vieja\n\nAntes del autosave.',
+        contenido_borrador: '# Versión autoguardada\n\nLa última edición.',
+      })
+      .select('id')
+      .single();
+    const informeId = nuevo!.id;
+
+    const { publishInformeAction } = await import('@/app/(app)/informes/actions');
+    const result = await publishInformeAction(informeId);
+    expect(result.ok).toBe(true);
+
+    const { data } = await admin
+      .from('informes')
+      .select('status, contenido, contenido_borrador')
+      .eq('id', informeId)
+      .single();
+    expect(data?.status).toBe('published');
+    // Lo publicado es el borrador, NO el contenido canónico viejo.
+    expect(data?.contenido).toBe('# Versión autoguardada\n\nLa última edición.');
+    expect(data?.contenido_borrador).toBeNull(); // promovido y limpiado
+  });
 });
 
 describe('unpublishInformeAction', () => {

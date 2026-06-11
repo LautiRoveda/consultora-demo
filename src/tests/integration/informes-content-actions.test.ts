@@ -399,6 +399,127 @@ describe('updateInformeContentAction', () => {
 });
 
 // =============================================================================
+// T-141 Fase C · autosave de borrador (mode: 'draft' | 'commit')
+// =============================================================================
+
+describe('updateInformeContentAction · T-141 autosave de borrador', () => {
+  async function countUpdatedAudit(entityId: string): Promise<number> {
+    const { count } = await admin
+      .from('audit_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('entity_id', entityId)
+      .eq('action', 'updated');
+    return count ?? 0;
+  }
+
+  it("16. mode 'draft' escribe contenido_borrador (NO contenido) y NO audita", async () => {
+    await signInAs(emailOwnerA);
+    const { updateInformeContentAction } = await import('@/app/(app)/informes/[id]/actions');
+
+    const { data: nuevo } = await admin
+      .from('informes')
+      .insert({
+        consultora_id: cAId,
+        tipo: 'otros',
+        titulo: 'Autosave draft test',
+        created_by: ownerAId,
+        contenido: 'Canónico inicial.',
+      })
+      .select('id')
+      .single();
+    const targetId = nuevo!.id;
+
+    const auditBefore = await countUpdatedAudit(targetId);
+
+    // Dos autosaves (simula el debounce disparando dos veces).
+    const r1 = await updateInformeContentAction(targetId, { content: 'Borrador 1', mode: 'draft' });
+    expect(r1.ok).toBe(true);
+    const r2 = await updateInformeContentAction(targetId, { content: 'Borrador 2', mode: 'draft' });
+    expect(r2.ok).toBe(true);
+
+    const { data: row } = await admin
+      .from('informes')
+      .select('contenido, contenido_borrador')
+      .eq('id', targetId)
+      .single();
+    // El borrador se actualizó; el contenido canónico NO se tocó.
+    expect(row?.contenido_borrador).toBe('Borrador 2');
+    expect(row?.contenido).toBe('Canónico inicial.');
+
+    // Ninguna fila de audit nueva por los autosaves.
+    expect(await countUpdatedAudit(targetId)).toBe(auditBefore);
+  });
+
+  it("17. mode 'commit' (default) escribe contenido, limpia el borrador y SÍ audita", async () => {
+    await signInAs(emailOwnerA);
+    const { updateInformeContentAction } = await import('@/app/(app)/informes/[id]/actions');
+
+    const { data: nuevo } = await admin
+      .from('informes')
+      .insert({
+        consultora_id: cAId,
+        tipo: 'otros',
+        titulo: 'Autosave commit test',
+        created_by: ownerAId,
+        contenido: 'Canónico inicial.',
+        contenido_borrador: 'Borrador pendiente.',
+      })
+      .select('id')
+      .single();
+    const targetId = nuevo!.id;
+
+    const auditBefore = await countUpdatedAudit(targetId);
+
+    // Sin `mode` → default 'commit'.
+    const result = await updateInformeContentAction(targetId, { content: 'Versión final.' });
+    expect(result.ok).toBe(true);
+
+    const { data: row } = await admin
+      .from('informes')
+      .select('contenido, contenido_borrador')
+      .eq('id', targetId)
+      .single();
+    expect(row?.contenido).toBe('Versión final.');
+    expect(row?.contenido_borrador).toBeNull(); // commit limpia el borrador
+
+    // El commit sí genera una fila de audit (checkpoint).
+    expect(await countUpdatedAudit(targetId)).toBe(auditBefore + 1);
+  });
+
+  it("18. mode 'draft' sobre un informe published → FORBIDDEN (autosave solo en borrador)", async () => {
+    await signInAs(emailOwnerA);
+    const { updateInformeContentAction } = await import('@/app/(app)/informes/[id]/actions');
+
+    const { data: nuevo } = await admin
+      .from('informes')
+      .insert({
+        consultora_id: cAId,
+        tipo: 'otros',
+        titulo: 'Autosave published gate',
+        created_by: ownerAId,
+        contenido: 'Publicado.',
+        status: 'published',
+      })
+      .select('id')
+      .single();
+    const targetId = nuevo!.id;
+
+    const result = await updateInformeContentAction(targetId, { content: 'x', mode: 'draft' });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.code).toBe('FORBIDDEN');
+
+    // El borrador NO se escribió.
+    const { data: row } = await admin
+      .from('informes')
+      .select('contenido_borrador')
+      .eq('id', targetId)
+      .single();
+    expect(row?.contenido_borrador).toBeNull();
+  });
+});
+
+// =============================================================================
 // T-021 · Tests de inyeccion de metadata RGRL al user message
 // =============================================================================
 

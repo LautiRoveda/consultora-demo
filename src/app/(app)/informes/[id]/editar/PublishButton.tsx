@@ -54,6 +54,13 @@ export type PublishButtonProps = {
    * Si no se pasa, el modal nunca aparece (PublishButton emite solo toast).
    */
   onPostPublishModalRequested?: () => void;
+  /**
+   * T-141 Fase C · Se ejecuta ANTES de publicar: el parent persiste la última
+   * edición autoguardada (flush + draft-save, esperando un autosave en vuelo).
+   * Si devuelve false, el guardado previo falló → se aborta el publish para no
+   * firmar sobre una versión stale.
+   */
+  onBeforePublish?: () => Promise<boolean>;
 };
 
 export function PublishButton({
@@ -64,6 +71,7 @@ export function PublishButton({
   autoCreateEventOnSign,
   hasLinkedEvent,
   onPostPublishModalRequested,
+  onBeforePublish,
 }: PublishButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -110,6 +118,18 @@ export function PublishButton({
   function onConfirmPublish() {
     setPublishOpen(false);
     startTransition(async () => {
+      // T-141 Fase C · Persistir la última edición autoguardada antes de publicar.
+      // Si falla, abortar: el publicado debe ser la última versión, no una stale.
+      if (onBeforePublish) {
+        const ready = await onBeforePublish();
+        if (!ready) {
+          toast.error('No se pudo guardar el borrador', {
+            description: 'Revisá tu conexión y reintentá antes de publicar.',
+          });
+          return;
+        }
+      }
+
       const result = await publishInformeAction(informeId);
       if (!result.ok) {
         handleApiError(result);

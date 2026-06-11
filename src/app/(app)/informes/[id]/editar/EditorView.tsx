@@ -75,6 +75,11 @@ type EditorState = 'idle' | 'generating-stream' | 'generated' | 'saving' | 'savi
 const USER_PROMPT_MAX = 2000;
 /** Fallback de flush si rAF pausa (tab background). En foreground rAF gana. */
 const STREAM_FLUSH_FALLBACK_MS = 250;
+/** T-141 Fase C · Debounce del autosave de borrador. Más largo que los 200ms del
+ *  bridge para no spamear el server: dispara ~2.5s después de parar de tipear. */
+const AUTOSAVE_DEBOUNCE_MS = 2500;
+
+type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 const USER_PROMPT_PLACEHOLDERS: Record<InformeTipo, string> = {
   relevamiento:
@@ -117,6 +122,7 @@ export function EditorView({
   hasLinkedEvent,
   razonSocial,
   plantillas,
+  hasInitialDraft,
 }: {
   informeId: string;
   tipo: InformeTipo;
@@ -141,6 +147,9 @@ export function EditorView({
   razonSocial: string | null;
   /** T-139: plantillas activas del tipo del informe (filtradas server-side). */
   plantillas: PlantillaClientItem[];
+  /** T-141 Fase C: true si al cargar había un `contenido_borrador` (autosave sin
+   *  commitear). `initialContent` ya viene como `contenido_borrador ?? contenido`. */
+  hasInitialDraft: boolean;
 }) {
   const router = useRouter();
   const [state, setState] = useState<EditorState>('idle');
@@ -165,6 +174,23 @@ export function EditorView({
   // de ser permanente: `showPreview` lo togglea en WYSIWYG normal ("Vista fiel").
   const [showPreview, setShowPreview] = useState(false);
   const flushEditorRef = useRef<(() => string) | null>(null);
+
+  // T-141 Fase C · Autosave de borrador. El indicador arranca en 'saved' si al
+  // cargar ya había un borrador restaurado (sin timestamp → label "Borrador
+  // autoguardado"); en 'idle' si no.
+  const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>(
+    hasInitialDraft ? 'saved' : 'idle',
+  );
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Promesa del save en vuelo (anti-solapamiento + el publish la espera).
+  const autosaveInFlightRef = useRef<Promise<void> | null>(null);
+  // Llegó un cambio mientras guardábamos → re-correr una vez al terminar.
+  const autosavePendingRef = useRef(false);
+  // "Latest ref" de la lógica de autosave: se actualiza cada render con el
+  // closure fresco (sourceMode/form/etc.), así el timer y el publish la llaman
+  // sin re-suscribir el effect ni arrastrar deps.
+  const latestAutosaveRef = useRef<() => Promise<void>>(async () => {});
 
   // Refs para cleanup al unmount. Sin esto, navegar mid-stream filtra el
   // fetch + el SDK sigue tirando tokens hasta el message_stop sin que la UI
@@ -221,8 +247,107 @@ export function EditorView({
         clearTimeout(timeoutIdRef.current);
         timeoutIdRef.current = null;
       }
+      if (autosaveTimerRef.current !== null) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
     };
   }, []);
+
+  // T-141 Fase C · El valor a autoguardar SIEMPRE sale del flush (serialize en
+  // vivo), no del watchedContent debounced → anti stale-save (misma regla que el
+  // submit). En source-mode el form ya es la verdad. Se actualiza cada render con
+  // el closure fresco.
+  useEffect(() => {
+    latestAutosaveRef.current = async () => {
+      if (autosaveInFlightRef.current) {
+        autosavePendingRef.current = true; // hay uno en vuelo → re-correr al terminar
+        return;
+      }
+      const content =
+        !sourceMode && flushEditorRef.current
+          ? flushEditorRef.current()
+          : form.getValues('content');
+      setAutosaveStatus('saving');
+      const save = (async () => {
+        const result = await updateInformeContentAction(informeId, { content, mode: 'draft' });
+        if (result.ok) {
+          setAutosaveStatus('saved');
+          setLastSavedAt(
+            new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+          );
+        } else {
+          // Un fallo de red NO puede pasar desapercibido en un documento legal.
+          setAutosaveStatus('error');
+        }
+      })();
+      autosaveInFlightRef.current = save;
+      try {
+        await save;
+      } finally {
+        autosaveInFlightRef.current = null;
+      }
+      if (autosavePendingRef.current) {
+        autosavePendingRef.current = false;
+        void latestAutosaveRef.current();
+      }
+    };
+  });
+
+  // Dispara el autosave 2.5s después del último cambio. Gates: solo en borrador,
+  // solo si el form está dirty (no corre al cargar ni al volcar el stream →
+  // no-dirty-on-load intacto), y nunca durante stream/saving.
+  useEffect(() => {
+    if (initialStatus !== 'draft') return;
+    if (!form.formState.isDirty) return;
+    if (state !== 'idle' && state !== 'generated') return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      void latestAutosaveRef.current();
+    }, AUTOSAVE_DEBOUNCE_MS);
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedContent, state, initialStatus]);
+
+  /**
+   * T-141 Fase C · Pre-publish: garantiza que `contenido_borrador` tenga la última
+   * edición ANTES de que el publish la promueva a `contenido`. (1) cancela el
+   * debounce pendiente, (2) espera un autosave en vuelo (race publish-vs-autosave),
+   * (3) si quedan cambios sin guardar, hace un draft-save final y lo awaitea.
+   * Devuelve false si ese save falla → el publish se aborta (no firmar sobre stale).
+   */
+  async function flushDraftBeforePublish(): Promise<boolean> {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    if (autosaveInFlightRef.current) {
+      try {
+        await autosaveInFlightRef.current;
+      } catch {
+        // el estado de error ya lo setea el save; seguimos al guard de abajo
+      }
+    }
+    if (initialStatus !== 'draft' || !form.formState.isDirty) return true;
+    const content =
+      !sourceMode && flushEditorRef.current ? flushEditorRef.current() : form.getValues('content');
+    const result = await updateInformeContentAction(informeId, { content, mode: 'draft' });
+    if (result.ok) {
+      setAutosaveStatus('saved');
+      setLastSavedAt(
+        new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+      );
+      return true;
+    }
+    setAutosaveStatus('error');
+    return false;
+  }
 
   function scheduleFlush(): void {
     if (rafIdRef.current !== null) return;
@@ -423,6 +548,12 @@ export function EditorView({
 
   async function onSubmit(values: UpdateInformeContentInput) {
     setState('saving');
+    // T-141 Fase C · Cancelar un autosave pendiente para que no pise el guardado
+    // manual (commit) con un draft-save stale.
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
     // T-140 · Flush: serializar lo último tecleado en Plate (no confiar en el
     // debounce → evita stale-save). En source-mode el valor del form ya es actual.
     const content =
@@ -550,6 +681,7 @@ export function EditorView({
           autoCreateEventOnSign={autoCreateEventOnSign}
           hasLinkedEvent={hasLinkedEvent}
           onPostPublishModalRequested={() => setPostPublishOpen(true)}
+          onBeforePublish={flushDraftBeforePublish}
         />
       </div>
 
@@ -753,7 +885,35 @@ export function EditorView({
                   )}
                 />
 
-                <div className="flex justify-end gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {/* T-141 Fase C · Indicador de autosave (solo en borrador). El
+                      estado de error es visible + reintentable: un fallo de red no
+                      puede pasar desapercibido en un documento legal. */}
+                  {initialStatus === 'draft' && autosaveStatus !== 'idle' && (
+                    <div
+                      className="text-muted-foreground mr-auto flex items-center gap-1 text-xs"
+                      aria-live="polite"
+                    >
+                      {autosaveStatus === 'saving' && <span>Guardando…</span>}
+                      {autosaveStatus === 'saved' && (
+                        <span>
+                          {lastSavedAt ? `Guardado ${lastSavedAt}` : 'Borrador autoguardado'}
+                        </span>
+                      )}
+                      {autosaveStatus === 'error' && (
+                        <span className="text-destructive flex items-center gap-1">
+                          Error al guardar
+                          <button
+                            type="button"
+                            className="underline underline-offset-2"
+                            onClick={() => void latestAutosaveRef.current()}
+                          >
+                            Reintentar
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <Button type="button" variant="outline" asChild disabled={isPending}>
                     <Link href={`/informes/${informeId}`}>Cancelar</Link>
                   </Button>

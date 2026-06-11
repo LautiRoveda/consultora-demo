@@ -350,8 +350,15 @@ export async function publishInformeAction(informeId: string): Promise<PublishIn
     return { ok: true, informeId: informe.id, autoCreatedEventId: null };
   }
 
+  // T-141 Fase C · Promover el borrador de autosave: el publicado DEBE ser la
+  // última versión editada, no el contenido canónico (que puede estar atrás del
+  // autosave). Si hay `contenido_borrador`, esa es la verdad. (El cliente, además,
+  // hace flush+draft-save antes de publicar → el tail no autoguardado también
+  // entra acá.)
+  const effectiveContent = informe.contenido_borrador ?? informe.contenido;
+
   // Validacion pre-publish: contenido NO vacio. EMPTY_CONTENT si falla.
-  if (!informe.contenido || informe.contenido.trim().length === 0) {
+  if (!effectiveContent || effectiveContent.trim().length === 0) {
     return {
       ok: false,
       code: 'EMPTY_CONTENT',
@@ -359,9 +366,16 @@ export async function publishInformeAction(informeId: string): Promise<PublishIn
     };
   }
 
+  // Si hay borrador, la UPDATE promueve (contenido = borrador) y lo limpia, en
+  // la misma sentencia que el cambio de status → auditado como un solo publish.
+  const updatePayload =
+    informe.contenido_borrador != null
+      ? { status: 'published' as const, contenido: effectiveContent, contenido_borrador: null }
+      : { status: 'published' as const };
+
   const { error: updError } = await supabase
     .from('informes')
-    .update({ status: 'published' })
+    .update(updatePayload)
     .eq('id', informe.id);
 
   if (updError) {
