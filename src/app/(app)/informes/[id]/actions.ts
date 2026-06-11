@@ -16,7 +16,7 @@ import { getServerTemplate } from '@/shared/templates/registry/server';
 import { INFORME_TIPOS } from '../schema';
 import {
   generateInformeInputSchema,
-  updateInformeInputSchema,
+  updateInformeContentActionSchema,
   updateInformeMetadataInputSchema,
 } from './schema';
 
@@ -349,12 +349,19 @@ export type UpdateInformeContentResult =
  *
  * El trigger `audit_informes_after_update` captura el cambio en audit_log
  * con before/after data truncado a 500 chars.
+ *
+ * T-141 Fase C · `mode` distingue dos caminos:
+ *  - 'commit' (default, guardado manual): escribe `contenido` y limpia
+ *    `contenido_borrador` → auditado (checkpoint).
+ *  - 'draft' (autosave): escribe SOLO `contenido_borrador` → NO auditado (la
+ *    columna está fuera del diff guard del trigger) y sin revalidatePath. Solo
+ *    permitido si el informe está en `draft`.
  */
 export async function updateInformeContentAction(
   informeId: string,
   input: unknown,
 ): Promise<UpdateInformeContentResult> {
-  const parsed = updateInformeInputSchema.safeParse(input);
+  const parsed = updateInformeContentActionSchema.safeParse(input);
   if (!parsed.success) {
     const fieldErrors: Record<string, string[]> = {};
     for (const issue of parsed.error.issues) {
@@ -387,9 +394,10 @@ export async function updateInformeContentAction(
   }
 
   // Cargar informe para distinguir NOT_FOUND vs FORBIDDEN antes del UPDATE.
+  // `status` necesario para el gate del modo 'draft' (autosave solo en borrador).
   const { data: informe } = await supabase
     .from('informes')
-    .select('id, created_by')
+    .select('id, created_by, status')
     .eq('id', informeId)
     .maybeSingle();
 
@@ -407,16 +415,40 @@ export async function updateInformeContentAction(
     };
   }
 
+  const isDraftMode = parsed.data.mode === 'draft';
+
+  // Autosave (draft) solo tiene sentido sobre un informe en borrador. El cliente
+  // ya lo gatea por status; esto es la defensa server-side.
+  if (isDraftMode && informe.status !== 'draft') {
+    return {
+      ok: false,
+      code: 'FORBIDDEN',
+      message: 'El autoguardado solo aplica a informes en borrador.',
+    };
+  }
+
+  // draft → solo `contenido_borrador` (no auditado). commit → `contenido` +
+  // limpia el borrador (auditado por el trigger, que sí ve cambiar `contenido`).
+  const updatePayload = isDraftMode
+    ? { contenido_borrador: parsed.data.content }
+    : { contenido: parsed.data.content, contenido_borrador: null };
+
   // UPDATE. RLS WITH CHECK confirma el permission gate del lado DB.
   const { data, error } = await supabase
     .from('informes')
-    .update({ contenido: parsed.data.content })
+    .update(updatePayload)
     .eq('id', informeId)
     .select('id');
 
   if (error) {
     logger.error(
-      { err: error, informeId, userId: user.id, consultoraId: consultora.id },
+      {
+        err: error,
+        informeId,
+        userId: user.id,
+        consultoraId: consultora.id,
+        mode: parsed.data.mode,
+      },
       'updateInformeContentAction: update fallo',
     );
     return { ok: false, code: 'INTERNAL_ERROR', message: 'Error guardando el contenido.' };
@@ -429,6 +461,12 @@ export async function updateInformeContentAction(
       code: 'FORBIDDEN',
       message: 'No tenés permiso para editar este informe.',
     };
+  }
+
+  // El autosave NO revalida (no cambia el contenido canónico ni el render) ni
+  // loguea a info (correría cada ~2-3s → spam). El commit sí revalida + loguea.
+  if (isDraftMode) {
+    return { ok: true };
   }
 
   revalidatePath(`/informes/${informeId}`);

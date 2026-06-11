@@ -1765,6 +1765,7 @@ export type Database = {
           cliente_id: string | null;
           consultora_id: string;
           contenido: string | null;
+          contenido_borrador: string | null;
           created_at: string;
           created_by: string | null;
           id: string;
@@ -1777,6 +1778,7 @@ export type Database = {
           cliente_id?: string | null;
           consultora_id: string;
           contenido?: string | null;
+          contenido_borrador?: string | null;
           created_at?: string;
           created_by?: string | null;
           id?: string;
@@ -1789,6 +1791,7 @@ export type Database = {
           cliente_id?: string | null;
           consultora_id?: string;
           contenido?: string | null;
+          contenido_borrador?: string | null;
           created_at?: string;
           created_by?: string | null;
           id?: string;

@@ -84,7 +84,9 @@ export default async function InformeEditarPage({ params }: { params: Promise<{ 
       informeId={informe.id}
       tipo={tipo}
       titulo={informe.titulo}
-      initialContent={informe.contenido}
+      // T-141 Fase C · Arranca con el borrador autoguardado si existe (recuperación
+      // cross-sesión); fallback al contenido canónico.
+      initialContent={informe.contenido_borrador ?? informe.contenido}
       initialMetadata={metadataRow?.data ?? null}
       initialStatus={informe.status as InformeStatus}
       attachments={attachmentRows}
@@ -93,6 +95,7 @@ export default async function InformeEditarPage({ params }: { params: Promise<{ 
       hasLinkedEvent={linkedEvents.length > 0}
       razonSocial={razonSocial}
       plantillas={plantillas}
+      hasInitialDraft={informe.contenido_borrador != null}
     />
   );
 }

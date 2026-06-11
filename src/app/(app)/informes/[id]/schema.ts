@@ -42,11 +42,28 @@ export type GenerateInformeInput = z.infer<typeof generateInformeInputSchema>;
  * Razon del max: ningun informe HyS razonable supera ese tamaño, y poner
  * limite duro evita que un usuario malicioso/equivocado infle la tabla.
  */
+const contentField = z
+  .string()
+  .max(200_000, { message: 'Máximo 200.000 caracteres en el contenido.' });
+
 export const updateInformeInputSchema = z.object({
-  content: z.string().max(200_000, { message: 'Máximo 200.000 caracteres en el contenido.' }),
+  content: contentField,
 });
 
 export type UpdateInformeContentInput = z.infer<typeof updateInformeInputSchema>;
+
+/**
+ * T-141 Fase C · Input del action de contenido. Suma `mode`:
+ *  - 'commit' (default): guardado manual / submit → escribe `contenido` (auditado)
+ *    y limpia el borrador. Comportamiento histórico — el form RHF (solo `content`)
+ *    cae acá por el default.
+ *  - 'draft': autosave → escribe SOLO `contenido_borrador` (no auditado), sin
+ *    revalidatePath. El action exige `status === 'draft'` para este modo.
+ */
+export const updateInformeContentActionSchema = z.object({
+  content: contentField,
+  mode: z.enum(['draft', 'commit']).default('commit'),
+});
 
 /**
  * T-021 · Input de `updateInformeMetadataAction`.
