@@ -3,10 +3,14 @@
 import type { PlateElementProps } from 'platejs/react';
 import { PlateElement } from 'platejs/react';
 
+import { TableCellDropdown } from './table-cell-dropdown';
+
 /**
- * MVP: tabla mínima (sin drag handles / resize / menús de columna → sin
- * @platejs/dnd ni radix individuales). Edición de celdas vía contentEditable.
- * El round-trip GFM (activo legal) está cubierto por el test de CI.
+ * Tabla mínima (sin drag handles / resize → sin @platejs/dnd ni radix sueltos).
+ * Edición de celdas vía contentEditable. T-141 sumó el menú contextual de
+ * operaciones (insertar/borrar fila y columna) por celda. El round-trip GFM
+ * (activo legal) está cubierto por el test de CI; `disableMerge` en el plugin
+ * mantiene las tablas GFM-puras (sin rowspan/colspan que GFM no representa).
  */
 export function TableElement(props: PlateElementProps) {
   // PlateElement es el wrapper (lleva data-slate-node); adentro va una <table>
@@ -30,9 +34,17 @@ export function TableRowElement(props: PlateElementProps) {
 }
 
 export function TableCellElement(props: PlateElementProps) {
+  // `relative group/cell`: ancla el trigger absoluto del dropdown y habilita el
+  // reveal on-hover en desktop. El dropdown es hijo extra (contentEditable=false)
+  // junto a los children Slate, NO entre PlateElement y ellos.
   return (
-    <PlateElement {...props} as="td" className="border-border border px-3 py-2 align-top">
+    <PlateElement
+      {...props}
+      as="td"
+      className="group/cell border-border relative border px-3 py-2 align-top"
+    >
       {props.children}
+      <TableCellDropdown element={props.element} />
     </PlateElement>
   );
 }
@@ -42,9 +54,10 @@ export function TableCellHeaderElement(props: PlateElementProps) {
     <PlateElement
       {...props}
       as="th"
-      className="border-border bg-muted/50 border px-3 py-2 text-left font-semibold"
+      className="group/cell border-border bg-muted/50 relative border px-3 py-2 text-left font-semibold"
     >
       {props.children}
+      <TableCellDropdown element={props.element} />
     </PlateElement>
   );
 }
