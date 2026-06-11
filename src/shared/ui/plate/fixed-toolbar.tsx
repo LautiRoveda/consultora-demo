@@ -33,13 +33,15 @@ import { Toolbar, ToolbarSeparator } from './toolbar';
 export function FixedToolbar() {
   return (
     <Toolbar className="sticky top-0 z-10 rounded-t-md border-x border-t bg-background/95 px-1 py-1 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <BlockToolbarButton nodeType={KEYS.h1} label="Título 1">
+      {/* "Encabezado" (no "Título") a propósito: el campo del informe se llama
+          "Título"; usar ese término acá colisionaría con su label en a11y/tests. */}
+      <BlockToolbarButton nodeType={KEYS.h1} label="Encabezado 1">
         <Heading1 />
       </BlockToolbarButton>
-      <BlockToolbarButton nodeType={KEYS.h2} label="Título 2">
+      <BlockToolbarButton nodeType={KEYS.h2} label="Encabezado 2">
         <Heading2 />
       </BlockToolbarButton>
-      <BlockToolbarButton nodeType={KEYS.h3} label="Título 3">
+      <BlockToolbarButton nodeType={KEYS.h3} label="Encabezado 3">
         <Heading3 />
       </BlockToolbarButton>
 

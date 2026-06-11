@@ -90,9 +90,11 @@ async function setup(page: import('@playwright/test').Page) {
 }
 
 // Lee el markdown crudo abriendo source-mode, devuelve el valor y vuelve a WYSIWYG.
+// El textarea de source-mode se targetea por su placeholder (la página tiene otros
+// textareas: prompt IA + metadata).
 async function readMarkdown(page: import('@playwright/test').Page): Promise<string> {
   await page.getByRole('button', { name: 'Ver markdown' }).click();
-  const md = (await page.locator('textarea').inputValue()) ?? '';
+  const md = (await page.getByPlaceholder('Markdown crudo del informe.').inputValue()) ?? '';
   await page.getByRole('button', { name: 'Editor visual' }).click();
   await expect(page.locator('table').first()).toBeVisible();
   return md;
@@ -104,7 +106,7 @@ test.describe('Informes · editor toolbar + tabla (T-141 Fase A)', () => {
 
     // #3 — Toolbar visible (descubrible).
     await expect(page.getByRole('button', { name: 'Negrita (Ctrl+B)' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Título 1' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Encabezado 1' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Lista de viñetas' })).toBeVisible();
     await page.screenshot({ path: 'test-results/t141-toolbar.png', fullPage: true });
 
@@ -116,9 +118,9 @@ test.describe('Informes · editor toolbar + tabla (T-141 Fase A)', () => {
     const mdAfterType = await readMarkdown(page);
     expect(mdAfterType).toContain('P1-bis'); // el texto tecleado sobrevivió → cell editable OK
 
-    // #3 — Toggle de bloque: cursor en el párrafo → "Título 1" → markdown con `# `.
+    // #3 — Toggle de bloque: cursor en el párrafo → "Encabezado 1" → markdown con `# `.
     await page.getByText('Parrafo de prueba', { exact: false }).click();
-    await page.getByRole('button', { name: 'Título 1' }).click();
+    await page.getByRole('button', { name: 'Encabezado 1' }).click();
     const mdAfterH1 = await readMarkdown(page);
     expect(mdAfterH1).toMatch(/^#\s+Parrafo de prueba/m);
 
