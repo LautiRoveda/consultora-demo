@@ -11,9 +11,14 @@ import { PlateElement } from 'platejs/react';
 export function TableElement(props: PlateElementProps) {
   // PlateElement es el wrapper (lleva data-slate-node); adentro va una <table>
   // real con <tbody> conteniendo los rows (igual que el node-component de Plate).
+  // Mobile: `min-w-[480px]` evita que las columnas se aplasten ilegibles a 375px
+  // y hace que `overflow-x-auto` del wrapper scrollee; `sm:min-w-0` vuelve fluida
+  // (`w-full`) en desktop. El min-w va EN la <table> (no en un <div> intermedio)
+  // para no insertar DOM entre PlateElement y los children Slate → contenteditable
+  // intacto (mismo árbol que prod, solo cambia el className).
   return (
     <PlateElement {...props} className="my-4 overflow-x-auto">
-      <table className="border-border w-full border-collapse border text-sm">
+      <table className="border-border w-full min-w-[480px] border-collapse border text-sm sm:min-w-0">
         <tbody>{props.children}</tbody>
       </table>
     </PlateElement>
