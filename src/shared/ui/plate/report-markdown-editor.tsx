@@ -105,7 +105,7 @@ export function ReportMarkdownEditor({
           variant="none"
           onBlur={onBlur}
           placeholder="Generá el borrador con IA o escribí el informe…"
-          className="min-h-[480px] rounded-md border px-4 py-3"
+          className="min-h-[60vh] rounded-md border px-4 py-3 sm:min-h-[600px]"
         />
       </EditorContainer>
     </Plate>
