@@ -7,6 +7,7 @@ import type { UpdateInformeContentInput } from '../schema';
 import type { AttachmentClientRow } from './AttachmentsSection';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ChevronDown, Sparkles, X } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -49,6 +50,18 @@ import { updateInformeInputSchema } from '../schema';
 import { AttachmentsSection } from './AttachmentsSection';
 import { PostPublishEventDialog } from './PostPublishEventDialog';
 import { PublishButton } from './PublishButton';
+
+/**
+ * T-140 · Editor WYSIWYG (Plate). Client-only + lazy (`ssr:false`) para no
+ * penalizar Lighthouse y mantener Plate fuera del chunk principal del editor.
+ */
+const ReportMarkdownField = dynamic(
+  () => import('@/shared/ui/plate/report-markdown-editor').then((m) => m.ReportMarkdownEditor),
+  {
+    ssr: false,
+    loading: () => <div className="bg-muted/30 min-h-[480px] animate-pulse rounded-md border" />,
+  },
+);
 
 /**
  * T-025 · State machine extendida. `generating-stream` reemplaza al
@@ -140,6 +153,13 @@ export function EditorView({
    * form.content (state final del editor).
    */
   const [streamingBuffer, setStreamingBuffer] = useState('');
+
+  // T-140 · `resetSignal` fuerza re-deserialize del editor (mount / done del
+  // stream / volver de source-mode). `sourceMode` togglea Plate ↔ textarea crudo.
+  // `flushEditorRef` serializa lo último tecleado para el guardado (anti stale-save).
+  const [resetSignal, setResetSignal] = useState(0);
+  const [sourceMode, setSourceMode] = useState(false);
+  const flushEditorRef = useRef<(() => string) | null>(null);
 
   // Refs para cleanup al unmount. Sin esto, navegar mid-stream filtra el
   // fetch + el SDK sigue tirando tokens hasta el message_stop sin que la UI
@@ -321,6 +341,8 @@ export function EditorView({
       // editor) y limpiamos el buffer de stream.
       const finalContent = bufferRef.current;
       form.setValue('content', finalContent, { shouldDirty: true });
+      // T-140 · re-deserializar el markdown generado al editor Plate.
+      setResetSignal((n) => n + 1);
       bufferRef.current = '';
       setStreamingBuffer('');
       setState('generated');
@@ -396,7 +418,11 @@ export function EditorView({
 
   async function onSubmit(values: UpdateInformeContentInput) {
     setState('saving');
-    const result = await updateInformeContentAction(informeId, values);
+    // T-140 · Flush: serializar lo último tecleado en Plate (no confiar en el
+    // debounce → evita stale-save). En source-mode el valor del form ya es actual.
+    const content =
+      !sourceMode && flushEditorRef.current ? flushEditorRef.current() : values.content;
+    const result = await updateInformeContentAction(informeId, { content });
 
     if (result.ok) {
       toast.success('Contenido guardado');
@@ -638,15 +664,51 @@ export function EditorView({
                   name="content"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Contenido del informe</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          rows={20}
-                          placeholder="Generá el borrador con IA o escribilo manualmente en markdown."
-                          className="font-mono text-sm"
+                      <div className="flex items-center justify-between gap-2">
+                        <FormLabel>Contenido del informe</FormLabel>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
                           disabled={isPending}
-                        />
+                          onClick={() => {
+                            // Al ir a source-mode, volcar el editor al form SIN
+                            // cambiar el estado dirty (el round-trip puede reformatear).
+                            if (!sourceMode && flushEditorRef.current) {
+                              form.setValue('content', flushEditorRef.current(), {
+                                shouldDirty: form.formState.isDirty,
+                              });
+                            }
+                            const next = !sourceMode;
+                            setSourceMode(next);
+                            // Al volver a WYSIWYG, re-deserializar el markdown editado a mano.
+                            if (!next) setResetSignal((n) => n + 1);
+                          }}
+                        >
+                          {sourceMode ? 'Editor visual' : 'Ver markdown'}
+                        </Button>
+                      </div>
+                      <FormControl>
+                        {sourceMode ? (
+                          <Textarea
+                            {...field}
+                            rows={20}
+                            placeholder="Markdown crudo del informe."
+                            className="font-mono text-sm"
+                            disabled={isPending}
+                          />
+                        ) : (
+                          <ReportMarkdownField
+                            value={field.value}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            resetSignal={resetSignal}
+                            disabled={isPending}
+                            onRegisterFlush={(flush) => {
+                              flushEditorRef.current = flush;
+                            }}
+                          />
+                        )}
                       </FormControl>
                       <FormMessage />
                     </FormItem>
