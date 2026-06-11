@@ -91,7 +91,10 @@ export const REPORT_EDITOR_PLUGINS = [
   }),
   CodeBlockPlugin.withComponent(CodeBlockElement),
   CodeLinePlugin.withComponent(CodeLineElement),
-  TablePlugin.withComponent(TableElement),
+  // T-141 · disableMerge: GFM no representa celdas combinadas (rowspan/colspan).
+  // Bloquear merge/split mantiene las tablas que el usuario construye GFM-puras →
+  // el round-trip estricto de tablas (activo legal) sigue verde.
+  TablePlugin.configure({ options: { disableMerge: true } }).withComponent(TableElement),
   TableRowPlugin.withComponent(TableRowElement),
   TableCellPlugin.withComponent(TableCellElement),
   TableCellHeaderPlugin.withComponent(TableCellHeaderElement),

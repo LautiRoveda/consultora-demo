@@ -23,6 +23,7 @@ import { Plate, usePlateEditor } from 'platejs/react';
 import * as React from 'react';
 
 import { Editor, EditorContainer } from './editor';
+import { FixedToolbar } from './fixed-toolbar';
 import { REPORT_EDITOR_PLUGINS } from './report-plugins';
 
 const DEBOUNCE_MS = 200;
@@ -100,12 +101,15 @@ export function ReportMarkdownEditor({
 
   return (
     <Plate editor={editor} onChange={handleChange} readOnly={disabled}>
+      {/* Toolbar fija dentro de <Plate> (usa el contexto del editor). El editor
+          va abajo con la esquina superior cuadrada para coser el borde. */}
+      <FixedToolbar />
       <EditorContainer>
         <Editor
           variant="none"
           onBlur={onBlur}
           placeholder="Generá el borrador con IA o escribí el informe…"
-          className="min-h-[60vh] rounded-md border px-4 py-3 sm:min-h-[600px]"
+          className="min-h-[60vh] rounded-b-md border px-4 py-3 sm:min-h-[600px]"
         />
       </EditorContainer>
     </Plate>
