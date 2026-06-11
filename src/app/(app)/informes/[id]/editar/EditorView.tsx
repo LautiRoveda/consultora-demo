@@ -6,7 +6,7 @@ import type { InformeStatus, InformeTipo } from '../../schema';
 import type { UpdateInformeContentInput } from '../schema';
 import type { AttachmentClientRow } from './AttachmentsSection';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronDown, Sparkles, X } from 'lucide-react';
+import { ChevronDown, Eye, Sparkles, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -59,7 +59,9 @@ const ReportMarkdownField = dynamic(
   () => import('@/shared/ui/plate/report-markdown-editor').then((m) => m.ReportMarkdownEditor),
   {
     ssr: false,
-    loading: () => <div className="bg-muted/30 min-h-[480px] animate-pulse rounded-md border" />,
+    loading: () => (
+      <div className="bg-muted/30 min-h-[60vh] animate-pulse rounded-md border sm:min-h-[600px]" />
+    ),
   },
 );
 
@@ -159,6 +161,9 @@ export function EditorView({
   // `flushEditorRef` serializa lo último tecleado para el guardado (anti stale-save).
   const [resetSignal, setResetSignal] = useState(0);
   const [sourceMode, setSourceMode] = useState(false);
+  // T-140-FU1 · El editor WYSIWYG es protagonista (full-width). El preview deja
+  // de ser permanente: `showPreview` lo togglea en WYSIWYG normal ("Vista fiel").
+  const [showPreview, setShowPreview] = useState(false);
   const flushEditorRef = useRef<(() => string) | null>(null);
 
   // Refs para cleanup al unmount. Sin esto, navegar mid-stream filtra el
@@ -513,6 +518,14 @@ export function EditorView({
   // del done (state generated/idle/saving) mostramos el contenido autoritativo.
   const previewContent = isStreaming ? streamingBuffer : watchedContent;
 
+  // T-140-FU1 · El preview (columna derecha) se muestra cuando:
+  //  - hay stream activo: el buffer parcial SOLO vive en MarkdownPreview (Plate
+  //    no se actualiza hasta el `done`), así que es obligatorio mostrarlo;
+  //  - source-mode: textarea crudo + preview = editor markdown clásico;
+  //  - el usuario activó "Vista fiel (PDF)" en WYSIWYG normal.
+  // En WYSIWYG normal sin toggle → 1 columna, editor full-width.
+  const splitActive = isStreaming || sourceMode || showPreview;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -607,7 +620,13 @@ export function EditorView({
         canEdit={canEdit}
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* `grid-cols-1` (minmax(0,1fr)) en base es OBLIGATORIO: sin él, el `grid`
+          a <lg deja una columna `auto` que crece al min-content del editor
+          (la tabla `min-w-[480px]`) y desborda el viewport. Con grid-cols-1 la
+          columna se encoge y la tabla scrollea dentro de su `overflow-x-auto`. */}
+      <div
+        className={splitActive ? 'grid grid-cols-1 gap-6 lg:grid-cols-2' : 'grid grid-cols-1 gap-6'}
+      >
         <Card>
           <CardContent className="space-y-4 pt-6">
             <div className="space-y-2">
@@ -664,29 +683,48 @@ export function EditorView({
                   name="content"
                   render={({ field }) => (
                     <FormItem>
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <FormLabel>Contenido del informe</FormLabel>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          disabled={isPending}
-                          onClick={() => {
-                            // Al ir a source-mode, volcar el editor al form SIN
-                            // cambiar el estado dirty (el round-trip puede reformatear).
-                            if (!sourceMode && flushEditorRef.current) {
-                              form.setValue('content', flushEditorRef.current(), {
-                                shouldDirty: form.formState.isDirty,
-                              });
-                            }
-                            const next = !sourceMode;
-                            setSourceMode(next);
-                            // Al volver a WYSIWYG, re-deserializar el markdown editado a mano.
-                            if (!next) setResetSignal((n) => n + 1);
-                          }}
-                        >
-                          {sourceMode ? 'Editor visual' : 'Ver markdown'}
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          {/* T-140-FU1 · "Vista fiel (PDF)" SOLO en WYSIWYG normal.
+                              En source-mode/stream el preview ya está en split, así
+                              que el toggle sería redundante (y no debe poder colapsar
+                              el preview mientras llegan tokens). */}
+                          {!sourceMode && !isStreaming && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={isPending}
+                              aria-pressed={showPreview}
+                              onClick={() => setShowPreview((v) => !v)}
+                            >
+                              <Eye className="mr-1.5 h-4 w-4" />
+                              {showPreview ? 'Ocultar vista fiel' : 'Vista fiel (PDF)'}
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={isPending}
+                            onClick={() => {
+                              // Al ir a source-mode, volcar el editor al form SIN
+                              // cambiar el estado dirty (el round-trip puede reformatear).
+                              if (!sourceMode && flushEditorRef.current) {
+                                form.setValue('content', flushEditorRef.current(), {
+                                  shouldDirty: form.formState.isDirty,
+                                });
+                              }
+                              const next = !sourceMode;
+                              setSourceMode(next);
+                              // Al volver a WYSIWYG, re-deserializar el markdown editado a mano.
+                              if (!next) setResetSignal((n) => n + 1);
+                            }}
+                          >
+                            {sourceMode ? 'Editor visual' : 'Ver markdown'}
+                          </Button>
+                        </div>
                       </div>
                       <FormControl>
                         {sourceMode ? (
@@ -728,16 +766,18 @@ export function EditorView({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground mb-4 text-xs font-medium tracking-wide uppercase">
-              Vista previa
-            </p>
-            <div className="min-h-[400px]">
-              <MarkdownPreview content={previewContent} />
-            </div>
-          </CardContent>
-        </Card>
+        {splitActive && (
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground mb-4 text-xs font-medium tracking-wide uppercase">
+                {isStreaming ? 'Generando…' : 'Vista previa'}
+              </p>
+              <div className="min-h-[400px]">
+                <MarkdownPreview content={previewContent} />
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* T-036 modal post-firma. Solo aparece cuando PublishButton invoca el
