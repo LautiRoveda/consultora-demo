@@ -89,7 +89,10 @@ test.describe('Informes · editor con IA (T-020)', () => {
     await page.goto(`/informes/${informeId}/editar`);
     await expect(page).toHaveURL(new RegExp(`/informes/${informeId}/editar$`));
 
-    // Textarea ya tiene el contenido inicial cargado.
+    // T-140 · el contenido se edita en el editor WYSIWYG (Plate). Para editar el
+    // markdown crudo en el test pasamos a source-mode (toggle "Ver markdown"),
+    // donde la <textarea> con label "Contenido del informe" sigue disponible.
+    await page.getByRole('button', { name: 'Ver markdown' }).click();
     const contentTextarea = page.getByLabel('Contenido del informe');
     await expect(contentTextarea).toHaveValue(/Borrador inicial/);
 
