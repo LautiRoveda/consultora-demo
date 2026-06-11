@@ -1,0 +1,288 @@
+# Informe de Relevamiento de Higiene y Seguridad Laboral
+
+**Expediente Nº:** EXP-123
+
+---
+
+## 1. Datos del establecimiento
+
+| Campo | Dato |
+|---|---|
+| Razón social | Acme SA |
+| CUIT | 43-32113213-1 |
+| Domicilio del establecimiento | Av MI casa, San Justo, Buenos Aires |
+| Actividad principal (CIIU) | [A COMPLETAR] |
+| Cantidad de empleados | [A COMPLETAR] |
+| ART contratada | [A COMPLETAR] |
+| Fecha del relevamiento | 10 de junio de 2026 |
+| Profesional responsable | [Nombre y apellido], matrícula Nº [MATRÍCULA], [Especialidad — Lic./Ing. en Higiene y Seguridad] |
+
+---
+
+## 2. Alcance del relevamiento
+
+El presente relevamiento comprende las siguientes áreas y agentes de riesgo dentro del establecimiento de Acme SA, ubicado en San Justo, Provincia de Buenos Aires:
+
+**Áreas relevadas:**
+- Oficinas administrativas
+- Producción / planta — con especial énfasis en el sector de prensas
+
+**Agentes de riesgo evaluados:**
+- Ruido (nivel sonoro continuo equivalente, dB(A))
+- Iluminación (nivel de iluminancia, lux)
+
+**Puestos de trabajo incluidos:**
+- [A COMPLETAR — enumerar puestos por área; ej: operador de prensa, operador de línea, administrativo, etc.]
+
+**Puestos o áreas explícitamente excluidos del presente relevamiento:**
+- [A COMPLETAR — consignar toda área o agente no incluido para delimitar el alcance legal del informe]
+
+El relevamiento fue realizado con las instalaciones y equipos en condiciones normales de operación, según lo establecido por la Resolución SRT 85/2012 para el agente ruido y la normativa vigente aplicable para iluminación.
+
+---
+
+## 3. Metodología
+
+### 3.1. Ruido
+
+- **Norma de referencia:** Resolución SRT 85/2012 — Protocolo de Medición del Nivel de Ruido en el Ambiente Laboral. Valores límite: Decreto 351/79 Anexo V (modificado por Resolución MTEySS 295/2003).
+- **Instrumental utilizado:** Sonómetro / dosímetro — [MARCA], [MODELO], Nº de serie: [Nº DE SERIE].
+- **Fecha de calibración del instrumento:** [FECHA DE CALIBRACIÓN]. Certificado adjunto en Anexo I.
+- **Procedimiento de medición:**
+  - Se identificaron los puestos con mayor potencial de exposición a ruido, priorizando el sector de prensas dentro del área de producción / planta.
+  - Las mediciones se realizaron durante la jornada habitual de trabajo, con la maquinaria y equipos operando en condiciones representativas de producción normal.
+  - Se midió el Nivel Sonoro Continuo Equivalente (LAeq,T) en cada punto, con el micrófono posicionado a la altura del oído del trabajador (aproximadamente 1,50 m sobre el nivel del piso, o a la altura efectiva del oído según el puesto).
+  - Se registraron las condiciones operativas del establecimiento al momento de cada medición.
+  - Duración de cada medición por punto: [A COMPLETAR — ej: mínimo 30 segundos para fuentes estables; mayor duración para fuentes variables, conforme Res. SRT 85/12].
+  - Se realizó verificación de calibración del instrumento antes y después de cada sesión de medición.
+
+### 3.2. Iluminación
+
+- **Norma de referencia:** Decreto 351/79 Anexo IV (Resolución MTEySS 295/2003, Tabla 1 de valores mínimos de iluminancia según tipo de tarea). Resolución SRT vigente sobre medición de iluminación en ambientes laborales — [el profesional matriculado completará el número de resolución SRT específica al momento de la firma].
+- **Instrumental utilizado:** Luxómetro — [MARCA], [MODELO], Nº de serie: [Nº DE SERIE].
+- **Fecha de calibración del instrumento:** [FECHA DE CALIBRACIÓN]. Certificado adjunto en Anexo I.
+- **Procedimiento de medición:**
+  - Se determinó la grilla de puntos de medición en función de la superficie de cada área y del Índice de Local (k), conforme al método de la cuadrícula.
+  - Las mediciones se efectuaron sobre el plano de trabajo (altura de la tarea visual), tanto en el plano horizontal como, donde correspondió, en el plano vertical.
+  - Se relevaron condiciones de iluminación natural y artificial en forma combinada y, donde fue posible, en forma independiente, consignando el estado de las luminarias (encendidas / apagadas, lámparas fundidas, pantallas con suciedad acumulada).
+  - Se registró el tipo de iluminación predominante (general, localizada, mixta) en cada área.
+  - Condiciones de iluminación natural al momento del relevamiento: [CONSIGNAR — ej: cielo cubierto / despejado, hora del día].
+  - Las mediciones en el sector de prensas se priorizaron sobre el plano de trabajo del operador, dado que constituye la tarea visual crítica del puesto.
+
+---
+
+## 4. Mediciones realizadas
+
+### 4.1. Ruido
+
+**Marco normativo aplicable:**
+- Protocolo de medición: Resolución SRT 85/2012.
+- Valores límite de exposición: Decreto 351/79 Anexo V (modificado por Resolución MTEySS 295/2003).
+- TLV de referencia para jornada efectiva de 8 horas: **85 dB(A)**.
+- Se asume jornada efectiva de 8 horas para todos los puestos salvo indicación en contrario del empleador. El matriculado verificará la jornada real de cada puesto antes de la presentación legal.
+
+| Punto | Ubicación / Puesto | Valor medido | Valor de referencia | Evaluación |
+|---|---|---|---|---|
+| R-01 | Sector prensas — Operador prensa 1 | [VALOR MEDIDO] dB(A) | 85 dB(A) — 8 h | [APTO / NO APTO] |
+| R-02 | Sector prensas — Operador prensa 2 | [VALOR MEDIDO] dB(A) | 85 dB(A) — 8 h | [APTO / NO APTO] |
+| R-03 | Sector prensas — Puesto de alimentación de material | [VALOR MEDIDO] dB(A) | 85 dB(A) — 8 h | [APTO / NO APTO] |
+| R-04 | Producción / planta — Área general (fuera de prensas) | [VALOR MEDIDO] dB(A) | 85 dB(A) — 8 h | [APTO / NO APTO] |
+| R-05 | Oficinas administrativas | [VALOR MEDIDO] dB(A) | 85 dB(A) — 8 h | [APTO / NO APTO] |
+
+> **Instrucción al matriculado:** completar la columna "Valor medido" con los LAeq,T registrados en campo. Si algún puesto registra valores superiores al TLV de la jornada correspondiente, evaluar la dosis acumulada (sumatoria Cᵢ/Tᵢ > 1) conforme Decreto 351/79 Anexo V. Si hay protección auditiva en uso, calcular el nivel efectivo según: `dB efectivo = nivel medido − (NRR − 7) / 2`, donde NRR es el valor declarado por el fabricante del protector auditivo. Consignar el NRR del equipo en uso: [NRR DEL PROTECTOR AUDITIVO EN USO].
+
+[GRÁFICO DE MEDICIONES — Distribución de niveles sonoros por punto, en función del tiempo (adjuntar curvas de medición para fuentes variables)]
+
+[ESPACIO PARA PLANIMETRÍA — Plano de planta con ubicación de los puntos R-01 a R-05]
+
+> **Nota normativa:** Valores de referencia conforme Resolución SRT 85/2012 y Decreto 351/79 Anexo V (modificado por Res MTEySS 295/2003). Vigencia verificada al 2026-05-27. El matriculado responsable de firmar el informe debe verificar la vigencia actual de las normativas citadas en https://www.srt.gob.ar antes de la presentación legal.
+
+---
+
+### 4.2. Iluminación
+
+**Marco normativo aplicable:**
+- Decreto 351/79 Anexo IV — Tabla de niveles mínimos de iluminación según tipo de tarea (modificado por Resolución MTEySS 295/2003).
+- Resolución SRT vigente sobre medición de iluminación en ambientes laborales — [el profesional matriculado completará el número exacto al firmar].
+
+**Valores de referencia orientativos (Decreto 351/79 Anexo IV — el matriculado verifica la categoría exacta de tarea):**
+
+| Tipo de tarea / área | Iluminancia mínima orientativa |
+|---|---|
+| Tareas con distinción moderada de detalles (operación de prensas, trabajo general de planta) | [A VERIFICAR POR MATRICULADO] lux |
+| Tareas administrativas generales — lectura, escritura, uso de pantallas | [A VERIFICAR POR MATRICULADO] lux |
+| Pasillos, circulación interna | [A VERIFICAR POR MATRICULADO] lux |
+
+> **Instrucción al matriculado:** clasificar cada puesto según la categoría de tarea visual definida en Decreto 351/79 Anexo IV y consignar el valor mínimo correspondiente antes de completar la tabla de evaluación.
+
+| Punto | Ubicación / Puesto | Valor medido | Valor de referencia | Evaluación |
+|---|---|---|---|---|
+| I-01 | Sector prensas — Plano de trabajo prensa 1 | [VALOR MEDIDO] lux | [REF] lux | [APTO / NO APTO] |
+| I-02 | Sector prensas — Plano de trabajo prensa 2 | [VALOR MEDIDO] lux | [REF] lux | [APTO / NO APTO] |
+| I-03 | Sector prensas — Zona de circulación / alimentación | [VALOR MEDIDO] lux | [REF] lux | [APTO / NO APTO] |
+| I-04 | Producción / planta — Área general (fuera de prensas) | [VALOR MEDIDO] lux | [REF] lux | [APTO / NO APTO] |
+| I-05 | Oficinas administrativas — Puesto de trabajo (escritorio) | [VALOR MEDIDO] lux | [REF] lux | [APTO / NO APTO] |
+| I-06 | Oficinas administrativas — Área general | [VALOR MEDIDO] lux | [REF] lux | [APTO / NO APTO] |
+
+> **Instrucción al matriculado:** registrar también el estado de las luminarias al momento de la medición (lámparas fundidas, luminarias sucias, etc.) ya que incide directamente en la evaluación de la condición habitual de trabajo. Consignar adicionalmente el factor de reflexión de paredes y techo si se dispone de luxómetro con sonda esférica o se realiza cálculo del factor de uniformidad.
+
+[ESPACIO PARA PLANIMETRÍA — Plano de planta con ubicación de los puntos I-01 a I-06 y distribución de luminarias]
+
+---
+
+## 5. Conclusiones por puesto / área
+
+> **Instrucción al matriculado:** las conclusiones cualitativas a continuación deberán completarse una vez volcados los valores medidos en las tablas de la sección 4. Los niveles de riesgo indicados como [A DETERMINAR] se definen en función de los valores reales obtenidos.
+
+### 5.1. Sector de prensas (Producción / planta)
+
+Este sector constituye el área de mayor criticidad potencial del relevamiento, en función de la naturaleza de las operaciones (golpes cíclicos, impacto mecánico) y las condiciones de trabajo de precisión que demanda la operación de prensas.
+
+**Ruido:**
+- El sector de prensas presenta condiciones típicas de generación de ruido de impacto y ruido continuo/intermitente de nivel elevado, asociados al ciclo de operación de la maquinaria.
+- Riesgo identificado: exposición a ruido por encima del TLV (85 dB(A) / 8 h) — **nivel de riesgo: [A DETERMINAR según valores medidos]**.
+- Cumplimiento normativo (Resolución SRT 85/2012 / Decreto 351/79 Anexo V): [A DETERMINAR].
+- Si los valores medidos superan el TLV: se requiere implementación de jerarquía de controles (ver sección 6). Si se verifica superación en cualquier punto del relevamiento, corresponde implementar **programa de conservación auditiva con audiometrías periódicas**, conforme Decreto 351/79 Anexo V.
+
+**Iluminación:**
+- La tarea de operación de prensas requiere distinción de detalles en el plano de trabajo para la correcta colocación y extracción de piezas, así como para la detección de defectos.
+- Riesgo identificado: posible déficit de iluminancia en el plano de trabajo — **nivel de riesgo: [A DETERMINAR según valores medidos]**.
+- Cumplimiento normativo (Decreto 351/79 Anexo IV): [A DETERMINAR].
+
+### 5.2. Producción / planta — Área general (fuera de prensas)
+
+**Ruido:**
+- Riesgo identificado: exposición a ruido ambiental proveniente de maquinaria en operación — **nivel de riesgo: [A DETERMINAR]**.
+- Cumplimiento normativo: [A DETERMINAR].
+
+**Iluminación:**
+- Riesgo identificado: posible déficit de iluminancia general en zona de trabajo y circulación — **nivel de riesgo: [A DETERMINAR]**.
+- Cumplimiento normativo: [A DETERMINAR].
+
+### 5.3. Oficinas administrativas
+
+**Ruido:**
+- En condiciones habituales de trabajo administrativo, se espera que los niveles de ruido se encuentren por debajo del TLV de 85 dB(A) para 8 horas. La proximidad física al área de producción / planta podría incidir en los niveles registrados.
+- Riesgo identificado: exposición a ruido de fondo — **nivel de riesgo: [A DETERMINAR]**.
+- Cumplimiento normativo: [A DETERMINAR].
+
+**Iluminación:**
+- Las tareas administrativas (lectura, escritura, uso de pantallas) demandan niveles de iluminancia sostenidos y uniformes.
+- Riesgo identificado: posible déficit de iluminancia o problemas de uniformidad / deslumbramiento — **nivel de riesgo: [A DETERMINAR]**.
+- Cumplimiento normativo: [A DETERMINAR].
+
+---
+
+## 6. Recomendaciones
+
+> Las recomendaciones que siguen se presentan con carácter general, en función de los riesgos típicos del sector de prensas y de las áreas relevadas. El matriculado ajustará la priorización y los plazos una vez confirmados los valores medidos.
+
+### 6.1. Medidas de control en la fuente — Alta prioridad
+
+1. **Reducción de la emisión sonora en prensas**
+   - Descripción: evaluar la instalación de amortiguadores de impacto, bancadas antivibratorias y/o encerramiento acústico parcial en las prensas que registren los niveles sonoros más elevados. Incluir en el análisis la posibilidad de sustitución o modificación del proceso si técnicamente factible.
+   - Plazo sugerido: 60 días desde la confirmación de superación del TLV en los valores medidos.
+   - Responsable sugerido: empleador / contratista especializado en acondicionamiento acústico industrial.
+
+2. **Adecuación del sistema de iluminación en el sector de prensas**
+   - Descripción: si los valores medidos resultan inferiores a los mínimos del Decreto 351/79 Anexo IV, instalar iluminación localizada sobre el plano de trabajo de cada prensa, complementaria a la iluminación general. Utilizar luminarias de bajo deslumbramiento (UGR ≤ 19 recomendado para tareas de distinción de detalles). Reemplazar lámparas fundidas y limpiar luminarias con suciedad acumulada.
+   - Plazo sugerido: 30 días para reemplazos y limpieza inmediata; 60 días para adecuaciones de mayor envergadura.
+   - Responsable sugerido: empleador / electricista matriculado.
+
+### 6.2. Medidas de control administrativas — Prioridad media
+
+3. **Rotación de personal en sector de prensas (ruido)**
+   - Descripción: si no es posible reducir el nivel sonoro en la fuente en el corto plazo, implementar esquemas de rotación de personal entre puestos con mayor y menor exposición a ruido, con el objetivo de reducir la dosis diaria acumulada por trabajador a valores por debajo del 100% (Cᵢ/Tᵢ < 1).
+   - Plazo sugerido: implementación inmediata como medida transitoria, hasta la aplicación de controles en la fuente.
+   - Responsable sugerido: servicio interno de HyS / empleador.
+
+4. **Señalización de zona de uso obligatorio de protección auditiva**
+   - Descripción: señalizar el sector de prensas conforme a los requisitos de señalización de seguridad del Decreto 351/79 (carteles normalizados de uso obligatorio de EPP auditivo), demarcando claramente el límite del área de riesgo.
+   - Plazo sugerido: 15 días.
+   - Responsable sugerido: servicio interno de HyS / empleador.
+
+5. **Programa de conservación auditiva**
+   - Descripción: si alguno de los puntos relevados supera el TLV de 85 dB(A) para la jornada efectiva correspondiente, implementar programa de conservación auditiva que incluya: audiometrías basales y periódicas anuales para el personal expuesto, registro de exposición individual, capacitación en riesgo auditivo y uso correcto de protectores, y seguimiento médico, conforme Decreto 351/79 Anexo V.
+   - Plazo sugerido: 90 días para diseño e implementación del programa; audiometrías basales dentro del mismo plazo.
+   - Responsable sugerido: servicio de medicina laboral / ART / servicio interno de HyS.
+
+6. **Mantenimiento preventivo de luminarias — Oficinas administrativas y planta**
+   - Descripción: establecer un programa de mantenimiento periódico de luminarias (limpieza de pantallas y reflectores, reposición de lámparas según vida útil del fabricante) para sostener los niveles de iluminancia a lo largo del tiempo.
+   - Plazo sugerido: 30 días para la primera intervención; periodicidad según plan de mantenimiento preventivo.
+   - Responsable sugerido: empleador / servicio de mantenimiento interno.
+
+### 6.3. Protección personal (EPP) — Última instancia / medida transitoria
+
+7. **Provisión y control de uso de protectores auditivos — Sector de prensas**
+   - Descripción: hasta tanto se implementen los controles en la fuente, garantizar la provisión y el uso efectivo de protectores auditivos con NRR / SNR adecuado al nivel de exposición registrado. El SNR/NRR mínimo requerido deberá calcularse una vez obtenidos los valores medidos: `dB efectivo = nivel medido − (NRR − 7) / 2` (método OSHA); el resultado debe ser ≤ 85 dB(A) en el oído del trabajador. Registrar la entrega de EPP con firma del receptor conforme Decreto 351/79.
+   - Plazo sugerido: implementación inmediata.
+   - Responsable sugerido: empleador / servicio interno de HyS.
+
+---
+
+## 7. Plan de acción — Cómo resolver el problema
+
+> Esta sección sintetiza las acciones concretas a ejecutar a partir de los hallazgos del relevamiento, organizadas por orden de prioridad y horizonte temporal. El matriculado responsable completará los valores de referencia y ajustará los plazos una vez confirmados los datos de medición.
+
+### 7.1. Acciones inmediatas (0–15 días)
+
+| N° | Acción | Área / Puesto | Agente | Responsable |
+|---|---|---|---|---|
+| A-01 | Señalizar zona de uso obligatorio de protección auditiva en sector de prensas | Sector prensas | Ruido | Empleador / HyS |
+| A-02 | Verificar stock y provisión de protectores auditivos con NRR adecuado a todo el personal expuesto en sector de prensas | Sector prensas | Ruido | Empleador / HyS |
+| A-03 | Reemplazar lámparas fundidas y limpiar luminarias con suciedad visible en todas las áreas relevadas | Todas las áreas | Iluminación | Empleador / Mantenimiento |
+
+### 7.2. Acciones a corto plazo (16–60 días)
+
+| N° | Acción | Área / Puesto | Agente | Responsable |
+|---|---|---|---|---|
+| A-04 | Implementar esquema de rotación de personal en sector de prensas para reducir dosis acumulada de ruido | Sector prensas | Ruido | Empleador / HyS |
+| A-05 | Instalar iluminación localizada sobre el plano de trabajo de cada prensa (si los valores medidos lo requieren) | Sector prensas | Iluminación | Empleador / Electricista matriculado |
+| A-06 | Evaluar e instalar soluciones de control en la fuente para ruido (amortiguadores, bancadas antivibratorias, encerramiento parcial) — cotización y diseño técnico | Sector prensas | Ruido | Empleador / Contratista acústico |
+| A-07 | Adecuar iluminación general en área de producción y oficinas administrativas si los valores medidos no alcanzan los mínimos normativos | Producción / Oficinas | Iluminación | Empleador / Electricista matriculado |
+
+### 7.3. Acciones a mediano plazo (61–90 días)
+
+| N° | Acción | Área / Puesto | Agente | Responsable |
+|---|---|---|---|---|
+| A-08 | Implementar programa de conservación auditiva: audiometrías basales para el personal expuesto a ruido > TLV, registro de exposición y plan de seguimiento médico | Sector prensas / Planta | Ruido | Medicina laboral / ART / HyS |
+| A-09 | Establecer programa de mantenimiento preventivo de luminarias (limpieza y reposición periódica) | Todas las áreas | Iluminación | Empleador / Mantenimiento |
+| A-10 | Ejecutar las obras de control en la fuente para ruido definidas en A-06, una vez aprobado el diseño técnico | Sector prensas | Ruido | Contratista especializado |
+
+### 7.4. Seguimiento y re-relevamiento
+
+- Una vez ejecutadas las medidas de control, se recomienda realizar un **re-relevamiento de ruido e iluminación** a fin de verificar la eficacia de las intervenciones y actualizar el informe conforme lo establece la Resolución SRT 85/2012 (validez de mediciones: 12 meses, o antes si se modifican las condiciones de trabajo o el proceso productivo).
+- El matriculado responsable establecerá la fecha del próximo relevamiento en función de los resultados obtenidos y de los cambios implementados.
+
+---
+
+## 8. Anexos
+
+El profesional matriculado adjuntará los siguientes documentos al momento de la firma y presentación legal del informe:
+
+1. **Anexo I — Certificados de calibración del instrumental**
+   - Certificado de calibración del sonómetro / dosímetro utilizado ([MARCA], [MODELO], Nº de serie: [Nº DE SERIE]), con fecha de calibración [FECHA] y vigencia hasta [FECHA].
+   - Certificado de calibración del luxómetro utilizado ([MARCA], [MODELO], Nº de serie: [Nº DE SERIE]), con fecha de calibración [FECHA] y vigencia hasta [FECHA].
+
+2. **Anexo II — Planimetría con ubicación de puntos de medición**
+   - Plano de planta del establecimiento con la ubicación georeferenciada de los puntos de medición de ruido (R-01 a R-05) e iluminación (I-01 a I-06).
+
+   [ESPACIO PARA PLANIMETRÍA]
+
+3. **Anexo III — Fotografías representativas**
+   - Fotografías del sector de prensas, puesto de alimentación, área general de planta y oficinas administrativas, que documenten las condiciones relevadas al momento del relevamiento.
+
+4. **Anexo IV — Curvas de medición de ruido en función del tiempo**
+   - Registros gráficos del LAeq,T para cada punto del sector de prensas, particularmente para aquellos puestos con ruido de impacto o de carácter variable.
+
+   [GRÁFICO DE MEDICIONES]
+
+5. **Anexo V — Registros de campo**
+   - Planillas de registro de mediciones firmadas por el profesional actuante, con indicación de condiciones ambientales, estado operativo del establecimiento y equipos en funcionamiento durante el relevamiento.
+
+6. **Anexo VI — Constancia de entrega de EPP auditivo**
+   - Registros de entrega de protectores auditivos al personal del sector de prensas, con firma de recepción conforme Decreto 351/79.
+
+---
+
+*Borrador elaborado para revisión del profesional matriculado. No constituye certificación de cumplimiento legal ni sustituye la firma del responsable de Higiene y Seguridad habilitado. La certificación de conformidad con la normativa vigente es responsabilidad exclusiva del profesional matriculado que suscribe el documento.*
