@@ -90,7 +90,6 @@ test('happy path · streaming visible + save persiste el contenido', async ({ pa
       'Contenido generado por IA.',
     ],
   });
-  const fullText = '# Informe RGRL\n\n## Datos del establecimiento\n\nContenido generado por IA.';
   await page.route(`**/api/informes/${informeId}/generate-stream`, async (route) => {
     await route.fulfill({
       status: 200,
@@ -107,14 +106,15 @@ test('happy path · streaming visible + save persiste el contenido', async ({ pa
 
   await page.getByRole('button', { name: /Generar con IA/i }).click();
 
-  // El contenido aparece en el textarea (despues del flush final del rAF).
-  const contentTextarea = page.getByLabel('Contenido del informe');
-  await expect(contentTextarea).toHaveValue(fullText, { timeout: 5000 });
-
   // Alert "Borrador generado" visible post-done. Match por la descripcion
   // unica del Alert (no por el titulo que tambien aparece en el toast sonner —
-  // strict mode falla con 2 matches).
+  // strict mode falla con 2 matches). Marca que el volcado al editor terminó.
   await expect(page.getByText(/Revisalo y editalo antes de guardar/i)).toBeVisible();
+
+  // T-140 · al `done` el markdown completo se vuelca al editor WYSIWYG (Plate).
+  await expect(page.locator('[data-slate-editor]')).toContainText('Contenido generado por IA.', {
+    timeout: 5000,
+  });
 
   await page.getByRole('button', { name: 'Guardar cambios' }).click();
 
@@ -164,8 +164,9 @@ test('cancel · abort mid-stream resetea state sin tocar el contenido inicial', 
   });
 
   await page.goto(`/informes/${informeId}/editar`);
-  const contentTextarea = page.getByLabel('Contenido del informe');
-  await expect(contentTextarea).toHaveValue('# Contenido previo');
+  // T-140 · el contenido vive en el editor WYSIWYG (Plate).
+  const editorBody = page.locator('[data-slate-editor]');
+  await expect(editorBody).toContainText('Contenido previo');
 
   await page.getByRole('button', { name: /Generar con IA/i }).click();
 
@@ -177,8 +178,8 @@ test('cancel · abort mid-stream resetea state sin tocar el contenido inicial', 
 
   // Vuelve a "Generar con IA" (state idle).
   await expect(page.getByRole('button', { name: /Generar con IA/i })).toBeVisible();
-  // Textarea sin cambios — el contenido previo se preserva.
-  await expect(contentTextarea).toHaveValue('# Contenido previo');
+  // Editor sin cambios — el contenido previo se preserva.
+  await expect(editorBody).toContainText('Contenido previo');
   // No aparece el alert "Borrador generado" (match por descripcion unica).
   await expect(page.getByText(/Revisalo y editalo antes de guardar/i)).toBeHidden();
 });
