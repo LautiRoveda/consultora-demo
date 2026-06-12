@@ -1,7 +1,11 @@
 import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 
 import { env } from '@/env';
+import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
+import { TRIAL_DAYS } from '@/shared/lib/trial-days';
+import { renderWelcomeEmail } from '@/shared/notifications/email-templates/welcome';
+import { sendEmail } from '@/shared/notifications/senders/email';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
 
@@ -57,6 +61,7 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get('token_hash');
   const type = searchParams.get('type');
   const next = sanitizeNext(searchParams.get('next'));
+  const from = searchParams.get('from');
 
   // T-022.5-FU4: usar NEXT_PUBLIC_SITE_URL como base del redirect evita que
   // tome el bind interno del container (0.0.0.0:80) cuando está detrás de
@@ -105,6 +110,38 @@ export async function GET(request: NextRequest) {
       logger.error({ error, type, tokenHash: tokenHash.slice(0, 8) }, 'verifyOtp falló');
       return NextResponse.redirect(`${siteUrl}/login?error=callback_failed`);
     }
+  }
+
+  // T-142 · Welcome email post-confirmación. Solo en el flow de signup
+  // (`from=signup`), donde el exchange/verify de arriba ya confirmó al usuario y
+  // existe sesión. `after()` difiere el envío hasta después de mandar la
+  // respuesta de redirect: no demora el bounce a /login y, en el server
+  // long-running del VPS, garantiza ejecución (un floating promise pelado tras
+  // `return` no está garantizado). Fire-and-forget: un error de Resend no afecta
+  // el flujo. Idempotente: el token de confirmación es single-use, así que un
+  // segundo click falla el exchange y corta antes de este bloque.
+  if (from === 'signup') {
+    after(async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user?.email) return;
+        const consultora = await getCurrentConsultora(supabase, user.id);
+        const { subject, html, text } = renderWelcomeEmail({
+          consultoraName: consultora?.name ?? 'tu consultora',
+          trialDays: TRIAL_DAYS,
+          informesUrl: `${siteUrl}/informes/nuevo`,
+          eppUrl: `${siteUrl}/epp/entregas/nueva`,
+        });
+        const result = await sendEmail({ to: user.email, subject, html, text });
+        if (!result.ok) {
+          logger.error({ reason: result.reason, userId: user.id }, 'welcome_email_failed');
+        }
+      } catch (err) {
+        logger.error({ err }, 'welcome_email_failed');
+      }
+    });
   }
 
   // Routing post-exchange:

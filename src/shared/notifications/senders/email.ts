@@ -71,3 +71,41 @@ export async function sendEmailReminder(args: {
     };
   }
 }
+
+/**
+ * T-142 · Sender transaccional genérico (welcome y futuros mails one-shot).
+ *
+ * A diferencia de `sendEmailReminder` (atado a `ReminderWithEvent`) y de los
+ * senders dunning (con idempotency key + log table), este recibe el render ya
+ * armado y dispara sin idempotency: para mails one-shot el caller garantiza la
+ * unicidad del disparo (ej. el welcome sale una vez, gateado por el token de
+ * confirmación single-use). `from`/`replyTo` desde env, igual que el resto.
+ */
+export async function sendEmail(args: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<{ ok: true; id: string } | { ok: false; reason: string }> {
+  const resend = getResendClient();
+  try {
+    const result = await resend.emails.send({
+      from: env.RESEND_FROM_ADDRESS,
+      to: args.to,
+      replyTo: env.RESEND_REPLY_TO_ADDRESS,
+      subject: args.subject,
+      html: args.html,
+      text: args.text,
+    });
+    if (result.error) {
+      const name = (result.error as { name?: string }).name ?? 'unknown';
+      return { ok: false, reason: `resend_${name}` };
+    }
+    if (!result.data?.id) {
+      return { ok: false, reason: 'resend_no_id' };
+    }
+    return { ok: true, id: result.data.id };
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
