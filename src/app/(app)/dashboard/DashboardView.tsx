@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 
+import { OnboardingBanner } from '../onboarding/OnboardingBanner';
 import { DashboardData } from './DashboardData';
 import { DashboardFab } from './DashboardFab';
 import { DashboardSkeleton } from './DashboardSkeleton';
@@ -10,6 +11,8 @@ import { QuickLinksRow } from './QuickLinksRow';
 type DashboardViewProps = {
   showResetSuccess?: boolean;
   consultoraNombre?: string | null;
+  /** T-142: true mientras `consultora.onboardingCompletadoAt === null`. */
+  showOnboarding: boolean;
 };
 
 /**
@@ -27,7 +30,11 @@ type DashboardViewProps = {
  *
  * `pb-24 md:pb-8`: deja aire para que el FAB móvil no tape el final del contenido.
  */
-export function DashboardView({ showResetSuccess, consultoraNombre }: DashboardViewProps) {
+export function DashboardView({
+  showResetSuccess,
+  consultoraNombre,
+  showOnboarding,
+}: DashboardViewProps) {
   return (
     <div className="space-y-8 pb-24 md:pb-8">
       {showResetSuccess ? (
@@ -35,6 +42,12 @@ export function DashboardView({ showResetSuccess, consultoraNombre }: DashboardV
           <AlertTitle>Contraseña actualizada</AlertTitle>
           <AlertDescription>Tu nueva contraseña ya está activa.</AlertDescription>
         </Alert>
+      ) : null}
+
+      {showOnboarding ? (
+        <Suspense fallback={null}>
+          <OnboardingBanner />
+        </Suspense>
       ) : null}
 
       <header className="space-y-1">

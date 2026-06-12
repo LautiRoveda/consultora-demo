@@ -28,4 +28,9 @@ export type CurrentConsultora = {
    * Per-consultora, edit owner-only via updateAutoCreateEventToggleAction.
    */
   autoCreateEventOnSign: boolean;
+  /**
+   * T-142: NULL mientras el wizard de onboarding está activo. Timestamptz del
+   * momento en que el owner completó el wizard (eligió su primer camino).
+   */
+  onboardingCompletadoAt: string | null;
 };

@@ -35,6 +35,7 @@ function makeConsultora(overrides: Partial<CurrentConsultora> = {}): CurrentCons
     role: 'owner',
     logoStoragePath: null,
     autoCreateEventOnSign: false,
+    onboardingCompletadoAt: null,
     ...overrides,
   };
 }

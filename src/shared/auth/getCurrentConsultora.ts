@@ -79,7 +79,9 @@ export async function getCurrentConsultora(
   if (claimConsultoraId && claimRole) {
     const { data, error } = await supabase
       .from('consultoras')
-      .select('id, name, slug, plan, trial_hasta, logo_storage_path, auto_create_event_on_sign')
+      .select(
+        'id, name, slug, plan, trial_hasta, logo_storage_path, auto_create_event_on_sign, onboarding_completado_at',
+      )
       .eq('id', claimConsultoraId)
       .maybeSingle();
 
@@ -101,6 +103,7 @@ export async function getCurrentConsultora(
         role: claimRole,
         logoStoragePath: data.logo_storage_path,
         autoCreateEventOnSign: data.auto_create_event_on_sign,
+        onboardingCompletadoAt: data.onboarding_completado_at,
       };
     }
 
@@ -116,7 +119,7 @@ export async function getCurrentConsultora(
   const { data, error } = await supabase
     .from('consultora_members')
     .select(
-      'role, consultoras(id, name, slug, plan, trial_hasta, logo_storage_path, auto_create_event_on_sign)',
+      'role, consultoras(id, name, slug, plan, trial_hasta, logo_storage_path, auto_create_event_on_sign, onboarding_completado_at)',
     )
     .eq('user_id', userId)
     .maybeSingle();
@@ -142,5 +145,6 @@ export async function getCurrentConsultora(
     role,
     logoStoragePath: data.consultoras.logo_storage_path,
     autoCreateEventOnSign: data.consultoras.auto_create_event_on_sign,
+    onboardingCompletadoAt: data.consultoras.onboarding_completado_at,
   };
 }
