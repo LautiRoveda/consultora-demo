@@ -34,6 +34,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const consultora = user ? await getCurrentConsultora(supabase, user.id) : null;
 
   return (
-    <DashboardView showResetSuccess={reset === 'ok'} consultoraNombre={consultora?.name ?? null} />
+    <DashboardView
+      showResetSuccess={reset === 'ok'}
+      consultoraNombre={consultora?.name ?? null}
+      showOnboarding={!!consultora && !consultora.onboardingCompletadoAt}
+    />
   );
 }

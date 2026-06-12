@@ -36,6 +36,20 @@ export type GetClientesOptions = {
 };
 
 /**
+ * T-142 · Conteo de clientes activos del tenant (wizard de onboarding).
+ * RLS filtra por `consultora_id` del claim. `head: true` evita traer filas.
+ * Ante error devolvemos 0 (el wizard degrada al paso 1 "creá tu primer cliente").
+ */
+export async function countClientesActivos(supabase: SupabaseClient<Database>): Promise<number> {
+  const { count, error } = await supabase
+    .from('clientes')
+    .select('id', { count: 'exact', head: true })
+    .is('archived_at', null);
+  if (error) return 0;
+  return count ?? 0;
+}
+
+/**
  * Lista paginada de clientes del tenant del JWT.
  * RLS filtra automáticamente por `consultora_id`. NO recibimos `consultora_id`
  * como param — la fuente de verdad es el claim del JWT.
