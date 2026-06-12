@@ -30,6 +30,35 @@ vi.mock('next/headers', () => ({
     }),
 }));
 
+// T-142 · El welcome email se dispara con `after()` dentro del handler. Fuera del
+// runtime de Next, `after` no ejecuta la callback — la mockeamos para correrla al
+// instante y poder await-earla (acumula promesas en `afterTasks`). Spread de
+// `importActual` preserva NextRequest/NextResponse/redirect.
+const afterTasks = vi.hoisted(() => [] as Promise<unknown>[]);
+vi.mock('next/server', async (importActual) => {
+  const actual = await importActual<typeof import('next/server')>();
+  return {
+    ...actual,
+    after: (fn: () => unknown) => {
+      afterTasks.push(Promise.resolve().then(() => fn()));
+    },
+  };
+});
+
+const sendEmailMock = vi.hoisted(() =>
+  vi.fn<
+    (args: {
+      to: string;
+      subject: string;
+      html: string;
+      text: string;
+    }) => Promise<{ ok: true; id: string } | { ok: false; reason: string }>
+  >(() => Promise.resolve({ ok: true, id: 'test-msg-id' })),
+);
+vi.mock('@/shared/notifications/senders/email', () => ({
+  sendEmail: sendEmailMock,
+}));
+
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -90,6 +119,90 @@ describe('/auth/callback · guards', () => {
     const res = await callGet('?token_hash=x');
     expect([302, 307]).toContain(res.status);
     expect(res.headers.get('location')).toMatch(/\/login\?error=callback_failed$/);
+  });
+});
+
+async function flushAfter(): Promise<void> {
+  const tasks = afterTasks.splice(0);
+  await Promise.all(tasks);
+}
+
+describe('/auth/callback · welcome email (T-142)', () => {
+  it('from=signup + token válido → sendEmail con to=email; redirect a /login?confirmed=1', async () => {
+    sendEmailMock.mockClear();
+    const email = `t142-welcome-${runId}@example.com`;
+    const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+      type: 'signup',
+      email,
+      password: 'TestPassword123!',
+    });
+    if (linkErr) throw new Error(`generateLink signup falló: ${linkErr.message}`);
+    if (linkData.user) createdUserIds.push(linkData.user.id);
+    const tokenHash = linkData.properties?.hashed_token;
+    expect(tokenHash).toBeTruthy();
+    if (!tokenHash) return;
+
+    const res = await callGet(
+      `?token_hash=${encodeURIComponent(tokenHash)}&type=signup&from=signup&next=/login`,
+    );
+    expect([302, 307]).toContain(res.status);
+    expect(res.headers.get('location')).toMatch(/\/login\?confirmed=1$/);
+
+    await flushAfter();
+    expect(sendEmailMock).toHaveBeenCalledOnce();
+    expect(sendEmailMock.mock.calls[0]![0]).toMatchObject({ to: email });
+  });
+
+  it('flow sin from=signup (recovery) → NO dispara sendEmail', async () => {
+    sendEmailMock.mockClear();
+    const email = `t142-no-welcome-${runId}@example.com`;
+    const { data: created, error: createErr } = await admin.auth.admin.createUser({
+      email,
+      password: 'TestPassword123!',
+      email_confirm: true,
+    });
+    if (createErr || !created.user) throw new Error(`createUser falló: ${createErr?.message}`);
+    createdUserIds.push(created.user.id);
+
+    const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+    });
+    if (linkErr) throw new Error(`generateLink recovery falló: ${linkErr.message}`);
+    const tokenHash = linkData.properties?.hashed_token;
+    if (!tokenHash) return;
+
+    const res = await callGet(
+      `?token_hash=${encodeURIComponent(tokenHash)}&type=recovery&next=/cambiar-password`,
+    );
+    expect([302, 307]).toContain(res.status);
+
+    await flushAfter();
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('from=signup + sendEmail falla → redirect igual a /login?confirmed=1 (no propaga)', async () => {
+    sendEmailMock.mockClear();
+    sendEmailMock.mockRejectedValueOnce(new Error('resend down'));
+    const email = `t142-welcome-fail-${runId}@example.com`;
+    const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+      type: 'signup',
+      email,
+      password: 'TestPassword123!',
+    });
+    if (linkErr) throw new Error(`generateLink signup falló: ${linkErr.message}`);
+    if (linkData.user) createdUserIds.push(linkData.user.id);
+    const tokenHash = linkData.properties?.hashed_token;
+    if (!tokenHash) return;
+
+    const res = await callGet(
+      `?token_hash=${encodeURIComponent(tokenHash)}&type=signup&from=signup&next=/login`,
+    );
+    expect([302, 307]).toContain(res.status);
+    expect(res.headers.get('location')).toMatch(/\/login\?confirmed=1$/);
+
+    // El error de Resend se traga en el try/catch del handler — no debe rechazar.
+    await expect(flushAfter()).resolves.toBeUndefined();
   });
 });
 
