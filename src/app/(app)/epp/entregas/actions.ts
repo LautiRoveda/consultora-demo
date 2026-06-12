@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { markOnboardingCompletedIfPending } from '@/app/(app)/onboarding/mark-completed';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { logger } from '@/shared/observability/logger';
 import {
@@ -343,6 +344,10 @@ export async function createEntregaAction(input: unknown): Promise<CreateEntrega
       message: 'No se pudieron registrar los items de la entrega. Reintentá.',
     };
   }
+
+  // T-142 · FU1 · Onboarding real: marcar al registrar la primera entrega EPP.
+  // Best-effort e idempotente; no afecta el return de la creación.
+  await markOnboardingCompletedIfPending(consultora.id);
 
   // Step 4: invocar gen_epp_planificaciones_y_calendar_for. Si falla, NO
   // rollback — la entrega firmada queda válida y se regenera planificación
