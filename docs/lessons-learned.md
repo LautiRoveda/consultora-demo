@@ -561,3 +561,41 @@ Tablas regulatorias HyS (Res SRT) cargadas como `const` TypeScript en `src/share
 ### Registry de tools del asistente (name→handler + guardia anti-duplicados)
 
 **Origen**: T-125. **Aplicable forward**: sumar módulos al asistente IA. En vez de un `switch(name)` que crece con cada tool, un **registry** `Map<string, ToolEntry>` (`src/shared/ai/tools/registry.ts`) ensamblado de listas por módulo (`epp-tools.ts` + `common-tools.ts` + `checklists-tools.ts`). `CHAT_TOOLS` (las definitions para Anthropic) y `TOOL_REGISTRY` (name→handler) se derivan de la MISMA lista, así no se desincronizan. `dispatchTool()` hace lookup O(1) y **nunca tira** (envuelve todo error / nombre desconocido en `DispatchToolResult` → el loop de tool-calling lo recibe como `tool_result` y sigue). **Guardia anti-duplicados** al cargar el módulo: `if (TOOL_REGISTRY.size !== ALL_ENTRIES.length) throw` — si dos módulos registran el mismo nombre, rompe al import (no en runtime silencioso). Sumar un módulo = agregar su lista de `ToolEntry` + spread en el registry; cero cambios al orquestador.
+
+## Editor WYSIWYG del informe (T-140 / T-141)
+
+### Bridge RHF↔Plate sin heurística "¿fui yo?"
+
+**Origen**: T-140 Fase 1 (`src/shared/ui/plate/report-markdown-editor.tsx`).
+
+El `content` sigue siendo un **markdown string** en RHF — Plate es capa de presentación, no cambia el contrato. El puente son **dos caminos one-way explícitos**, no una heurística de "¿este cambio lo originó el usuario o el reset?": (1) **externo** (deserializar al montar/togglear source-mode) vía `resetSignal` + un flag `isResetting` que **suprime el `onChange` que dispara el propio reset** + un baseline `lastSerialized` para el guard anti-no-op; (2) **tipeo**, `onChange` debounced (200ms) con guard anti-no-op contra `lastSerialized`. `flush()` en submit y blur para evitar **stale-save** (la última tecla quedaba sin serializar). Sin heurística de origen → **cero cursor-jump**.
+
+### Round-trip markdown↔Plate: el MISMO remark-gfm que el render y el PDF
+
+**Origen**: T-140 Fase 1.
+
+El editor deserializa/serializa con `remark-gfm` (`report-plugins.tsx`), el **mismo** que el render en `shared/ui/markdown.tsx` y el PDF (`(print)/.../PrintTemplate.tsx`) → cero drift entre lo que se edita, se ve y se imprime. **Nunca es byte-idéntico**: la normalización loose→tight de listas es aceptable; tablas y placeholders se chequean **estrictos**. Test **headless** con render-equality estructural (multiset de tags DOM salvo P/OL/UL, conteo de `<li>`, matrices de tabla idénticas, placeholders presentes) + mutación. **Fixtures en `.txt`, NO `.md`** — el pre-commit pasa prettier sobre `*.md` y reformatea los snapshots (verde local, rojo en CI). Refuerza la lección de T-137/T-138 (fixtures byte-exactas → `.txt`).
+
+### Streaming LLM al editor: NO token-a-token
+
+**Origen**: épica editor (decisión de diseño).
+
+No streamear el LLM token-a-token DENTRO del editor WYSIWYG: stream a un **preview** y cargar el markdown **completo** al `done`. Token-a-token sobre la estructura Slate/Plate dispara re-deserializaciones parciales sobre markdown incompleto (tablas/listas a medio cerrar) → estado inconsistente. (Patrón de stream-a-preview, distinto del chat del asistente que sí streamea texto plano, T-117-FU3.)
+
+### Node-component de tabla: className/dropdown NO entre `PlateElement` y los children Slate
+
+**Origen**: T-141 Fase A (`src/shared/ui/plate/table-node.tsx` + `table-cell-dropdown.tsx`).
+
+Al escribir node-components de tabla a mano, NO insertar el `className`/dropdown ENTRE `PlateElement` y los children que Slate inyecta: el `className` va en el `<table>` existente y el dropdown de operaciones va como **hijo del `<td>` con `contentEditable={false}`** → el árbol contenteditable de Slate queda intacto (si no, Slate pierde el tracking de selección/edición de la celda). Las ops son GFM-puras (`insertTableRow/Column`, `deleteRow/Column`) con `TablePlugin … disableMerge:true` — sin merge/split → sin rowspan/colspan que GFM no expresa.
+
+### Autosave sin spam de audit: columna scratch separada, promovida al publicar
+
+**Origen**: T-141 Fase C (`informes.contenido_borrador`, migración `20260611000001`).
+
+El autosave del editor escribe en una columna **scratch separada** (`contenido_borrador`) que queda **fuera del diff-guard del trigger** `audit_informes()` (compara `(titulo, tipo, status, contenido, cliente_id)`) → el tipeo no spammea `audit_log`. La contracara obligatoria: el publish **DEBE promover** el borrador a `contenido` (`contenido = contenido_borrador ?? contenido`, scratch a `null`, un solo UPDATE auditado) — si no, lo auditado/publicado no es lo que el matriculado vio (integridad legal). Flush pre-publish (`flushDraftBeforePublish`/`onBeforePublish`) para no perder el tail del debounce.
+
+### Plate: instalación quirúrgica, no el `add` masivo
+
+**Origen**: T-140 Fase 1.
+
+NO correr el `add` masivo de Plate (≈142 archivos + pisa primitivos shadcn ya curados). Escribir los **node-components a mano** (solo los que el informe usa), usar el `radix-ui` unificado (no los paquetes `@radix-ui/*` individuales), y montar Plate detrás del boundary `dynamic(ssr:false)` por bundle/Lighthouse (es client-only y pesado).

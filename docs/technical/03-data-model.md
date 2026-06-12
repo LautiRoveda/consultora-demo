@@ -408,6 +408,10 @@ create policy informes_consultora on informes for all
 create policy norm_templates_read on norm_templates for select using (true);  -- catálogo público
 ```
 
+#### `informes.contenido_borrador` — scratch de autosave del editor WYSIWYG (T-141 Fase C)
+
+> Columna `text` nullable agregada en `supabase/migrations/20260611000001_t141_informe_contenido_borrador.sql`. Es el scratch de autosave del editor WYSIWYG del informe (T-140/T-141): el autosave escribe acá con `updateInformeContentAction(id, {content, mode:'draft'})`. **Queda FUERA del diff-guard del trigger `audit_informes()`** — el guard compara `(titulo, tipo, status, contenido, cliente_id)` (el `cliente_id` lo sumó `20260518000001`), no incluye `contenido_borrador` → el tipeo del editor no genera entradas en `audit_log`. Al **publicar** (o en `mode:'commit'`) el borrador se **promueve a `contenido`** y se limpia: `contenido = contenido_borrador ?? contenido`, `contenido_borrador = null` en un único UPDATE auditado (integridad legal: lo publicado es lo que el matriculado vio). El `contenido_html` del bloque SQL de planning de arriba es el drift pre-existente ya registrado; no se toca.
+
 #### `informe_metadata` — shape real de `data` (T-021/T-022/T-138)
 
 > El bloque SQL de arriba es el schema de planning (drift conocido vs prod — ver operativo.md). En la implementación real, la metadata estructurada del template vive en la tabla `informe_metadata` (1:1 con `informes` por `informe_id`, RLS via el informe padre) con un único campo `data jsonb` validado con el schema Zod del tipo (`TEMPLATE_SERVER_REGISTRY[tipo].schema`) en cada borde: UPSERT pre-persist + lectura defensiva con `safeParse` (drift → null, la UI cae al fallback "sin datos").

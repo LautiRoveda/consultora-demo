@@ -312,3 +312,19 @@ El higienista guarda una configuración de personalización (fases 1+2) como pla
 ## Doc-sync · limpiar refs Vercel pre-T-022.5 en docs de planning 🔜
 
 El claim de deploy quedó alineado en este sync (`PROJECT-CONTEXT.md` + `06-deployment.md` + nota de resolución en ADR-0007). Queda staleness Vercel-host **anterior** a T-022.5 en docs de planning, NO tocada por decisión del owner: `docs/technical/00-skills-y-stack.md` (Hosting=Vercel + "deploy automático a Vercel", L38/49/150/160/168), `docs/technical/01-principles.md:48`, `docs/technical/05-branch-protection.md §198-204`. Sibling del doc-drift de data-model y de T-076.
+
+## T-140 ✅ Editor WYSIWYG del informe (Plate) + FU1 responsive — EN PROD
+
+El cuerpo del informe pasa de un `<Textarea>` de markdown crudo a un editor **WYSIWYG** sobre **Plate** (`platejs`). El `content` sigue siendo un markdown string en RHF — el editor es una capa de presentación, no cambia el contrato de persistencia ni el pipeline de render/PDF.
+
+- **Fase 1 (#250, `898388b`)**: editor WYSIWYG montado detrás de `dynamic(ssr:false)` (`EditorView.tsx:58-66`, por bundle/Lighthouse) + **source-mode** toggle (markdown crudo ↔ WYSIWYG; al togglear re-deserializa vía `resetSignal`). **Round-trip markdown↔Plate** con `remark-gfm` — el MISMO plugin que el render (`shared/ui/markdown.tsx`) y el PDF (`(print)/.../PrintTemplate.tsx`) → cero drift. Bridge RHF↔Plate (`src/shared/ui/plate/report-markdown-editor.tsx`): `resetSignal`/`isResetting`/`lastSerialized`/`flush`, debounce 200ms. **Instalación quirúrgica** de Plate: node-components escritos a mano (NO el `add` masivo que pisa primitivos shadcn). Test round-trip headless (`informe-plate-roundtrip.test.ts`, fixture en `.txt`).
+- **FU1 (#251, `25fcb1c`)**: editor **full-width** + tablas con **scroll-x** en mobile + **preview contextual**.
+
+## T-141 ✅ Editor del informe: toolbar + tablas (Fase A) + autosave draft-only (Fase C) — EN PROD. B1/B2 diferidos
+
+Cierre del núcleo de la épica del editor WYSIWYG. Cero migración en Fase A; Fase C agrega una columna scratch.
+
+- **Fase A (#252, `20271b1`)**: **toolbar de formato** (radix-ui unificado, sin deps nuevas) + **operaciones de tabla por celda** (`insertTableRow/Column`, `deleteRow/Column` vía `src/shared/ui/plate/table-cell-dropdown.tsx`; el dropdown es hijo del `<td>` con `contentEditable={false}` → contenteditable intacto) + `TablePlugin … disableMerge:true` (tablas **GFM-puras**, sin rowspan/colspan).
+- **Fase C (#253, `e992803`)**: **autosave server draft-only**. Columna `informes.contenido_borrador` (migración `20260611000001`); action `updateInformeContentAction(id, {content, mode:'draft'|'commit'})` (`[id]/actions.ts:360-486`). El borrador queda **fuera del diff-guard del trigger `audit_informes()`** (que audita `(titulo, tipo, status, contenido, cliente_id)`, extendido con `cliente_id` en `20260518000001`) → el tipeo NO spammea `audit_log`. **Promoción al publicar** (`publishInformeAction`, `src/app/(app)/informes/actions.ts:353-374`): `contenido = contenido_borrador ?? contenido` + `contenido_borrador = null` en un único UPDATE auditado (integridad legal: se publica lo que el matriculado vio) + flush pre-publish (`flushDraftBeforePublish`). Indicador **Guardando/Guardado/Error** (`EditorView.tsx:888-916`, `aria-live="polite"`). Debounce autosave 2.5s.
+- **B1 (slash commands) y B2 (syntax highlighting `lowlight`) DIFERIDOS** — bajo valor para el público no técnico (B1 además tiene pendiente la decisión de dep `@ariakit/react` vs hand-roll).
+- **Orden de deploy (Fase C)**: la migración aditiva `20260611000001` (solo `ADD COLUMN`) se aplicó en su ventana; el código que lee/escribe la columna deploya con el merge.
