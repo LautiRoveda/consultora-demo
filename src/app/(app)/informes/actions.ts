@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { createCalendarEventAction } from '@/app/(app)/calendario/actions';
 import { DEFAULT_REMINDER_OFFSETS_BY_TYPE } from '@/app/(app)/calendario/defaults';
 import { getEventsByInformeId } from '@/app/(app)/calendario/queries';
+import { markOnboardingCompletedIfPending } from '@/app/(app)/onboarding/mark-completed';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { requireBillingAccess } from '@/shared/billing/access';
 import { getGateMessage } from '@/shared/billing/messages';
@@ -217,6 +218,10 @@ export async function createInformeAction(input: unknown): Promise<CreateInforme
       }
     }
   }
+
+  // T-142 · FU1 · Onboarding real: marcar al crear el primer informe. Best-effort
+  // e idempotente; no afecta el return de la creación.
+  await markOnboardingCompletedIfPending(consultora.id);
 
   revalidatePath('/informes');
   logger.info(
