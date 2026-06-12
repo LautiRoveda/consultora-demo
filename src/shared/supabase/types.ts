@@ -775,6 +775,7 @@ export type Database = {
           id: string;
           logo_storage_path: string | null;
           name: string;
+          onboarding_completado_at: string | null;
           plan: string;
           retencion_datos_hasta: string | null;
           slug: string;
@@ -789,6 +790,7 @@ export type Database = {
           id?: string;
           logo_storage_path?: string | null;
           name: string;
+          onboarding_completado_at?: string | null;
           plan?: string;
           retencion_datos_hasta?: string | null;
           slug: string;
@@ -803,6 +805,7 @@ export type Database = {
           id?: string;
           logo_storage_path?: string | null;
           name?: string;
+          onboarding_completado_at?: string | null;
           plan?: string;
           retencion_datos_hasta?: string | null;
           slug?: string;
