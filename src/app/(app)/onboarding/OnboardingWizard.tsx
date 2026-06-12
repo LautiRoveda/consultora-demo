@@ -1,16 +1,8 @@
-'use client';
-
-import type { OnboardingDestination } from './schema';
 import { CheckCircle2, FileText, HardHat, UserPlus } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
-import { toast } from 'sonner';
 
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
-
-import { completeOnboardingAction } from './actions';
 
 type OnboardingWizardProps = {
   /** true si el tenant ya tiene ≥1 cliente activo (habilita el paso 2). */
@@ -19,30 +11,15 @@ type OnboardingWizardProps = {
 
 /**
  * T-142 · Banner-wizard del dashboard. Guía los primeros pasos de un tenant
- * nuevo: (1) crear el primer cliente, (2) elegir el primer camino (informe o
- * EPP). Al elegir, marca `onboarding_completado_at` y redirige — desde ahí el
- * banner no vuelve a renderizar (el dashboard lo gatea con `showOnboarding`).
+ * nuevo: (1) crear el primer cliente, (2) hacer la primera acción (generar un
+ * informe o registrar EPP).
+ *
+ * T-142 · FU1 · Los botones SOLO navegan. El onboarding se marca completo cuando
+ * el usuario realmente crea su primer informe / registra su primera entrega EPP
+ * (`markOnboardingCompletedIfPending` en las acciones de esos módulos), no al
+ * elegir el camino. Por eso el wizard volvió a ser server component sin estado.
  */
 export function OnboardingWizard({ hasCliente }: OnboardingWizardProps) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-
-  function choose(destination: OnboardingDestination) {
-    startTransition(async () => {
-      const result = await completeOnboardingAction({ destination });
-      if (result.ok) {
-        router.push(result.redirectTo);
-        return;
-      }
-      if (result.code === 'ALREADY_DONE') {
-        // Idempotente: ya estaba completo, igual llevamos al destino elegido.
-        router.push(destination);
-        return;
-      }
-      toast.error('No se pudo continuar', { description: result.message });
-    });
-  }
-
   return (
     <Card className="border-primary/30 bg-primary/5">
       <CardHeader>
@@ -115,14 +92,8 @@ export function OnboardingWizard({ hasCliente }: OnboardingWizardProps) {
                   <p className="text-muted-foreground text-sm">
                     La IA genera el borrador en 5 minutos.
                   </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="mt-1 self-start"
-                    disabled={isPending}
-                    onClick={() => choose('/informes/nuevo')}
-                  >
-                    Generar informe
+                  <Button asChild size="sm" className="mt-1 self-start">
+                    <Link href="/informes/nuevo">Generar informe</Link>
                   </Button>
                 </div>
 
@@ -134,15 +105,8 @@ export function OnboardingWizard({ hasCliente }: OnboardingWizardProps) {
                   <p className="text-muted-foreground text-sm">
                     Los vencimientos se crean automáticamente.
                   </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-1 self-start"
-                    disabled={isPending}
-                    onClick={() => choose('/epp/entregas/nueva')}
-                  >
-                    Registrar EPP
+                  <Button asChild variant="outline" size="sm" className="mt-1 self-start">
+                    <Link href="/epp/entregas/nueva">Registrar EPP</Link>
                   </Button>
                 </div>
               </div>
