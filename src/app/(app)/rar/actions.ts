@@ -3,6 +3,7 @@
 import type { Database } from '@/shared/supabase/types';
 import { revalidatePath } from 'next/cache';
 
+import { getClienteById } from '@/app/(app)/clientes/queries';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { requireOwner } from '@/shared/auth/requireOwner';
 import { logger } from '@/shared/observability/logger';
@@ -115,6 +116,7 @@ export type AssignResult =
       code:
         | 'UNAUTHENTICATED'
         | 'NO_CONSULTORA'
+        | 'CLIENTE_NOT_FOUND'
         | 'PUESTO_NOT_FOUND'
         | 'AGENTE_NOT_FOUND'
         | 'INTERNAL_ERROR';
@@ -482,7 +484,7 @@ export async function assignAgenteAPuestoAction(input: unknown): Promise<AssignR
     };
   }
 
-  const { puesto_id, agente_id } = parsed.data;
+  const { cliente_id, puesto_id, agente_id } = parsed.data;
 
   const supabase = await createClient();
   const {
@@ -497,7 +499,12 @@ export async function assignAgenteAPuestoAction(input: unknown): Promise<AssignR
     return { ok: false, code: 'NO_CONSULTORA', message: 'No tenés una consultora asociada.' };
   }
 
-  // Defense cross-tenant: RLS filtra a null el puesto si es de otro tenant.
+  // Defense cross-tenant: RLS filtra a null cliente/puesto si son de otro tenant.
+  const cliente = await getClienteById(supabase, cliente_id);
+  if (!cliente || cliente.archived_at !== null) {
+    return { ok: false, code: 'CLIENTE_NOT_FOUND', message: 'Cliente no disponible.' };
+  }
+
   const { data: puesto } = await supabase
     .from('puestos')
     .select('id, archived_at')
@@ -512,7 +519,8 @@ export async function assignAgenteAPuestoAction(input: unknown): Promise<AssignR
     return { ok: false, code: 'AGENTE_NOT_FOUND', message: 'Agente no disponible.' };
   }
 
-  const { error } = await supabase.from('puesto_agentes').insert({
+  const { error } = await supabase.from('cliente_puesto_agentes').insert({
+    cliente_id,
     puesto_id,
     agente_id,
     consultora_id: consultora.id,
@@ -558,7 +566,7 @@ export async function removeAgenteDePuestoAction(input: unknown): Promise<Remove
     };
   }
 
-  const { puesto_id, agente_id } = parsed.data;
+  const { cliente_id, puesto_id, agente_id } = parsed.data;
 
   const supabase = await createClient();
   const {
@@ -574,8 +582,9 @@ export async function removeAgenteDePuestoAction(input: unknown): Promise<Remove
   }
 
   const { data, error } = await supabase
-    .from('puesto_agentes')
+    .from('cliente_puesto_agentes')
     .delete()
+    .eq('cliente_id', cliente_id)
     .eq('puesto_id', puesto_id)
     .eq('agente_id', agente_id)
     .eq('consultora_id', consultora.id)

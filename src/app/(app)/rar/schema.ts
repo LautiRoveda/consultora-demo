@@ -78,6 +78,7 @@ export const updateAgentePatchSchema = z
   });
 
 export const assignAgenteSchema = z.object({
+  cliente_id: z.string().uuid({ message: 'cliente_id inválido.' }),
   puesto_id: z.string().uuid({ message: 'puesto_id inválido.' }),
   agente_id: z.string().uuid({ message: 'agente_id inválido.' }),
 });

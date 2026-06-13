@@ -1,27 +1,28 @@
 /**
- * T-143 (Ring A) · Integration: las FK COMPUESTAS de `puesto_agentes` garantizan
- * coherencia de consultora_id entre la junction y AMBOS parents (puestos +
- * rar_agentes).
+ * T-145 (Ring A) · Integration: las FK COMPUESTAS de `cliente_puesto_agentes`
+ * garantizan coherencia de consultora_id entre la junction 3-way y los TRES
+ * parents (clientes + puestos + rar_agentes).
  *
  * Cada FK compuesta ((<fk>, consultora_id) -> parent(id, consultora_id)) rechaza
  * estructuralmente una asignación cuyo consultora_id != el del parent, con 23503
  * (foreign_key_violation). Es el guard estructural del ticket (ADR-0015 / T-121).
  *
  * Cobertura:
- *  - control positivo: (puestoA, agenteA, cA) pasa.
- *  - mismatch en agente_id (agente de B, consultora A) -> 23503.
+ *  - control positivo: (clienteA, puestoA, agenteA, cA) pasa.
+ *  - mismatch en cliente_id (cliente de B, consultora A) -> 23503.
  *  - mismatch en puesto_id (puesto de B, consultora A) -> 23503.
+ *  - mismatch en agente_id (agente de B, consultora A) -> 23503.
  *  - mismatch en consultora_id (parents de A, consultora B) -> 23503.
  *
  * DEMO red→green (no automatizado, lo verifica el orquestador): degradar las FK
- * compuestas a simples en la migración t143 hace que los 3 casos de mismatch
+ * compuestas a simples en la migración t145 hace que los casos de mismatch
  * inserten OK (sin 23503) → estos `it` fallan (rojo); restaurarlas → verde.
  *
  * service-role admin: testeamos el FK a nivel DB, NO la RLS. runId namespacing +
- * cleanup en orden FK inverso. Molde t121-coherence-fks.test.ts.
+ * cleanup en orden FK inverso. Molde t143-ring-a.test.ts (pre-T-145).
  *
  * Correr local (Supabase efímero, requiere Docker):
- *   pnpm test:integration src/tests/integration/t143-ring-a.test.ts
+ *   pnpm test:integration src/tests/integration/t145-ring-a.test.ts
  */
 import type { Database } from '@/shared/supabase/types';
 import { createClient as createSbClient } from '@supabase/supabase-js';
@@ -43,6 +44,8 @@ const runId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6
 
 let cAId: string;
 let cBId: string;
+let clienteAId: string;
+let clienteBId: string;
 let puestoAId: string;
 let puestoA2Id: string;
 let puestoBId: string;
@@ -52,10 +55,25 @@ let agenteBId: string;
 async function insertConsultora(slug: string): Promise<string> {
   const { data, error } = await admin
     .from('consultoras')
-    .insert({ name: `T143 ${slug}`, slug })
+    .insert({ name: `T145 ${slug}`, slug })
     .select('id')
     .single();
   if (error || !data) throw new Error(`insert consultora ${slug}: ${JSON.stringify(error)}`);
+  return data.id;
+}
+
+async function insertCliente(consultoraId: string, suffix: string): Promise<string> {
+  const cuitBase = `${Date.now()}${suffix}`.replace(/\D/g, '').slice(-8).padStart(8, '0');
+  const { data, error } = await admin
+    .from('clientes')
+    .insert({
+      consultora_id: consultoraId,
+      razon_social: `Cliente ${suffix} ${runId}`,
+      cuit: `30-${cuitBase}-5`,
+    })
+    .select('id')
+    .single();
+  if (error || !data) throw new Error(`insert cliente ${suffix}: ${JSON.stringify(error)}`);
   return data.id;
 }
 
@@ -83,6 +101,8 @@ beforeAll(async () => {
   // Setup secuencial (Promise.all sobre admin tiene flakiness en sa-east-1, lesson T-047).
   cAId = await insertConsultora(`ring-a-${runId}`);
   cBId = await insertConsultora(`ring-b-${runId}`);
+  clienteAId = await insertCliente(cAId, 'A');
+  clienteBId = await insertCliente(cBId, 'B');
   puestoAId = await insertPuesto(cAId, `Soldador ${runId}`);
   puestoA2Id = await insertPuesto(cAId, `Amolador ${runId}`);
   puestoBId = await insertPuesto(cBId, `Gruista ${runId}`);
@@ -95,7 +115,7 @@ afterAll(async () => {
   // RESTRICT + inmutable hace el hard-delete imposible; mismo leak best-effort
   // que los demás tests del módulo, lo limpia el db reset entre runs de CI).
   await admin
-    .from('puesto_agentes')
+    .from('cliente_puesto_agentes')
     .delete()
     .in('consultora_id', [cAId, cBId])
     .then(() => {});
@@ -110,15 +130,21 @@ afterAll(async () => {
     .in('consultora_id', [cAId, cBId])
     .then(() => {});
   await admin
+    .from('clientes')
+    .delete()
+    .in('consultora_id', [cAId, cBId])
+    .then(() => {});
+  await admin
     .from('consultoras')
     .delete()
     .in('id', [cAId, cBId])
     .then(() => {});
 });
 
-describe('T-143 · Ring A: FK compuestas de puesto_agentes', () => {
-  it('control positivo: (puestoA, agenteA, cA) coherente pasa', async () => {
-    const { error } = await admin.from('puesto_agentes').insert({
+describe('T-145 · Ring A: FK compuestas de cliente_puesto_agentes', () => {
+  it('control positivo: (clienteA, puestoA, agenteA, cA) coherente pasa', async () => {
+    const { error } = await admin.from('cliente_puesto_agentes').insert({
+      cliente_id: clienteAId,
       puesto_id: puestoAId,
       agente_id: agenteAId,
       consultora_id: cAId,
@@ -126,10 +152,11 @@ describe('T-143 · Ring A: FK compuestas de puesto_agentes', () => {
     expect(error).toBeNull();
   });
 
-  it('mismatch en agente_id (agente de B, consultora A) -> 23503', async () => {
-    const { error } = await admin.from('puesto_agentes').insert({
+  it('mismatch en cliente_id (cliente de B, consultora A) -> 23503', async () => {
+    const { error } = await admin.from('cliente_puesto_agentes').insert({
+      cliente_id: clienteBId, // de B -> FK clientes (clienteB, A) no existe -> rechaza
       puesto_id: puestoAId, // de A -> FK puestos OK
-      agente_id: agenteBId, // de B -> FK rar_agentes (agenteB, A) no existe -> rechaza
+      agente_id: agenteAId, // de A -> FK rar_agentes OK
       consultora_id: cAId,
     });
     expect(error).not.toBeNull();
@@ -137,7 +164,8 @@ describe('T-143 · Ring A: FK compuestas de puesto_agentes', () => {
   });
 
   it('mismatch en puesto_id (puesto de B, consultora A) -> 23503', async () => {
-    const { error } = await admin.from('puesto_agentes').insert({
+    const { error } = await admin.from('cliente_puesto_agentes').insert({
+      cliente_id: clienteAId, // de A -> FK clientes OK
       puesto_id: puestoBId, // de B -> FK puestos (puestoB, A) no existe -> rechaza
       agente_id: agenteAId, // de A -> FK rar_agentes OK
       consultora_id: cAId,
@@ -146,14 +174,26 @@ describe('T-143 · Ring A: FK compuestas de puesto_agentes', () => {
     expect(error?.code).toBe('23503');
   });
 
+  it('mismatch en agente_id (agente de B, consultora A) -> 23503', async () => {
+    const { error } = await admin.from('cliente_puesto_agentes').insert({
+      cliente_id: clienteAId, // de A -> FK clientes OK
+      puesto_id: puestoAId, // de A -> FK puestos OK
+      agente_id: agenteBId, // de B -> FK rar_agentes (agenteB, A) no existe -> rechaza
+      consultora_id: cAId,
+    });
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe('23503');
+  });
+
   it('mismatch en consultora_id (parents de A, consultora B) -> 23503', async () => {
-    // puestoA2 (no puestoA) para que el PK (puesto_id, agente_id) quede libre y
-    // no choque con el control positivo: queremos provocar la FK compuesta
+    // puestoA2 (no puestoA) para que el PK (cliente, puesto, agente) quede libre
+    // y no choque con el control positivo: queremos provocar la FK compuesta
     // (23503), no el unique del PK (23505).
-    const { error } = await admin.from('puesto_agentes').insert({
+    const { error } = await admin.from('cliente_puesto_agentes').insert({
+      cliente_id: clienteAId, // de A
       puesto_id: puestoA2Id, // de A
       agente_id: agenteAId, // de A
-      consultora_id: cBId, // pero declara B -> ambas FK compuestas rechazan
+      consultora_id: cBId, // pero declara B -> las 3 FK compuestas rechazan
     });
     expect(error).not.toBeNull();
     expect(error?.code).toBe('23503');

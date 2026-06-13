@@ -102,11 +102,21 @@ describe('T-143 · updateAgentePatchSchema', () => {
 
 describe('T-143 · assign/remove schemas', () => {
   it('aceptan UUIDs válidos', () => {
-    expect(assignAgenteSchema.safeParse({ puesto_id: UUID, agente_id: UUID }).success).toBe(true);
-    expect(removeAgenteSchema.safeParse({ puesto_id: UUID, agente_id: UUID }).success).toBe(true);
+    expect(
+      assignAgenteSchema.safeParse({ cliente_id: UUID, puesto_id: UUID, agente_id: UUID }).success,
+    ).toBe(true);
+    expect(
+      removeAgenteSchema.safeParse({ cliente_id: UUID, puesto_id: UUID, agente_id: UUID }).success,
+    ).toBe(true);
   });
 
   it('rechazan ids no-uuid', () => {
-    expect(assignAgenteSchema.safeParse({ puesto_id: 'abc', agente_id: UUID }).success).toBe(false);
+    expect(
+      assignAgenteSchema.safeParse({ cliente_id: UUID, puesto_id: 'abc', agente_id: UUID }).success,
+    ).toBe(false);
+  });
+
+  it('rechazan cliente_id faltante (T-145)', () => {
+    expect(assignAgenteSchema.safeParse({ puesto_id: UUID, agente_id: UUID }).success).toBe(false);
   });
 });

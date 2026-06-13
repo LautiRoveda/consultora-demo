@@ -20,12 +20,13 @@ import { Button } from '@/shared/ui/button';
 import { removeAgenteDePuestoAction } from './actions';
 
 interface Props {
+  clienteId: string;
   puestoId: string;
   agenteId: string;
   agenteNombre: string;
 }
 
-export function RemoveAgenteButton({ puestoId, agenteId, agenteNombre }: Props) {
+export function RemoveAgenteButton({ clienteId, puestoId, agenteId, agenteNombre }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
@@ -34,6 +35,7 @@ export function RemoveAgenteButton({ puestoId, agenteId, agenteNombre }: Props) 
     setOpen(false);
     startTransition(async () => {
       const result = await removeAgenteDePuestoAction({
+        cliente_id: clienteId,
         puesto_id: puestoId,
         agente_id: agenteId,
       });

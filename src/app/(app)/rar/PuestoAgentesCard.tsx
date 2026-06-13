@@ -9,24 +9,33 @@ import { TIPO_LABELS } from './labels';
 import { RemoveAgenteButton } from './RemoveAgenteButton';
 
 interface Props {
+  clienteId: string;
+  clienteNombre: string;
   puestoId: string;
   puestoNombre: string;
   asignados: AgenteAsignado[];
   disponibles: AgenteDisponible[];
 }
 
-export function PuestoAgentesCard({ puestoId, puestoNombre, asignados, disponibles }: Props) {
+export function PuestoAgentesCard({
+  clienteId,
+  clienteNombre,
+  puestoId,
+  puestoNombre,
+  asignados,
+  disponibles,
+}: Props) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div>
           <CardTitle>Agentes de riesgo de {puestoNombre}</CardTitle>
           <CardDescription>
-            Agentes a los que está expuesto este puesto (Dto 658/96). Los empleados que ocupan el
-            puesto heredan esta exposición.
+            Agentes a los que está expuesto este puesto en {clienteNombre} (Dto 658/96). Los
+            empleados de este establecimiento que ocupan el puesto heredan esta exposición.
           </CardDescription>
         </div>
-        <AssignAgenteButton puestoId={puestoId} disponibles={disponibles} />
+        <AssignAgenteButton clienteId={clienteId} puestoId={puestoId} disponibles={disponibles} />
       </CardHeader>
       <CardContent>
         {asignados.length === 0 ? (
@@ -63,6 +72,7 @@ export function PuestoAgentesCard({ puestoId, puestoNombre, asignados, disponibl
                     )}
                   </div>
                   <RemoveAgenteButton
+                    clienteId={clienteId}
                     puestoId={puestoId}
                     agenteId={a.agente_id}
                     agenteNombre={a.nombre}

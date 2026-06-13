@@ -660,6 +660,62 @@ export type Database = {
           },
         ];
       };
+      cliente_puesto_agentes: {
+        Row: {
+          agente_id: string;
+          asignado_at: string;
+          asignado_por: string | null;
+          cliente_id: string;
+          consultora_id: string;
+          puesto_id: string;
+        };
+        Insert: {
+          agente_id: string;
+          asignado_at?: string;
+          asignado_por?: string | null;
+          cliente_id: string;
+          consultora_id: string;
+          puesto_id: string;
+        };
+        Update: {
+          agente_id?: string;
+          asignado_at?: string;
+          asignado_por?: string | null;
+          cliente_id?: string;
+          consultora_id?: string;
+          puesto_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'cliente_puesto_agentes_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'cpa_agente_consultora_fkey';
+            columns: ['agente_id', 'consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'rar_agentes';
+            referencedColumns: ['id', 'consultora_id'];
+          },
+          {
+            foreignKeyName: 'cpa_cliente_consultora_fkey';
+            columns: ['cliente_id', 'consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'clientes';
+            referencedColumns: ['id', 'consultora_id'];
+          },
+          {
+            foreignKeyName: 'cpa_puesto_consultora_fkey';
+            columns: ['puesto_id', 'consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'puestos';
+            referencedColumns: ['id', 'consultora_id'];
+          },
+        ];
+      };
       clientes: {
         Row: {
           archived_at: string | null;
@@ -1952,52 +2008,6 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'calendar_event_reminders';
             referencedColumns: ['id'];
-          },
-        ];
-      };
-      puesto_agentes: {
-        Row: {
-          agente_id: string;
-          asignado_at: string;
-          asignado_por: string | null;
-          consultora_id: string;
-          puesto_id: string;
-        };
-        Insert: {
-          agente_id: string;
-          asignado_at?: string;
-          asignado_por?: string | null;
-          consultora_id: string;
-          puesto_id: string;
-        };
-        Update: {
-          agente_id?: string;
-          asignado_at?: string;
-          asignado_por?: string | null;
-          consultora_id?: string;
-          puesto_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'puesto_agentes_agente_consultora_fkey';
-            columns: ['agente_id', 'consultora_id'];
-            isOneToOne: false;
-            referencedRelation: 'rar_agentes';
-            referencedColumns: ['id', 'consultora_id'];
-          },
-          {
-            foreignKeyName: 'puesto_agentes_consultora_id_fkey';
-            columns: ['consultora_id'];
-            isOneToOne: false;
-            referencedRelation: 'consultoras';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'puesto_agentes_puesto_consultora_fkey';
-            columns: ['puesto_id', 'consultora_id'];
-            isOneToOne: false;
-            referencedRelation: 'puestos';
-            referencedColumns: ['id', 'consultora_id'];
           },
         ];
       };

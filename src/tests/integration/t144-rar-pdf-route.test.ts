@@ -252,8 +252,8 @@ beforeAll(async () => {
       .single()
   ).data!.id;
   await admin
-    .from('puesto_agentes')
-    .insert({ puesto_id: puestoId, agente_id: agId, consultora_id: cAId });
+    .from('cliente_puesto_agentes')
+    .insert({ cliente_id: clienteAId, puesto_id: puestoId, agente_id: agId, consultora_id: cAId });
   const empId = (
     await admin
       .from('empleados')
@@ -283,7 +283,7 @@ afterAll(async () => {
       .eq('consultora_id', c)
       .then(() => {});
     await admin
-      .from('puesto_agentes')
+      .from('cliente_puesto_agentes')
       .delete()
       .eq('consultora_id', c)
       .then(() => {});
