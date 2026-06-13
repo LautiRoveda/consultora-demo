@@ -1,4 +1,4 @@
-import { AlertTriangle, Download } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -11,8 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 
 import { ClienteSelect } from '../ClienteSelect';
 import { TIPO_LABELS, TIPO_ORDER } from '../labels';
-import { listExpuestosByCliente } from '../queries';
+import { getRarPresentacionForPeriodo, listExpuestosByCliente } from '../queries';
 import { RarTabsNav } from '../RarTabsNav';
+import { MarcarPresentadoButton } from './MarcarPresentadoButton';
 
 type SearchParams = { cliente?: string };
 
@@ -36,6 +37,10 @@ export default async function RarPlanillaPage({
   const clientes = await getClientesForConsultora(supabase);
   const selected = clientes.find((c) => c.id === sp.cliente);
   const nomina = selected ? await listExpuestosByCliente(supabase, selected.id) : null;
+  const periodoActual = new Date().getUTCFullYear();
+  const presentacion = selected
+    ? await getRarPresentacionForPeriodo(supabase, selected.id, periodoActual)
+    : null;
 
   const faltantes = nomina?.expuestos.filter((e) => e.faltan_datos) ?? [];
   const gruposDar = nomina
@@ -124,12 +129,31 @@ export default async function RarPlanillaPage({
                           nomina.agentes.length
                         } agente${nomina.agentes.length === 1 ? '' : 's'} de riesgo.`}
                   </p>
-                  <Button asChild variant="outline" size="sm">
-                    <a href={`/api/rar/planilla/${selected.id}/pdf`} download>
-                      <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-                      Descargar planilla RAR
-                    </a>
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button asChild variant="outline" size="sm">
+                      <a href={`/api/rar/planilla/${selected.id}/pdf`} download>
+                        <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Descargar planilla RAR
+                      </a>
+                    </Button>
+                    {presentacion ? (
+                      <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                        <CheckCircle2
+                          className="h-4 w-4 shrink-0 text-emerald-600"
+                          aria-hidden="true"
+                        />
+                        Presentado el {formatCivilDateAR(presentacion.fecha_presentacion)} · vence
+                        el {formatCivilDateAR(presentacion.fecha_vencimiento)}
+                      </p>
+                    ) : (
+                      <MarcarPresentadoButton
+                        clienteId={selected.id}
+                        periodo={periodoActual}
+                        faltanDatosCount={faltantes.length}
+                        clienteSinArt={!selected.art || selected.art.trim() === ''}
+                      />
+                    )}
+                  </div>
                 </div>
 
                 {gruposDar.length > 0 && (
