@@ -4,7 +4,8 @@
  * Cobertura (helpers T-015 is_member_of_consultora):
  * - rar_agentes: SELECT aislado por tenant; INSERT cross-tenant bloqueado;
  *   INSERT con created_by != auth.uid() bloqueado; INSERT propio OK.
- * - puesto_agentes: SELECT aislado por tenant; INSERT cross-tenant bloqueado.
+ * - cliente_puesto_agentes: SELECT aislado por tenant; INSERT cross-tenant
+ *   bloqueado (exposición por establecimiento, T-145).
  *
  * clientes anon con session firmada (RLS real, NO service-role). Claim JWT
  * (T-016 fast-path). Molde calendar-events-rls.test.ts.
@@ -45,6 +46,7 @@ let clientOwnerB: SupabaseClient<Database>;
 
 let agenteAId: string;
 let puestoAId: string;
+let clienteAId: string;
 
 beforeAll(async () => {
   const { data: cA } = await admin
@@ -112,14 +114,27 @@ beforeAll(async () => {
     .single();
   puestoAId = pst!.id;
 
+  const cuitBase = Date.now().toString().slice(-8).padStart(8, '0');
+  const { data: cli } = await admin
+    .from('clientes')
+    .insert({ consultora_id: cAId, razon_social: `Cliente RLS ${runId}`, cuit: `30-${cuitBase}-5` })
+    .select('id')
+    .single();
+  clienteAId = cli!.id;
+
   await admin
-    .from('puesto_agentes')
-    .insert({ puesto_id: puestoAId, agente_id: agenteAId, consultora_id: cAId });
+    .from('cliente_puesto_agentes')
+    .insert({
+      cliente_id: clienteAId,
+      puesto_id: puestoAId,
+      agente_id: agenteAId,
+      consultora_id: cAId,
+    });
 });
 
 afterAll(async () => {
   await admin
-    .from('puesto_agentes')
+    .from('cliente_puesto_agentes')
     .delete()
     .in('consultora_id', [cAId, cBId])
     .then(() => {});
@@ -130,6 +145,11 @@ afterAll(async () => {
     .then(() => {});
   await admin
     .from('puestos')
+    .delete()
+    .in('consultora_id', [cAId, cBId])
+    .then(() => {});
+  await admin
+    .from('clientes')
     .delete()
     .in('consultora_id', [cAId, cBId])
     .then(() => {});
@@ -200,25 +220,26 @@ describe('T-143 · RLS rar_agentes', () => {
   });
 });
 
-describe('T-143 · RLS puesto_agentes', () => {
+describe('T-145 · RLS cliente_puesto_agentes', () => {
   it('ownerA ve la asignación de su tenant', async () => {
     const { data } = await clientOwnerA
-      .from('puesto_agentes')
-      .select('puesto_id, agente_id')
+      .from('cliente_puesto_agentes')
+      .select('cliente_id, puesto_id, agente_id')
       .eq('puesto_id', puestoAId);
     expect(data?.length ?? 0).toBe(1);
   });
 
   it('ownerB NO ve asignaciones del tenant A (cross-tenant)', async () => {
     const { data } = await clientOwnerB
-      .from('puesto_agentes')
+      .from('cliente_puesto_agentes')
       .select('puesto_id')
       .eq('puesto_id', puestoAId);
     expect(data?.length ?? 0).toBe(0);
   });
 
   it('ownerB NO puede insertar asignación en la consultora A', async () => {
-    const { error } = await clientOwnerB.from('puesto_agentes').insert({
+    const { error } = await clientOwnerB.from('cliente_puesto_agentes').insert({
+      cliente_id: clienteAId,
       puesto_id: puestoAId,
       agente_id: agenteAId,
       consultora_id: cAId,

@@ -8,7 +8,7 @@
  *  - seedDefaultCatalogAction: consultora vacía → AGENTES_658_DEFAULT.length;
  *    re-invocación → 0 (idempotente); member → FORBIDDEN.
  *  - assignAgenteAPuestoAction (member-level): happy + idempotente (2ª → ok) +
- *    PUESTO_NOT_FOUND (cross-tenant) + AGENTE_NOT_FOUND (cross-tenant).
+ *    CLIENTE_NOT_FOUND + PUESTO_NOT_FOUND + AGENTE_NOT_FOUND (cross-tenant).
  *  - removeAgenteDePuestoAction: happy + NOT_FOUND (segunda invocación).
  *
  * Harness server-action: mock next/headers cookies + server-only + next/cache +
@@ -87,6 +87,8 @@ let puestoAId: string;
 let agenteAId: string;
 let puestoBId: string;
 let agenteBId: string;
+let clienteAId: string;
+let clienteBId: string;
 
 let codigoCounter = 0;
 function nextCodigo(): string {
@@ -179,12 +181,28 @@ beforeAll(async () => {
     .select('id')
     .single();
   agenteBId = aB.data!.id;
+
+  // Clientes/establecimientos (T-145: la exposición es cliente×puesto×agente).
+  const cuitA = Date.now().toString().slice(-8).padStart(8, '0');
+  const clA = await admin
+    .from('clientes')
+    .insert({ consultora_id: cAId, razon_social: `Cliente A ${runId}`, cuit: `30-${cuitA}-5` })
+    .select('id')
+    .single();
+  clienteAId = clA.data!.id;
+  const cuitB = (Date.now() + 1).toString().slice(-8).padStart(8, '0');
+  const clB = await admin
+    .from('clientes')
+    .insert({ consultora_id: cBId, razon_social: `Cliente B ${runId}`, cuit: `30-${cuitB}-6` })
+    .select('id')
+    .single();
+  clienteBId = clB.data!.id;
 });
 
 afterAll(async () => {
   const ids = [cAId, cBId, cSeedId];
   await admin
-    .from('puesto_agentes')
+    .from('cliente_puesto_agentes')
     .delete()
     .in('consultora_id', ids)
     .then(() => {});
@@ -195,6 +213,11 @@ afterAll(async () => {
     .then(() => {});
   await admin
     .from('puestos')
+    .delete()
+    .in('consultora_id', ids)
+    .then(() => {});
+  await admin
+    .from('clientes')
     .delete()
     .in('consultora_id', ids)
     .then(() => {});
@@ -407,31 +430,65 @@ describe('assignAgenteAPuestoAction + removeAgenteDePuestoAction', () => {
     const { assignAgenteAPuestoAction, removeAgenteDePuestoAction } =
       await import('@/app/(app)/rar/actions');
 
-    const a1 = await assignAgenteAPuestoAction({ puesto_id: puestoAId, agente_id: agenteAId });
+    const a1 = await assignAgenteAPuestoAction({
+      cliente_id: clienteAId,
+      puesto_id: puestoAId,
+      agente_id: agenteAId,
+    });
     expect(a1.ok).toBe(true);
     const { data: row } = await admin
-      .from('puesto_agentes')
+      .from('cliente_puesto_agentes')
       .select('consultora_id, asignado_por')
+      .eq('cliente_id', clienteAId)
       .eq('puesto_id', puestoAId)
       .eq('agente_id', agenteAId)
       .single();
     expect(row).toMatchObject({ consultora_id: cAId, asignado_por: ownerAId });
 
     // Idempotente: 2ª asignación → ok silencioso.
-    const a2 = await assignAgenteAPuestoAction({ puesto_id: puestoAId, agente_id: agenteAId });
+    const a2 = await assignAgenteAPuestoAction({
+      cliente_id: clienteAId,
+      puesto_id: puestoAId,
+      agente_id: agenteAId,
+    });
     expect(a2.ok).toBe(true);
 
-    const d1 = await removeAgenteDePuestoAction({ puesto_id: puestoAId, agente_id: agenteAId });
+    const d1 = await removeAgenteDePuestoAction({
+      cliente_id: clienteAId,
+      puesto_id: puestoAId,
+      agente_id: agenteAId,
+    });
     expect(d1.ok).toBe(true);
-    const d2 = await removeAgenteDePuestoAction({ puesto_id: puestoAId, agente_id: agenteAId });
+    const d2 = await removeAgenteDePuestoAction({
+      cliente_id: clienteAId,
+      puesto_id: puestoAId,
+      agente_id: agenteAId,
+    });
     expect(d2.ok).toBe(false);
     if (!d2.ok) expect(d2.code).toBe('NOT_FOUND');
+  });
+
+  it('cross-tenant: cliente de otra consultora → CLIENTE_NOT_FOUND', async () => {
+    await signInAs(emailOwnerA);
+    const { assignAgenteAPuestoAction } = await import('@/app/(app)/rar/actions');
+    const result = await assignAgenteAPuestoAction({
+      cliente_id: clienteBId,
+      puesto_id: puestoAId,
+      agente_id: agenteAId,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe('CLIENTE_NOT_FOUND');
   });
 
   it('cross-tenant: puesto de otra consultora → PUESTO_NOT_FOUND', async () => {
     await signInAs(emailOwnerA);
     const { assignAgenteAPuestoAction } = await import('@/app/(app)/rar/actions');
-    const result = await assignAgenteAPuestoAction({ puesto_id: puestoBId, agente_id: agenteAId });
+    const result = await assignAgenteAPuestoAction({
+      cliente_id: clienteAId,
+      puesto_id: puestoBId,
+      agente_id: agenteAId,
+    });
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.code).toBe('PUESTO_NOT_FOUND');
@@ -440,7 +497,11 @@ describe('assignAgenteAPuestoAction + removeAgenteDePuestoAction', () => {
   it('cross-tenant: agente de otra consultora → AGENTE_NOT_FOUND', async () => {
     await signInAs(emailOwnerA);
     const { assignAgenteAPuestoAction } = await import('@/app/(app)/rar/actions');
-    const result = await assignAgenteAPuestoAction({ puesto_id: puestoAId, agente_id: agenteBId });
+    const result = await assignAgenteAPuestoAction({
+      cliente_id: clienteAId,
+      puesto_id: puestoAId,
+      agente_id: agenteBId,
+    });
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.code).toBe('AGENTE_NOT_FOUND');

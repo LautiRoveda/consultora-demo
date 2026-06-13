@@ -53,6 +53,8 @@ let clientOwnerB: SupabaseClient<Database>;
 
 let agFisicoId: string; // compartido entre soldador y pintor
 let agQuimicoId: string; // solo soldador
+let agExtraId: string; // expuesto al soldador SOLO en clienteOtro (guard cliente-scoping)
+let clienteOtroId: string; // otro establecimiento del mismo tenant
 
 let empMultiId: string; // 2 puestos (soldador + pintor), datos completos
 let empFaltaId: string; // 1 puesto (soldador), sin CUIL ni fecha_ingreso
@@ -155,12 +157,58 @@ beforeAll(async () => {
       .single()
   ).data!.id;
 
-  // Exposición: soldador → {fisico, quimico}; pintor → {fisico}; admin → {}.
-  await admin.from('puesto_agentes').insert([
-    { puesto_id: pstSoldadorId, agente_id: agFisicoId, consultora_id: cAId },
-    { puesto_id: pstSoldadorId, agente_id: agQuimicoId, consultora_id: cAId },
-    { puesto_id: pstPintorId, agente_id: agFisicoId, consultora_id: cAId },
+  // Exposición POR ESTABLECIMIENTO (T-145): en el cliente A → soldador
+  // {fisico, quimico}; pintor {fisico}; admin {}.
+  await admin.from('cliente_puesto_agentes').insert([
+    {
+      cliente_id: clienteAId,
+      puesto_id: pstSoldadorId,
+      agente_id: agFisicoId,
+      consultora_id: cAId,
+    },
+    {
+      cliente_id: clienteAId,
+      puesto_id: pstSoldadorId,
+      agente_id: agQuimicoId,
+      consultora_id: cAId,
+    },
+    { cliente_id: clienteAId, puesto_id: pstPintorId, agente_id: agFisicoId, consultora_id: cAId },
   ]);
+
+  // Guard del refactor: el MISMO puesto (soldador) expone a un agente EXTRA en
+  // OTRO cliente del tenant. El empleado del cliente A NO debe heredarlo (la
+  // exposición es cliente×puesto, no puesto-global).
+  const cuitOtro = (Date.now() + 7).toString().slice(-8).padStart(8, '0');
+  clienteOtroId = (
+    await admin
+      .from('clientes')
+      .insert({
+        consultora_id: cAId,
+        razon_social: `Cliente Otro T144Q ${runId}`,
+        cuit: `30-${cuitOtro}-7`,
+        created_by: ownerAId,
+      })
+      .select('id')
+      .single()
+  ).data!.id;
+  agExtraId = (
+    await admin
+      .from('rar_agentes')
+      .insert({
+        consultora_id: cAId,
+        codigo: `RAX-${runId}`,
+        nombre: 'Vibraciones',
+        agente_tipo: 'fisico',
+      })
+      .select('id')
+      .single()
+  ).data!.id;
+  await admin.from('cliente_puesto_agentes').insert({
+    cliente_id: clienteOtroId,
+    puesto_id: pstSoldadorId,
+    agente_id: agExtraId,
+    consultora_id: cAId,
+  });
 
   // Empleados.
   empMultiId = (
@@ -244,7 +292,7 @@ afterAll(async () => {
     .in('consultora_id', [cAId, cBId])
     .then(() => {});
   await admin
-    .from('puesto_agentes')
+    .from('cliente_puesto_agentes')
     .delete()
     .in('consultora_id', [cAId, cBId])
     .then(() => {});
@@ -322,6 +370,16 @@ describe('T-144 · listExpuestosByCliente', () => {
     // ordenado por tipo: fisico antes que quimico
     expect(agentes[0]!.agente_tipo).toBe('fisico');
     expect(agentes[1]!.agente_tipo).toBe('quimico');
+  });
+
+  it('cliente-scoping: un agente del mismo puesto en OTRO cliente NO se hereda (T-145)', async () => {
+    const { listExpuestosByCliente } = await import('@/app/(app)/rar/queries');
+    const { expuestos, agentes } = await listExpuestosByCliente(clientOwnerA, clienteAId);
+    // agExtra está asignado al soldador SOLO en clienteOtro → no aparece en la
+    // nómina ni en el DAR del cliente A, aunque empMulti/empFalta ocupan soldador.
+    const todosLosAgentes = expuestos.flatMap((e) => e.agentes.map((a) => a.agente_id));
+    expect(todosLosAgentes).not.toContain(agExtraId);
+    expect(agentes.map((a) => a.agente_id)).not.toContain(agExtraId);
   });
 
   it('RLS cross-tenant: la consultora B ve nómina vacía del cliente de A', async () => {
