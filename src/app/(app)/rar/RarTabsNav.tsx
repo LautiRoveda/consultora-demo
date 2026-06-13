@@ -2,11 +2,12 @@ import Link from 'next/link';
 
 import { cn } from '@/shared/lib/utils';
 
-type TabKey = 'agentes' | 'exposicion';
+type TabKey = 'agentes' | 'exposicion' | 'planilla';
 
 const TABS: ReadonlyArray<{ key: TabKey; href: string; label: string }> = [
   { key: 'agentes', href: '/rar/agentes', label: 'Agentes' },
   { key: 'exposicion', href: '/rar/exposicion', label: 'Exposición' },
+  { key: 'planilla', href: '/rar/planilla', label: 'Planilla' },
 ];
 
 export function RarTabsNav({ activeKey }: { activeKey: TabKey }) {
