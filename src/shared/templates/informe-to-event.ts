@@ -64,6 +64,7 @@ const EVENT_TIPO_PREFIX: Record<CalendarEventTipo, string> = {
   examen_medico: 'Examen medico',
   custom: '',
   accion_correctiva: 'Accion correctiva',
+  rar_anual: 'RAR anual',
 };
 
 /**

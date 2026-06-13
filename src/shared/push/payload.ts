@@ -21,6 +21,7 @@ const TIPO_LABELS: Record<string, string> = {
   examen_medico: 'Examen médico',
   epp_entrega: 'EPP — entrega',
   accion_correctiva: 'Acción correctiva',
+  rar_anual: 'RAR anual',
   custom: 'Vencimiento',
 };
 

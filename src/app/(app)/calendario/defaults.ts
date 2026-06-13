@@ -22,6 +22,10 @@ export const EVENT_TIPO_VALUES = [
   // crea el evento al cerrar una inspección) → NO se ofrece en el dropdown manual de
   // EventForm. Espejo del CHECK calendar_events.tipo (migración t057_checklists).
   'accion_correctiva',
+  // T-146 · vencimiento anual del RAR. SYSTEM-GENERATED (la RPC
+  // gen_rar_vencimiento_calendar_for lo crea al marcar una presentación) → NO se
+  // ofrece en el dropdown manual. Espejo del CHECK (migración t146).
+  'rar_anual',
 ] as const;
 export type CalendarEventTipo = (typeof EVENT_TIPO_VALUES)[number];
 
@@ -36,7 +40,11 @@ export type CalendarEventTipo = (typeof EVENT_TIPO_VALUES)[number];
  * t133_calendar_hardening) HARDCODEAN esta lista en SQL — mantener en sync
  * (guard automatizado: `src/tests/unit/t133-system-tipos-sql-sync.test.ts`).
  */
-export const SYSTEM_GENERATED_EVENT_TIPOS = ['epp_entrega', 'accion_correctiva'] as const;
+export const SYSTEM_GENERATED_EVENT_TIPOS = [
+  'epp_entrega',
+  'accion_correctiva',
+  'rar_anual',
+] as const;
 export type SystemGeneratedEventTipo = (typeof SYSTEM_GENERATED_EVENT_TIPOS)[number];
 
 export type UserCreatableEventTipo = Exclude<CalendarEventTipo, SystemGeneratedEventTipo>;
@@ -104,6 +112,10 @@ export const DEFAULT_REMINDER_OFFSETS_BY_TYPE: Record<CalendarEventTipo, readonl
   // comprometido; 30d permite coordinar la corrección. La RPC los inyecta en
   // calendar_event_reminders (T-057).
   accion_correctiva: [30, 7, 0],
+  // rar_anual [60,30,7,0]: DJ anual legal-crítica (Dto 658/96); 60d permite
+  // coordinar la presentación con la ART. La RPC gen_rar_vencimiento_calendar_for
+  // los inyecta en calendar_event_reminders (T-146).
+  rar_anual: [60, 30, 7, 0],
 };
 
 /**

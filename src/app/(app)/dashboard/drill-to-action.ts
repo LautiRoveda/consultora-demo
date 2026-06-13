@@ -49,6 +49,9 @@ const DRILL: Record<CalendarEventTipo, (ev: EventForDrill) => DrillAction> = {
   examen_medico: verEnAgenda,
   custom: verEnAgenda,
   accion_correctiva: verEnAgenda,
+  // T-146: el vencimiento del RAR linkea a la agenda en 3a. RAR Fase 3b podrá
+  // promoverlo a un pilar ("Marcar como presentado" en /rar/planilla).
+  rar_anual: verEnAgenda,
 };
 
 export function drillToAction(ev: EventForDrill): DrillAction {

@@ -177,6 +177,34 @@ export async function getAgenteById(
   return data ?? null;
 }
 
+/** Presentación de RAR de un cliente/establecimiento para un período (año). */
+export type RarPresentacionRef = {
+  id: string;
+  periodo: number;
+  fecha_presentacion: string;
+  fecha_vencimiento: string;
+};
+
+/**
+ * T-146 · Busca la presentación del RAR de un cliente para un período (año). La
+ * planilla la usa para mostrar "Presentado el … · vence el …" en vez del botón
+ * "Marcar como presentado". RLS-aware (SELECT member); única por
+ * (consultora, cliente, periodo).
+ */
+export async function getRarPresentacionForPeriodo(
+  supabase: SupabaseClient<Database>,
+  clienteId: string,
+  periodo: number,
+): Promise<RarPresentacionRef | null> {
+  const { data } = await supabase
+    .from('rar_presentaciones')
+    .select('id, periodo, fecha_presentacion, fecha_vencimiento')
+    .eq('cliente_id', clienteId)
+    .eq('periodo', periodo)
+    .maybeSingle();
+  return data ?? null;
+}
+
 /** Referencia compacta a un agente de riesgo para la planilla RAR (NTE + DAR). */
 export type RarAgenteRef = {
   agente_id: string;

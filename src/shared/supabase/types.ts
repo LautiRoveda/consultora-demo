@@ -2141,6 +2141,67 @@ export type Database = {
           },
         ];
       };
+      rar_presentaciones: {
+        Row: {
+          calendar_event_id: string | null;
+          cliente_id: string;
+          consultora_id: string;
+          created_at: string;
+          created_by: string | null;
+          fecha_presentacion: string;
+          fecha_vencimiento: string;
+          id: string;
+          periodo: number;
+          snapshot: Json;
+        };
+        Insert: {
+          calendar_event_id?: string | null;
+          cliente_id: string;
+          consultora_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          fecha_presentacion?: string;
+          fecha_vencimiento: string;
+          id?: string;
+          periodo: number;
+          snapshot: Json;
+        };
+        Update: {
+          calendar_event_id?: string | null;
+          cliente_id?: string;
+          consultora_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          fecha_presentacion?: string;
+          fecha_vencimiento?: string;
+          id?: string;
+          periodo?: number;
+          snapshot?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'rar_pres_calevent_consultora_fkey';
+            columns: ['calendar_event_id', 'consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'calendar_events';
+            referencedColumns: ['id', 'consultora_id'];
+          },
+          {
+            foreignKeyName: 'rar_pres_cliente_consultora_fkey';
+            columns: ['cliente_id', 'consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'clientes';
+            referencedColumns: ['id', 'consultora_id'];
+          },
+          {
+            foreignKeyName: 'rar_presentaciones_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       suscripciones: {
         Row: {
           cancelada_en: string | null;
@@ -2883,6 +2944,18 @@ export type Database = {
       gen_epp_planificaciones_y_calendar_for: {
         Args: { p_entrega_id: string };
         Returns: undefined;
+      };
+      gen_rar_vencimiento_calendar_for: {
+        Args: {
+          p_cliente_id: string;
+          p_consultora_id: string;
+          p_created_by: string;
+          p_fecha_presentacion: string;
+          p_fecha_vencimiento: string;
+          p_periodo: number;
+          p_snapshot: Json;
+        };
+        Returns: string;
       };
       is_member_of_consultora: {
         Args: { p_consultora_id: string };

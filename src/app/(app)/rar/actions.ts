@@ -1,20 +1,25 @@
 'use server';
 
+import type { AccessFailure } from '@/shared/auth/with-billing';
 import type { Database } from '@/shared/supabase/types';
 import { revalidatePath } from 'next/cache';
 
 import { getClienteById } from '@/app/(app)/clientes/queries';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { requireOwner } from '@/shared/auth/requireOwner';
+import { requireMemberWithBilling } from '@/shared/auth/with-billing';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
+import { createServiceRoleClient } from '@/shared/supabase/service-role';
 
 import { resolveActiveAgenteForTenant } from './agente-lookup';
 import { AGENTES_658_DEFAULT } from './catalogo-data';
+import { listExpuestosByCliente } from './queries';
 import {
   assignAgenteSchema,
   createAgenteSchema,
   entityIdSchema,
+  presentarRarSchema,
   removeAgenteSchema,
   updateAgentePatchSchema,
 } from './schema';
@@ -129,6 +134,17 @@ export type RemoveResult =
   | {
       ok: false;
       code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'NOT_FOUND' | 'INTERNAL_ERROR';
+      message: string;
+    };
+
+export type PresentarRarResult =
+  | { ok: true; presentacionId: string; periodo: number; warnings: string[] }
+  | { ok: false; code: 'INVALID_INPUT'; fieldErrors: FieldErrors; message: string }
+  // AccessFailure cubre UNAUTHENTICATED | NO_CONSULTORA | INTERNAL_ERROR | BILLING_GATED.
+  | AccessFailure
+  | {
+      ok: false;
+      code: 'CLIENTE_NOT_FOUND' | 'DUPLICATE' | 'INTERNAL_ERROR';
       message: string;
     };
 
@@ -608,4 +624,131 @@ export async function removeAgenteDePuestoAction(input: unknown): Promise<Remove
 
   revalidateRar();
   return { ok: true };
+}
+
+// ============ Presentación (member + billing) ============
+
+/** Suma `months` meses a una fecha ISO YYYY-MM-DD (UTC, sin TZ drift). */
+function addMonthsToIsoDate(iso: string, months: number): string {
+  const parts = iso.split('-');
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
+  return new Date(Date.UTC(y, m - 1 + months, d)).toISOString().slice(0, 10);
+}
+
+/**
+ * T-146 · Registra una presentación del RAR de un cliente/establecimiento y
+ * arma el vencimiento anual `rar_anual` en el calendario (vía RPC service-role
+ * `gen_rar_vencimiento_calendar_for`: cierra el ciclo anterior + crea evento +
+ * reminders + inserta la presentación inmutable con snapshot legal).
+ *
+ * `periodo` default = año actual; `fecha_vencimiento` default = hoy + 12 meses
+ * (configurable: el RAR vence con el contrato ART). Warnings NO bloqueantes
+ * (datos faltantes + cliente sin ART): el matriculado decide presentar igual.
+ */
+export async function presentarRarAction(input: unknown): Promise<PresentarRarResult> {
+  const parsed = presentarRarSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      code: 'INVALID_INPUT',
+      fieldErrors: buildInvalidInput(parsed.error.issues).fieldErrors,
+      message: 'Revisá los datos de la presentación.',
+    };
+  }
+
+  const supabase = await createClient();
+  const access = await requireMemberWithBilling(supabase);
+  if (!access.ok) return access;
+  const { userId, consultoraId } = access.ctx;
+
+  // Cross-tenant defense: RLS filtra a null un cliente de otro tenant.
+  const cliente = await getClienteById(supabase, parsed.data.cliente_id);
+  if (!cliente || cliente.archived_at !== null) {
+    return { ok: false, code: 'CLIENTE_NOT_FOUND', message: 'Cliente no disponible.' };
+  }
+
+  // Snapshot legal: header del cliente + nómina (NTE/DAR) congelada al presentar.
+  const nomina = await listExpuestosByCliente(supabase, cliente.id);
+  const fechaPresentacion = new Date().toISOString().slice(0, 10);
+  const periodo = parsed.data.periodo ?? new Date().getUTCFullYear();
+  const fechaVencimiento =
+    parsed.data.fecha_vencimiento ?? addMonthsToIsoDate(fechaPresentacion, 12);
+
+  const snapshot = {
+    cliente: {
+      id: cliente.id,
+      razon_social: cliente.razon_social,
+      cuit: cliente.cuit,
+      art: cliente.art,
+      domicilio: cliente.domicilio,
+      localidad: cliente.localidad,
+      provincia: cliente.provincia,
+    },
+    nomina,
+    fecha_presentacion: fechaPresentacion,
+    fecha_vencimiento: fechaVencimiento,
+    periodo,
+    generado_at: new Date().toISOString(),
+  };
+
+  // RPC service-role (security definer bypassa RLS; system-generated event).
+  const admin = createServiceRoleClient();
+  const { data: presentacionId, error } = await admin.rpc('gen_rar_vencimiento_calendar_for', {
+    p_consultora_id: consultoraId,
+    p_cliente_id: cliente.id,
+    p_periodo: periodo,
+    p_fecha_presentacion: fechaPresentacion,
+    p_fecha_vencimiento: fechaVencimiento,
+    p_snapshot: snapshot,
+    p_created_by: userId,
+  });
+
+  if (error?.code === UNIQUE_VIOLATION_CODE) {
+    return {
+      ok: false,
+      code: 'DUPLICATE',
+      message: `Ya registraste la presentación del RAR del período ${periodo} para este cliente.`,
+    };
+  }
+
+  if (error || !presentacionId) {
+    logger.error(
+      { err: error, userId, consultoraId, clienteId: cliente.id, periodo },
+      'presentarRarAction: rpc failed',
+    );
+    return {
+      ok: false,
+      code: 'INTERNAL_ERROR',
+      message: 'Hubo un error registrando la presentación. Reintentá en unos minutos.',
+    };
+  }
+
+  // Warnings NO bloqueantes (la presentación ya se registró).
+  const warnings: string[] = [];
+  const faltan = nomina.expuestos.filter((e) => e.faltan_datos).length;
+  if (faltan > 0) {
+    warnings.push(
+      `${faltan} trabajador${faltan === 1 ? '' : 'es'} con datos incompletos (CUIL o fecha de ingreso).`,
+    );
+  }
+  if (!cliente.art || cliente.art.trim() === '') {
+    warnings.push('El cliente no tiene ART registrada.');
+  }
+
+  revalidatePath('/rar/planilla');
+  revalidatePath('/calendario');
+  logger.info(
+    {
+      userId,
+      consultoraId,
+      clienteId: cliente.id,
+      periodo,
+      presentacionId,
+      action: 'presentar_rar',
+    },
+    'presentarRarAction: registrada',
+  );
+  return { ok: true, presentacionId, periodo, warnings };
 }

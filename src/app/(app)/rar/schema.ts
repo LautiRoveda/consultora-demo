@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { fechaIsoField } from '@/shared/templates/common/schema';
+
 /**
  * T-143 · RAR Fase 1 — schemas Zod del catálogo de agentes de riesgo y de la
  * exposición puesto×agente.
@@ -86,6 +88,28 @@ export const assignAgenteSchema = z.object({
 export const removeAgenteSchema = assignAgenteSchema;
 
 export const entityIdSchema = z.string().uuid({ message: 'UUID inválido.' });
+
+/**
+ * T-146 · Input de `presentarRarAction`. `periodo` y `fecha_vencimiento` son
+ * opcionales (la action los completa: periodo = año de hoy, fecha_vencimiento =
+ * fecha_presentacion + 12 meses). Bounds 1:1 con el CHECK de rar_presentaciones
+ * (`periodo between 2000 and 2100`).
+ */
+export const PERIODO_MIN = 2000;
+export const PERIODO_MAX = 2100;
+
+export const presentarRarSchema = z.object({
+  cliente_id: z.string().uuid({ message: 'cliente_id inválido.' }),
+  periodo: z
+    .number()
+    .int({ message: 'El período debe ser un año entero.' })
+    .min(PERIODO_MIN, { message: `Mínimo ${PERIODO_MIN}.` })
+    .max(PERIODO_MAX, { message: `Máximo ${PERIODO_MAX}.` })
+    .optional(),
+  fecha_vencimiento: fechaIsoField.optional(),
+});
+
+export type PresentarRarInput = z.infer<typeof presentarRarSchema>;
 
 export type CreateAgenteInput = z.infer<typeof createAgenteSchema>;
 export type UpdateAgentePatch = z.infer<typeof updateAgentePatchSchema>;
