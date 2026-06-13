@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  Biohazard,
   Bot,
   Calendar,
   ClipboardCheck,
@@ -53,6 +54,10 @@ export const NAV_ITEMS: readonly NavItem[] = [
   // AppSidebarNav evita que 'Checklists' e 'Inspecciones' se marquen a la vez.
   { href: '/checklists/ejecuciones', label: 'Inspecciones', icon: ListChecks, status: 'live' },
   { href: '/accidentabilidad', label: 'Accidentabilidad', icon: ShieldAlert, status: 'live' },
+  // T-143: RAR (Relevamiento de Agentes de Riesgo) — catálogo de agentes 658/96
+  // + exposición puesto×agente. Vertical propio que crece con planilla de
+  // expuestos + vencimiento en fases siguientes.
+  { href: '/rar', label: 'RAR', icon: Biohazard, status: 'live' },
   { href: '/calendario', label: 'Calendario', icon: Calendar, status: 'live' },
   { href: '/settings/consultora', label: 'Configuración', icon: Settings, status: 'live' },
 ] as const;

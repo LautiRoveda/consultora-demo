@@ -1,4 +1,5 @@
 import {
+  Biohazard,
   Bot,
   Calendar,
   ClipboardCheck,
@@ -67,6 +68,12 @@ export const QUICK_LINKS = [
     icon: ShieldAlert,
     title: 'Accidentabilidad',
     description: 'Incidentes y acciones correctivas.',
+  },
+  {
+    href: '/rar',
+    icon: Biohazard,
+    title: 'RAR',
+    description: 'Agentes de riesgo y exposición por puesto.',
   },
   {
     href: '/calendario',

@@ -1955,6 +1955,52 @@ export type Database = {
           },
         ];
       };
+      puesto_agentes: {
+        Row: {
+          agente_id: string;
+          asignado_at: string;
+          asignado_por: string | null;
+          consultora_id: string;
+          puesto_id: string;
+        };
+        Insert: {
+          agente_id: string;
+          asignado_at?: string;
+          asignado_por?: string | null;
+          consultora_id: string;
+          puesto_id: string;
+        };
+        Update: {
+          agente_id?: string;
+          asignado_at?: string;
+          asignado_por?: string | null;
+          consultora_id?: string;
+          puesto_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'puesto_agentes_agente_consultora_fkey';
+            columns: ['agente_id', 'consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'rar_agentes';
+            referencedColumns: ['id', 'consultora_id'];
+          },
+          {
+            foreignKeyName: 'puesto_agentes_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'puesto_agentes_puesto_consultora_fkey';
+            columns: ['puesto_id', 'consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'puestos';
+            referencedColumns: ['id', 'consultora_id'];
+          },
+        ];
+      };
       puestos: {
         Row: {
           archived_at: string | null;
@@ -2031,6 +2077,59 @@ export type Database = {
           user_id?: string;
         };
         Relationships: [];
+      };
+      rar_agentes: {
+        Row: {
+          agente_tipo: Database['public']['Enums']['agente_riesgo_tipo'];
+          archived_at: string | null;
+          cas: string | null;
+          codigo: string;
+          consultora_id: string;
+          created_at: string;
+          created_by: string | null;
+          descripcion: string | null;
+          enfermedad_asociada: string | null;
+          id: string;
+          nombre: string;
+          updated_at: string;
+        };
+        Insert: {
+          agente_tipo: Database['public']['Enums']['agente_riesgo_tipo'];
+          archived_at?: string | null;
+          cas?: string | null;
+          codigo: string;
+          consultora_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          descripcion?: string | null;
+          enfermedad_asociada?: string | null;
+          id?: string;
+          nombre: string;
+          updated_at?: string;
+        };
+        Update: {
+          agente_tipo?: Database['public']['Enums']['agente_riesgo_tipo'];
+          archived_at?: string | null;
+          cas?: string | null;
+          codigo?: string;
+          consultora_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          descripcion?: string | null;
+          enfermedad_asociada?: string | null;
+          id?: string;
+          nombre?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'rar_agentes_consultora_id_fkey';
+            columns: ['consultora_id'];
+            isOneToOne: false;
+            referencedRelation: 'consultoras';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       suscripciones: {
         Row: {
@@ -2825,6 +2924,7 @@ export type Database = {
       unaccent: { Args: { '': string }; Returns: string };
     };
     Enums: {
+      agente_riesgo_tipo: 'fisico' | 'quimico' | 'biologico' | 'ergonomico';
       estado_factura: 'pendiente' | 'pagada' | 'fallida' | 'reembolsada';
       estado_planificacion_epp: 'activa' | 'cumplida' | 'cancelada';
       estado_suscripcion:
@@ -2971,6 +3071,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      agente_riesgo_tipo: ['fisico', 'quimico', 'biologico', 'ergonomico'],
       estado_factura: ['pendiente', 'pagada', 'fallida', 'reembolsada'],
       estado_planificacion_epp: ['activa', 'cumplida', 'cancelada'],
       estado_suscripcion: [
