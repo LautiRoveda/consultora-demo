@@ -61,20 +61,23 @@ export async function listAgentesByConsultora(
 }
 
 /**
- * Agentes de riesgo asignados a un puesto (exposición). Embed to-one
- * `rar_agentes!inner` sobre la junction `puesto_agentes` — hay exactamente una
- * relación FK entre ambas tablas (la FK compuesta Ring A), así que el hint por
- * nombre de tabla resuelve sin ambigüedad.
+ * Agentes de riesgo asignados a un puesto EN un cliente/establecimiento
+ * (exposición, T-145). Embed to-one `rar_agentes!inner` sobre la junction
+ * `cliente_puesto_agentes` — hay exactamente una relación FK entre ambas tablas
+ * (la FK compuesta Ring A del agente), así que el hint por nombre de tabla
+ * resuelve sin ambigüedad.
  */
-export async function listAgentesDePuesto(
+export async function listAgentesDeClientePuesto(
   supabase: SupabaseClient<Database>,
+  clienteId: string,
   puestoId: string,
 ): Promise<AgenteAsignado[]> {
   const { data } = await supabase
-    .from('puesto_agentes')
+    .from('cliente_puesto_agentes')
     .select(
       'agente_id, asignado_at, rar_agentes!inner(codigo, nombre, agente_tipo, cas, enfermedad_asociada, archived_at)',
     )
+    .eq('cliente_id', clienteId)
     .eq('puesto_id', puestoId)
     .order('asignado_at', { ascending: false })
     .limit(MAX_ASIGNADOS);
@@ -94,12 +97,14 @@ export async function listAgentesDePuesto(
 }
 
 /**
- * Agentes activos del catálogo del tenant que aún NO están asignados al puesto.
- * 2 queries + diff in-JS (catálogo típico < 30 agentes — más simple que un NOT
- * IN anidado, costo despreciable). Molde `listPuestosDisponiblesParaAsignar`.
+ * Agentes activos del catálogo del tenant que aún NO están asignados al puesto
+ * EN este cliente/establecimiento (T-145). 2 queries + diff in-JS (catálogo
+ * típico < 30 agentes — más simple que un NOT IN anidado, costo despreciable).
+ * Molde `listPuestosDisponiblesParaAsignar`.
  */
 export async function listAgentesDisponiblesParaPuesto(
   supabase: SupabaseClient<Database>,
+  clienteId: string,
   puestoId: string,
   consultoraId: string,
 ): Promise<AgenteDisponible[]> {
@@ -111,7 +116,11 @@ export async function listAgentesDisponiblesParaPuesto(
       .is('archived_at', null)
       .order('agente_tipo', { ascending: true })
       .order('nombre', { ascending: true }),
-    supabase.from('puesto_agentes').select('agente_id').eq('puesto_id', puestoId),
+    supabase
+      .from('cliente_puesto_agentes')
+      .select('agente_id')
+      .eq('cliente_id', clienteId)
+      .eq('puesto_id', puestoId),
   ]);
 
   const catalogo = catalogoRes.data ?? [];
@@ -123,21 +132,41 @@ export async function listAgentesDisponiblesParaPuesto(
 }
 
 /**
- * Puestos activos del catálogo del tenant — para el selector de la vista de
- * exposición (rar/exposicion).
+ * T-145 · Puestos con ≥1 empleado activo en un cliente/establecimiento — para el
+ * selector de la vista de exposición (rar/exposicion), tras elegir el cliente.
+ * La exposición es por establecimiento: solo tiene sentido declarar agentes para
+ * los puestos que efectivamente tienen dotación en ese cliente (los que aportan a
+ * la NTE). 2 queries + dedup in-JS (molde pasos 1-2 de `listExpuestosByCliente`).
  */
-export async function listPuestosActivos(
+export async function listPuestosDeCliente(
   supabase: SupabaseClient<Database>,
-  consultoraId: string,
+  clienteId: string,
 ): Promise<PuestoOption[]> {
-  const { data } = await supabase
-    .from('puestos')
-    .select('id, nombre')
-    .eq('consultora_id', consultoraId)
-    .is('archived_at', null)
-    .order('nombre', { ascending: true });
+  // 1. Empleados activos del cliente.
+  const { data: empleadosRaw } = await supabase
+    .from('empleados')
+    .select('id')
+    .eq('cliente_id', clienteId)
+    .is('archived_at', null);
 
-  return (data ?? []).map((p) => ({ id: p.id, nombre: p.nombre }));
+  const empleadoIds = (empleadosRaw ?? []).map((e) => e.id);
+  if (empleadoIds.length === 0) return [];
+
+  // 2. empleados_puestos → puestos vigentes (embed to-one !inner), distinct.
+  const { data: epRaw } = await supabase
+    .from('empleados_puestos')
+    .select('puesto_id, puestos!inner(nombre, archived_at)')
+    .in('empleado_id', empleadoIds);
+
+  const porId = new Map<string, string>();
+  for (const row of epRaw ?? []) {
+    if (row.puestos.archived_at !== null) continue;
+    porId.set(row.puesto_id, row.puestos.nombre);
+  }
+
+  return [...porId.entries()]
+    .map(([id, nombre]) => ({ id, nombre }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 }
 
 export async function getAgenteById(
@@ -239,14 +268,16 @@ export async function listExpuestosByCliente(
     puestoIds.add(row.puesto_id);
   }
 
-  // 3. puesto_agentes → rar_agentes (embed to-one !inner), filtrado por los
-  //    puestos del set anterior.
+  // 3. cliente_puesto_agentes → rar_agentes (embed to-one !inner), acotado al
+  //    cliente/establecimiento (T-145: la exposición ya está scopeada al cliente,
+  //    más simple que filtrar por el set de puestos). Se mapea por puesto_id para
+  //    el merge de la herencia.
   const agentesByPuesto = new Map<string, RarAgenteRef[]>();
   if (puestoIds.size > 0) {
     const { data: paRaw } = await supabase
-      .from('puesto_agentes')
+      .from('cliente_puesto_agentes')
       .select('puesto_id, agente_id, rar_agentes!inner(codigo, nombre, agente_tipo)')
-      .in('puesto_id', [...puestoIds]);
+      .eq('cliente_id', clienteId);
     for (const row of paRaw ?? []) {
       const list = agentesByPuesto.get(row.puesto_id) ?? [];
       list.push({
