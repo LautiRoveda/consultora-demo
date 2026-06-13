@@ -123,6 +123,38 @@ export function buildEppPlanillaFilename(args: BuildEppPlanillaFilenameArgs): st
   return `planilla-299-11-${slug}-${fecha}.pdf`;
 }
 
+export type BuildRarPlanillaFilenameArgs = {
+  /** Razón social del establecimiento (cliente). */
+  razonSocial: string;
+  /** Fecha de generación — usamos la fecha (YYYY-MM-DD) para el sufijo. */
+  generatedAt: string | Date;
+};
+
+/**
+ * T-144 · Filename canónico para la planilla RAR (Res SRT 37/2010).
+ *
+ * Formato: `planilla-rar-<slug-razonsocial>-<YYYY-MM-DD>.pdf`.
+ * Ejemplo: `planilla-rar-metalurgica-del-sur-sa-2026-06-13.pdf`.
+ *
+ * Notas:
+ *  - Reusa `slugifyTitulo` para normalizar la razón social (acentos, ñ, símbolos).
+ *  - Fallback `'establecimiento'` si la razón social es vacía/símbolos.
+ *  - El PDF se genera on-the-fly desde la nómina viva (no hay fecha de presentación
+ *    hasta la Fase 3), así que el sufijo es la fecha de generación.
+ *  - Fecha UTC para evitar off-by-one por timezone del dispositivo.
+ */
+export function buildRarPlanillaFilename(args: BuildRarPlanillaFilenameArgs): string {
+  const date = typeof args.generatedAt === 'string' ? new Date(args.generatedAt) : args.generatedAt;
+  const yyyy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(date.getUTCDate()).padStart(2, '0');
+  const fecha = `${yyyy}-${mm}-${dd}`;
+
+  let slug = slugifyTitulo(args.razonSocial);
+  if (slug === 'informe') slug = 'establecimiento';
+  return `planilla-rar-${slug}-${fecha}.pdf`;
+}
+
 export type BuildChecklistInspeccionFilenameArgs = {
   /** Razón social del establecimiento (snapshot congelado al cierre). */
   establecimiento: string | null;
