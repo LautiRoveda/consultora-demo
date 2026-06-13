@@ -20,6 +20,9 @@ Antes de codear hubo que fijar tres decisiones de modelado que condicionan todas
 ### B · Nivel de la exposición
 - **B1 — exposición por empleado** (junction empleado×agente). Máxima granularidad, pero el consultor declararía agente por agente para cada empleado → fricción alta y datos redundantes (los empleados de un mismo puesto comparten exposición).
 - **B2 — exposición por puesto** (junction `puesto_agentes`). El empleado **hereda** la unión de agentes de sus puestos vía `empleados_puestos` (ya existe). Refleja cómo se piensa la exposición en HyS (por tarea/puesto), minimiza la carga de datos. Sin override por empleado en el MVP (se puede sumar después si un caso lo pide).
+- **B2′ — exposición por establecimiento** (junction `cliente_puesto_agentes`, cliente×puesto×agente). El puesto sigue siendo catálogo global reusable; lo que se vuelve contextual al establecimiento es la asignación de agentes. El empleado hereda la unión de agentes de su **cliente × sus puestos**. Misma baja fricción que B2 (se sigue cargando por puesto, no por empleado) pero fiel a que el RAR es una DJ **por establecimiento**.
+
+> **Revisión T-145 (2026-06-13).** La decisión original fue B2 (exposición puesto-global). Se revisó a **B2′** antes de la Fase 3: el RAR es por establecimiento y en HyS la exposición varía según qué se produce en cada cliente (un mismo "Operario"/"Soldador" no expone igual en una metalúrgica que en un depósito). El modelo puesto-global forzaba a duplicar puestos o a declarar exposición incorrecta en un documento legal — era un **defecto de modelado, no una simplificación válida**. Se corrigió mientras el feature era nuevo y sin datos en prod (`puesto_agentes` = 0 filas), antes de que la Fase 3 (snapshot + vencimiento) lo cementara. `puesto_agentes` se dropeó; `puestos`/`empleados_puestos` no se tocaron (los comparten empleados y EPP). Detalle en la migración `20260613000002_t145_cliente_puesto_agentes.sql`.
 
 ### C · Catálogo de agentes
 - **C1 — reutilizar `AGENTES_HYS`** (la lista de medición del relevamiento técnico). Conflactaría dos conceptos distintos (medición de un informe técnico vs agentes declarables del 658/96) → rompe SRP y acopla dos features.
@@ -27,9 +30,11 @@ Antes de codear hubo que fijar tres decisiones de modelado que condicionan todas
 
 ## Decisión
 
-**A2 + B2 + C2.** Cliente = establecimiento en el MVP, exposición a nivel **puesto** (junction `puesto_agentes`), catálogo propio `rar_agentes` separado de `AGENTES_HYS`.
+**A2 + B2′ + C2.** Cliente = establecimiento en el MVP, exposición a nivel **establecimiento** (junction `cliente_puesto_agentes`, cliente×puesto×agente — revisado en T-145; ver decisión B), catálogo propio `rar_agentes` separado de `AGENTES_HYS`.
 
-La junction `puesto_agentes` nace con **FK COMPUESTAS Ring A** (ver [ADR-0015](0015-integridad-datos-ciclo-vida.md)): `(puesto_id, consultora_id) → puestos(id, consultora_id)` y `(agente_id, consultora_id) → rar_agentes(id, consultora_id)`, garantizando estructuralmente que puesto y agente pertenecen a la misma consultora que la fila. Enum cerrado `agente_riesgo_tipo` (`fisico | quimico | biologico | ergonomico`).
+La junction `cliente_puesto_agentes` nace con **FK COMPUESTAS Ring A** (ver [ADR-0015](0015-integridad-datos-ciclo-vida.md)): `(cliente_id, consultora_id) → clientes(id, consultora_id)`, `(puesto_id, consultora_id) → puestos(id, consultora_id)` y `(agente_id, consultora_id) → rar_agentes(id, consultora_id)`, garantizando estructuralmente que cliente, puesto y agente pertenecen a la misma consultora que la fila. Enum cerrado `agente_riesgo_tipo` (`fisico | quimico | biologico | ergonomico`).
+
+> La Fase 1 (T-143) implementó esta decisión como B2 (junction `puesto_agentes`, exposición puesto-global). T-145 la revisó a B2′ (ver decisión B) — `puesto_agentes` quedó reemplazada por `cliente_puesto_agentes`.
 
 ## Consecuencias
 
@@ -40,6 +45,7 @@ La junction `puesto_agentes` nace con **FK COMPUESTAS Ring A** (ver [ADR-0015](0
 ## Referencias
 
 - T-143 (PR #259, squash `94b9241`) · migración `20260613000001_t143_rar_agentes_exposicion.sql`.
+- T-145 (refactor exposición por establecimiento, decisión B → B2′) · migración `20260613000002_t145_cliente_puesto_agentes.sql` (drop `puesto_agentes` + create `cliente_puesto_agentes`, 3 FK compuestas Ring A).
 - [ADR-0015](0015-integridad-datos-ciclo-vida.md) · FK compuestas Ring A / integridad de ciclo de vida.
 - Res. SRT 81/2019, Anexo III — Listado de Códigos de Agentes de Riesgo (ESOP), reglamentario del Dto 658/96 (IF-2019-87699049-APN-GP#SRT).
 - Decreto 658/96 · Listado de Enfermedades Profesionales.
