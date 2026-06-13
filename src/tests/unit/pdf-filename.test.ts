@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildEppPlanillaFilename,
   buildPdfFilename,
+  buildRarPlanillaFilename,
   labelForTipo,
   slugifyTitulo,
 } from '@/shared/pdf/filename';
@@ -136,6 +137,45 @@ describe('buildEppPlanillaFilename (T-104)', () => {
   it('padding zeros en mes y día', () => {
     const date = new Date(Date.UTC(2026, 2, 5));
     const out = buildEppPlanillaFilename({ apellido: 'Lopez', fechaEntrega: date });
+    expect(out).toContain('2026-03-05.pdf');
+  });
+});
+
+describe('buildRarPlanillaFilename (T-144)', () => {
+  it('razón social simple + fecha ISO string', () => {
+    const out = buildRarPlanillaFilename({
+      razonSocial: 'Metalúrgica del Sur SA',
+      generatedAt: '2026-06-13T14:30:00.000Z',
+    });
+    expect(out).toBe('planilla-rar-metalurgica-del-sur-sa-2026-06-13.pdf');
+  });
+
+  it('razón social con acentos/símbolos + Date UTC', () => {
+    const date = new Date(Date.UTC(2026, 0, 7, 9, 0, 0));
+    const out = buildRarPlanillaFilename({
+      razonSocial: 'Compañía Niño S.R.L.',
+      generatedAt: date,
+    });
+    expect(out).toBe('planilla-rar-compania-nino-s-r-l-2026-01-07.pdf');
+  });
+
+  it('razón social vacía / símbolos → fallback "establecimiento"', () => {
+    const out = buildRarPlanillaFilename({
+      razonSocial: '   ',
+      generatedAt: '2026-06-13T00:00:00.000Z',
+    });
+    expect(out).toBe('planilla-rar-establecimiento-2026-06-13.pdf');
+
+    const outSymbols = buildRarPlanillaFilename({
+      razonSocial: '!!!---',
+      generatedAt: '2026-06-13T00:00:00.000Z',
+    });
+    expect(outSymbols).toBe('planilla-rar-establecimiento-2026-06-13.pdf');
+  });
+
+  it('padding zeros en mes y día', () => {
+    const date = new Date(Date.UTC(2026, 2, 5));
+    const out = buildRarPlanillaFilename({ razonSocial: 'Acme', generatedAt: date });
     expect(out).toContain('2026-03-05.pdf');
   });
 });
