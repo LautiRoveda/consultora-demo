@@ -51,10 +51,10 @@ describe('AppSidebarNav', () => {
     // T-054: Empleados soon → live. T-101: EPP soon → live (redirige a
     // /epp/catalogo hasta que T-106 traiga padron). T-063: Accidentabilidad
     // live. T-059: Checklists live. T-061a: Inspecciones live. T-117: Asistente
-    // live. Total 11 items.
+    // live. T-143: RAR live. Total 12 items.
     const navEl = screen.getByRole('navigation');
     const items = navEl.querySelectorAll('li');
-    expect(items.length).toBe(11);
+    expect(items.length).toBe(12);
 
     const soonButtons = navEl.querySelectorAll<HTMLButtonElement>(
       'button[aria-disabled="true"][disabled]',
