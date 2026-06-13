@@ -44,6 +44,7 @@ const runId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6
 let cAId: string;
 let cBId: string;
 let puestoAId: string;
+let puestoA2Id: string;
 let puestoBId: string;
 let agenteAId: string;
 let agenteBId: string;
@@ -83,6 +84,7 @@ beforeAll(async () => {
   cAId = await insertConsultora(`ring-a-${runId}`);
   cBId = await insertConsultora(`ring-b-${runId}`);
   puestoAId = await insertPuesto(cAId, `Soldador ${runId}`);
+  puestoA2Id = await insertPuesto(cAId, `Amolador ${runId}`);
   puestoBId = await insertPuesto(cBId, `Gruista ${runId}`);
   agenteAId = await insertAgente(cAId, `RA-A-${runId}`, `Ruido A ${runId}`);
   agenteBId = await insertAgente(cBId, `RA-B-${runId}`, `Ruido B ${runId}`);
@@ -145,8 +147,11 @@ describe('T-143 · Ring A: FK compuestas de puesto_agentes', () => {
   });
 
   it('mismatch en consultora_id (parents de A, consultora B) -> 23503', async () => {
+    // puestoA2 (no puestoA) para que el PK (puesto_id, agente_id) quede libre y
+    // no choque con el control positivo: queremos provocar la FK compuesta
+    // (23503), no el unique del PK (23505).
     const { error } = await admin.from('puesto_agentes').insert({
-      puesto_id: puestoAId, // de A
+      puesto_id: puestoA2Id, // de A
       agente_id: agenteAId, // de A
       consultora_id: cBId, // pero declara B -> ambas FK compuestas rechazan
     });
