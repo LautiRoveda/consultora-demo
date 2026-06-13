@@ -19,6 +19,7 @@ export const EVENT_TIPO_LABELS: Record<CalendarEventTipo, string> = {
   examen_medico: 'Examen médico',
   custom: 'Otro',
   accion_correctiva: 'Acción correctiva',
+  rar_anual: 'RAR anual',
 };
 
 export const EVENT_STATUS_LABELS: Record<CalendarEventStatus, string> = {
