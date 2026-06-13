@@ -3,6 +3,8 @@ import 'server-only';
 import type { Database } from '@/shared/supabase/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { TIPO_ORDER } from './labels';
+
 export type AgenteRow = Database['public']['Tables']['rar_agentes']['Row'];
 export type AgenteTipo = Database['public']['Enums']['agente_riesgo_tipo'];
 
@@ -144,4 +146,151 @@ export async function getAgenteById(
 ): Promise<AgenteRow | null> {
   const { data } = await supabase.from('rar_agentes').select('*').eq('id', id).maybeSingle();
   return data ?? null;
+}
+
+/** Referencia compacta a un agente de riesgo para la planilla RAR (NTE + DAR). */
+export type RarAgenteRef = {
+  agente_id: string;
+  codigo: string;
+  nombre: string;
+  agente_tipo: AgenteTipo;
+};
+
+/** Trabajador expuesto: hereda la unión de agentes de sus puestos vigentes. */
+export type RarExpuesto = {
+  empleado_id: string;
+  apellido: string;
+  nombre: string;
+  cuil: string | null;
+  dni: string | null;
+  fecha_ingreso: string | null;
+  /** Nombres de los puestos activos del empleado. */
+  puestos: string[];
+  /** Unión dedup de agentes de todos sus puestos, ordenada por tipo/nombre. */
+  agentes: RarAgenteRef[];
+  /** `true` si falta CUIL o fecha de ingreso (warning no bloqueante, T-144 D3). */
+  faltan_datos: boolean;
+};
+
+/** Nómina viva para la planilla RAR de un cliente/establecimiento. */
+export type RarPlanillaNomina = {
+  /** Solo empleados con ≥1 agente heredado (los "expuestos"). */
+  expuestos: RarExpuesto[];
+  /** Set distinct de agentes presentes en el establecimiento, para el DAR. */
+  agentes: RarAgenteRef[];
+};
+
+/** Ordena agentes por tipo (físico→químico→bio→ergo) y luego por nombre. */
+function sortAgentes(agentes: RarAgenteRef[]): RarAgenteRef[] {
+  return agentes.sort((a, b) => {
+    const ta = TIPO_ORDER.indexOf(a.agente_tipo);
+    const tb = TIPO_ORDER.indexOf(b.agente_tipo);
+    if (ta !== tb) return ta - tb;
+    return a.nombre.localeCompare(b.nombre, 'es');
+  });
+}
+
+/**
+ * T-144 · Nómina de trabajadores expuestos de un cliente/establecimiento, para
+ * la planilla RAR (NTE + DAR). Derivada de la herencia puesto→empleado de la
+ * Fase 1: un empleado "expuesto" es el que tiene ≥1 puesto con ≥1 agente.
+ *
+ * Estrategia: queries mínimas + merge in-JS (molde `epp/padron/queries.ts` +
+ * el embed `!inner` de `getEmpleadoPuestosLabel`). NO usamos el embed anidado de
+ * 4 niveles (empleado→empleados_puestos→puesto_agentes→rar_agentes) — frágil; lo
+ * resolvemos con tres selects de un solo nivel y `Map` en memoria. Hay una
+ * dependencia real: `puesto_agentes` se filtra por los `puesto_id` que sólo se
+ * conocen tras leer `empleados_puestos`.
+ *
+ * RLS-aware: el client de sesión + `cliente_id` acotan el tenant. Solo empleados
+ * activos (`archived_at IS NULL`) y solo puestos vigentes. Datos faltantes (CUIL
+ * / fecha de ingreso) NO excluyen al empleado: se marcan con `faltan_datos`.
+ */
+export async function listExpuestosByCliente(
+  supabase: SupabaseClient<Database>,
+  clienteId: string,
+): Promise<RarPlanillaNomina> {
+  // 1. Empleados activos del cliente (anchor).
+  const { data: empleadosRaw } = await supabase
+    .from('empleados')
+    .select('id, nombre, apellido, cuil, dni, fecha_ingreso')
+    .eq('cliente_id', clienteId)
+    .is('archived_at', null)
+    .order('apellido', { ascending: true })
+    .order('nombre', { ascending: true });
+
+  const empleados = empleadosRaw ?? [];
+  if (empleados.length === 0) return { expuestos: [], agentes: [] };
+  const empleadoIds = empleados.map((e) => e.id);
+
+  // 2. empleados_puestos → puestos vigentes (embed to-one !inner).
+  const { data: epRaw } = await supabase
+    .from('empleados_puestos')
+    .select('empleado_id, puesto_id, puestos!inner(nombre, archived_at)')
+    .in('empleado_id', empleadoIds);
+
+  const puestosByEmpleado = new Map<string, { puestoId: string; nombre: string }[]>();
+  const puestoIds = new Set<string>();
+  for (const row of epRaw ?? []) {
+    if (row.puestos.archived_at !== null) continue;
+    const list = puestosByEmpleado.get(row.empleado_id) ?? [];
+    list.push({ puestoId: row.puesto_id, nombre: row.puestos.nombre });
+    puestosByEmpleado.set(row.empleado_id, list);
+    puestoIds.add(row.puesto_id);
+  }
+
+  // 3. puesto_agentes → rar_agentes (embed to-one !inner), filtrado por los
+  //    puestos del set anterior.
+  const agentesByPuesto = new Map<string, RarAgenteRef[]>();
+  if (puestoIds.size > 0) {
+    const { data: paRaw } = await supabase
+      .from('puesto_agentes')
+      .select('puesto_id, agente_id, rar_agentes!inner(codigo, nombre, agente_tipo)')
+      .in('puesto_id', [...puestoIds]);
+    for (const row of paRaw ?? []) {
+      const list = agentesByPuesto.get(row.puesto_id) ?? [];
+      list.push({
+        agente_id: row.agente_id,
+        codigo: row.rar_agentes.codigo,
+        nombre: row.rar_agentes.nombre,
+        agente_tipo: row.rar_agentes.agente_tipo,
+      });
+      agentesByPuesto.set(row.puesto_id, list);
+    }
+  }
+
+  // 4. Merge: por empleado, unir (dedup por agente_id) los agentes de sus
+  //    puestos. Expuesto = ≥1 agente. El set del establecimiento (DAR) es la
+  //    unión dedup de los agentes de todos los expuestos.
+  const expuestos: RarExpuesto[] = [];
+  const agentesEstablecimiento = new Map<string, RarAgenteRef>();
+
+  for (const emp of empleados) {
+    const puestos = puestosByEmpleado.get(emp.id) ?? [];
+    const agentesEmp = new Map<string, RarAgenteRef>();
+    for (const p of puestos) {
+      for (const ag of agentesByPuesto.get(p.puestoId) ?? []) {
+        agentesEmp.set(ag.agente_id, ag);
+        agentesEstablecimiento.set(ag.agente_id, ag);
+      }
+    }
+    if (agentesEmp.size === 0) continue;
+
+    expuestos.push({
+      empleado_id: emp.id,
+      apellido: emp.apellido,
+      nombre: emp.nombre,
+      cuil: emp.cuil,
+      dni: emp.dni,
+      fecha_ingreso: emp.fecha_ingreso,
+      puestos: puestos.map((p) => p.nombre),
+      agentes: sortAgentes([...agentesEmp.values()]),
+      faltan_datos: !emp.cuil || !emp.fecha_ingreso,
+    });
+  }
+
+  return {
+    expuestos,
+    agentes: sortAgentes([...agentesEstablecimiento.values()]),
+  };
 }
