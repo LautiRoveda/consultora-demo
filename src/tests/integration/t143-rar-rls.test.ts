@@ -122,14 +122,12 @@ beforeAll(async () => {
     .single();
   clienteAId = cli!.id;
 
-  await admin
-    .from('cliente_puesto_agentes')
-    .insert({
-      cliente_id: clienteAId,
-      puesto_id: puestoAId,
-      agente_id: agenteAId,
-      consultora_id: cAId,
-    });
+  await admin.from('cliente_puesto_agentes').insert({
+    cliente_id: clienteAId,
+    puesto_id: puestoAId,
+    agente_id: agenteAId,
+    consultora_id: cAId,
+  });
 });
 
 afterAll(async () => {
