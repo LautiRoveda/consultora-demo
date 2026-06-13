@@ -22,11 +22,12 @@ import { assignAgenteAPuestoAction } from './actions';
 import { TIPO_LABELS } from './labels';
 
 interface Props {
+  clienteId: string;
   puestoId: string;
   disponibles: AgenteDisponible[];
 }
 
-export function AssignAgenteButton({ puestoId, disponibles }: Props) {
+export function AssignAgenteButton({ clienteId, puestoId, disponibles }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
@@ -38,6 +39,7 @@ export function AssignAgenteButton({ puestoId, disponibles }: Props) {
     if (!agenteId) return;
     startTransition(async () => {
       const result = await assignAgenteAPuestoAction({
+        cliente_id: clienteId,
         puesto_id: puestoId,
         agente_id: agenteId,
       });
@@ -51,6 +53,10 @@ export function AssignAgenteButton({ puestoId, disponibles }: Props) {
       }
 
       switch (result.code) {
+        case 'CLIENTE_NOT_FOUND':
+          toast.error('Cliente no disponible', { description: result.message });
+          router.refresh();
+          return;
         case 'AGENTE_NOT_FOUND':
           toast.error('Agente no disponible', { description: result.message });
           router.refresh();
