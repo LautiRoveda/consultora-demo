@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { Database } from '@/shared/supabase/types';
+import type { Database, Json } from '@/shared/supabase/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { TIPO_ORDER } from './labels';
@@ -201,6 +201,52 @@ export async function getRarPresentacionForPeriodo(
     .select('id, periodo, fecha_presentacion, fecha_vencimiento')
     .eq('cliente_id', clienteId)
     .eq('periodo', periodo)
+    .maybeSingle();
+  return data ?? null;
+}
+
+/**
+ * T-147 · Historial de presentaciones del RAR de un cliente/establecimiento,
+ * más reciente primero. Alimenta la sección "Presentaciones anteriores" de
+ * `/rar/planilla` con un link de descarga histórica por fila. RLS-aware
+ * (SELECT member).
+ */
+export async function listPresentacionesByCliente(
+  supabase: SupabaseClient<Database>,
+  clienteId: string,
+): Promise<RarPresentacionRef[]> {
+  const { data } = await supabase
+    .from('rar_presentaciones')
+    .select('id, periodo, fecha_presentacion, fecha_vencimiento')
+    .eq('cliente_id', clienteId)
+    .order('periodo', { ascending: false });
+  return data ?? [];
+}
+
+/** Presentación completa con el snapshot legal congelado, para la descarga histórica. */
+export type RarPresentacion = RarPresentacionRef & {
+  consultora_id: string;
+  cliente_id: string;
+  snapshot: Json;
+};
+
+/**
+ * T-147 · Trae una presentación del RAR por id, incluyendo `consultora_id`
+ * (para la defensa cross-tenant del print page/route) y el `snapshot` jsonb
+ * congelado al presentar. RLS-aware (SELECT member); el caller parsea el
+ * snapshot defensivamente al shape de la planilla. Null si no existe / no es
+ * del tenant.
+ */
+export async function getPresentacionById(
+  supabase: SupabaseClient<Database>,
+  id: string,
+): Promise<RarPresentacion | null> {
+  const { data } = await supabase
+    .from('rar_presentaciones')
+    .select(
+      'id, consultora_id, cliente_id, periodo, fecha_presentacion, fecha_vencimiento, snapshot',
+    )
+    .eq('id', id)
     .maybeSingle();
   return data ?? null;
 }
