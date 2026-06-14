@@ -94,6 +94,11 @@ let cliB: string;
 // T-133 anti-poisoning: recursos de B referenciados por eventos forjados en A.
 let cliBEmp: string;
 let cliBInf: string;
+// T-147 · RAR Fase 3b: rar_anual pinta el semáforo.
+let cliRar: string;
+let cliRarProx: string;
+let cliRarJunk: string;
+let cliBRar: string;
 
 let cuitCounter = 10_000_000;
 function nextCuit(): string {
@@ -374,6 +379,51 @@ beforeAll(async () => {
     createdBy: ownerAId,
     informeId: infB.id,
   });
+
+  // --- T-147 · rar_anual → metadata.cliente_id directo (molde accion_correctiva) ---
+  // (a) rar_anual vencido (P_HOY-1) → vencido.
+  cliRar = await insCliente(cAId, ownerAId);
+  await insEvent({
+    consultoraId: cAId,
+    tipo: 'rar_anual',
+    fecha: isoPlus(P_HOY, -1),
+    createdBy: ownerAId,
+    metadata: { cliente_id: cliRar, source_module: 'rar' },
+  });
+  // (b) rar_anual por_vencer (P_HOY+10).
+  cliRarProx = await insCliente(cAId, ownerAId);
+  await insEvent({
+    consultoraId: cAId,
+    tipo: 'rar_anual',
+    fecha: isoPlus(P_HOY, 10),
+    createdBy: ownerAId,
+    metadata: { cliente_id: cliRarProx, source_module: 'rar' },
+  });
+  // (c) rar_anual con cliente_id basura (no-uuid) + uno válido (P_HOY+4): degrada solo el basura.
+  cliRarJunk = await insCliente(cAId, ownerAId);
+  await insEvent({
+    consultoraId: cAId,
+    tipo: 'rar_anual',
+    fecha: isoPlus(P_HOY, -1),
+    createdBy: ownerAId,
+    metadata: { cliente_id: 'no-es-uuid', source_module: 'rar' },
+  });
+  await insEvent({
+    consultoraId: cAId,
+    tipo: 'rar_anual',
+    fecha: isoPlus(P_HOY, 4),
+    createdBy: ownerAId,
+    metadata: { cliente_id: cliRarJunk, source_module: 'rar' },
+  });
+  // (d) anti-poisoning: rar_anual forjado EN A con cliente_id de B → A no lo ve.
+  cliBRar = await insCliente(cBId, ownerBId);
+  await insEvent({
+    consultoraId: cAId,
+    tipo: 'rar_anual',
+    fecha: isoPlus(P_HOY, -1),
+    createdBy: ownerAId,
+    metadata: { cliente_id: cliBRar, source_module: 'rar' },
+  });
 });
 
 afterAll(async () => {
@@ -516,5 +566,28 @@ describe('T-133 · anti-poisoning cross-tenant (L-1)', () => {
     expect(rowFor(rowsB, cliB)).toBeDefined();
     expect(rowFor(rowsB, cliBEmp)).toBeUndefined();
     expect(rowFor(rowsB, cliBInf)).toBeUndefined();
+  });
+});
+
+describe('T-147 · rama rar_anual', () => {
+  it('14. rar_anual vencido pinta al cliente de rojo', async () => {
+    const rows = await semaforoAs(emailOwnerA, P_HOY);
+    expect(rowFor(rows, cliRar)).toMatchObject({ estado: 'vencido', vencidos_count: 1 });
+  });
+
+  it('15. rar_anual próximo (P_HOY+10) → por_vencer', async () => {
+    const rows = await semaforoAs(emailOwnerA, P_HOY);
+    expect(rowFor(rows, cliRarProx)).toMatchObject({ estado: 'por_vencer' });
+  });
+
+  it('16. rar_anual con cliente_id basura NO revienta; degrada solo ese evento', async () => {
+    const rows = await semaforoAs(emailOwnerA, P_HOY);
+    // El evento válido (P_HOY+4) sí pinta; el basura se ignoró sin tirar la RPC.
+    expect(rowFor(rows, cliRarJunk)).toMatchObject({ estado: 'por_vencer' });
+  });
+
+  it('17. rar_anual forjado con cliente_id de B → A no lo ve (anti-poisoning)', async () => {
+    const rowsA = await semaforoAs(emailOwnerA, P_HOY);
+    expect(rowFor(rowsA, cliBRar)).toBeUndefined();
   });
 });
