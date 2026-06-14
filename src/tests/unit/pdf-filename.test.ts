@@ -14,6 +14,7 @@ import {
   buildEppPlanillaFilename,
   buildPdfFilename,
   buildRarPlanillaFilename,
+  buildRarPlanillaHistoricaFilename,
   labelForTipo,
   slugifyTitulo,
 } from '@/shared/pdf/filename';
@@ -177,5 +178,32 @@ describe('buildRarPlanillaFilename (T-144)', () => {
     const date = new Date(Date.UTC(2026, 2, 5));
     const out = buildRarPlanillaFilename({ razonSocial: 'Acme', generatedAt: date });
     expect(out).toContain('2026-03-05.pdf');
+  });
+});
+
+describe('buildRarPlanillaHistoricaFilename (T-147)', () => {
+  it('sufijo = período (año), no fecha', () => {
+    const out = buildRarPlanillaHistoricaFilename({
+      razonSocial: 'Metalúrgica del Sur SA',
+      periodo: 2025,
+    });
+    expect(out).toBe('planilla-rar-metalurgica-del-sur-sa-2025.pdf');
+  });
+
+  it('acentos/símbolos en la razón social', () => {
+    const out = buildRarPlanillaHistoricaFilename({
+      razonSocial: 'Compañía Niño S.R.L.',
+      periodo: 2024,
+    });
+    expect(out).toBe('planilla-rar-compania-nino-s-r-l-2024.pdf');
+  });
+
+  it('razón social vacía / símbolos → fallback "establecimiento"', () => {
+    expect(buildRarPlanillaHistoricaFilename({ razonSocial: '   ', periodo: 2025 })).toBe(
+      'planilla-rar-establecimiento-2025.pdf',
+    );
+    expect(buildRarPlanillaHistoricaFilename({ razonSocial: '!!!---', periodo: 2025 })).toBe(
+      'planilla-rar-establecimiento-2025.pdf',
+    );
   });
 });
