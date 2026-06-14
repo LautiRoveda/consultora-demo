@@ -45,7 +45,11 @@ La junction `cliente_puesto_agentes` nace con **FK COMPUESTAS Ring A** (ver [ADR
 ## Referencias
 
 - T-143 (PR #259, squash `94b9241`) · migración `20260613000001_t143_rar_agentes_exposicion.sql`.
+- T-144 (PR #261, RAR Fase 2 — planilla PDF NTE/DAR Res SRT 37/2010 + nómina derivada de la herencia puesto→empleado) · sin migración.
 - T-145 (refactor exposición por establecimiento, decisión B → B2′) · migración `20260613000002_t145_cliente_puesto_agentes.sql` (drop `puesto_agentes` + create `cliente_puesto_agentes`, 3 FK compuestas Ring A).
+- T-146 (PR #263, RAR Fase 3a — vencimiento anual + alertas) · migración `20260613000003_t146_rar_presentaciones_vencimiento.sql` (tabla inmutable `rar_presentaciones` con snapshot legal + tipo `rar_anual` + RPC `gen_rar_vencimiento_calendar_for`).
+- T-147 (PR #264, RAR Fase 3b — semáforo + historial + descarga histórica) · migración `20260613000004_t147_semaforo_rar.sql` (4ª rama `rar_anual` en `semaforo_clientes`, CREATE OR REPLACE de firma idéntica).
+- **Épica RAR COMPLETA y en prod (T-143..T-147)**: catálogo + exposición por establecimiento + planilla PDF + vencimiento anual + semáforo del cliente + historial/descarga histórica.
 - [ADR-0015](0015-integridad-datos-ciclo-vida.md) · FK compuestas Ring A / integridad de ciclo de vida.
 - Res. SRT 81/2019, Anexo III — Listado de Códigos de Agentes de Riesgo (ESOP), reglamentario del Dto 658/96 (IF-2019-87699049-APN-GP#SRT).
 - Decreto 658/96 · Listado de Enfermedades Profesionales.
