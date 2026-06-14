@@ -155,6 +155,32 @@ export function buildRarPlanillaFilename(args: BuildRarPlanillaFilenameArgs): st
   return `planilla-rar-${slug}-${fecha}.pdf`;
 }
 
+export type BuildRarPlanillaHistoricaFilenameArgs = {
+  /** Razón social del establecimiento (snapshot congelado al presentar). */
+  razonSocial: string;
+  /** Período (año) de la presentación — el sufijo es el período, no la fecha. */
+  periodo: number;
+};
+
+/**
+ * T-147 · Filename canónico para la descarga histórica de una planilla RAR
+ * (desde el snapshot de `rar_presentaciones`).
+ *
+ * Formato: `planilla-rar-<slug-razonsocial>-<periodo>.pdf`.
+ * Ejemplo: `planilla-rar-metalurgica-del-sur-sa-2026.pdf`.
+ *
+ * A diferencia de `buildRarPlanillaFilename` (que es on-the-fly y usa la fecha de
+ * generación), la descarga histórica refleja lo presentado: el sufijo es el
+ * PERÍODO de la presentación, no la fecha en que se descarga.
+ */
+export function buildRarPlanillaHistoricaFilename(
+  args: BuildRarPlanillaHistoricaFilenameArgs,
+): string {
+  let slug = slugifyTitulo(args.razonSocial);
+  if (slug === 'informe') slug = 'establecimiento';
+  return `planilla-rar-${slug}-${args.periodo}.pdf`;
+}
+
 export type BuildChecklistInspeccionFilenameArgs = {
   /** Razón social del establecimiento (snapshot congelado al cierre). */
   establecimiento: string | null;
