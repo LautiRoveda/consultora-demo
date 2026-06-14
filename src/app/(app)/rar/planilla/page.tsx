@@ -11,7 +11,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 
 import { ClienteSelect } from '../ClienteSelect';
 import { TIPO_LABELS, TIPO_ORDER } from '../labels';
-import { getRarPresentacionForPeriodo, listExpuestosByCliente } from '../queries';
+import {
+  getRarPresentacionForPeriodo,
+  listExpuestosByCliente,
+  listPresentacionesByCliente,
+} from '../queries';
 import { RarTabsNav } from '../RarTabsNav';
 import { MarcarPresentadoButton } from './MarcarPresentadoButton';
 
@@ -41,8 +45,10 @@ export default async function RarPlanillaPage({
   const presentacion = selected
     ? await getRarPresentacionForPeriodo(supabase, selected.id, periodoActual)
     : null;
+  const presentaciones = selected ? await listPresentacionesByCliente(supabase, selected.id) : [];
 
   const faltantes = nomina?.expuestos.filter((e) => e.faltan_datos) ?? [];
+  const clienteSinArt = !!selected && (!selected.art || selected.art.trim() === '');
   const gruposDar = nomina
     ? TIPO_ORDER.map((tipo) => ({
         tipo,
@@ -85,36 +91,51 @@ export default async function RarPlanillaPage({
           ) : (
             nomina && (
               <div className="space-y-4">
-                {faltantes.length > 0 && (
+                {(faltantes.length > 0 || clienteSinArt) && (
                   <div className="flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
                     <AlertTriangle
                       className="mt-0.5 h-4 w-4 shrink-0 text-amber-600"
                       aria-hidden="true"
                     />
                     <div className="space-y-1">
-                      <p className="font-medium">
-                        {faltantes.length} trabajador{faltantes.length === 1 ? '' : 'es'} con datos
-                        incompletos (CUIL o fecha de ingreso).
-                      </p>
-                      <p className="text-amber-800">
-                        La planilla se genera igual con &quot;—&quot; en los campos faltantes.
-                        Completalos para una presentación válida:
-                      </p>
-                      <ul className="list-inside list-disc">
-                        {faltantes.map((e) => (
-                          <li key={e.empleado_id}>
-                            <Link
-                              href={`/empleados/${e.empleado_id}/editar`}
-                              className="underline underline-offset-2"
-                            >
-                              {e.apellido}, {e.nombre}
-                            </Link>{' '}
-                            — falta {!e.cuil ? 'CUIL' : ''}
-                            {!e.cuil && !e.fecha_ingreso ? ' y ' : ''}
-                            {!e.fecha_ingreso ? 'fecha de ingreso' : ''}
-                          </li>
-                        ))}
-                      </ul>
+                      <p className="font-medium">Revisá antes de presentar:</p>
+                      {clienteSinArt && (
+                        <p className="text-amber-800">
+                          El cliente no tiene ART registrada.{' '}
+                          <Link
+                            href={`/clientes/${selected.id}/editar`}
+                            className="underline underline-offset-2"
+                          >
+                            Completala
+                          </Link>{' '}
+                          para una presentación válida.
+                        </p>
+                      )}
+                      {faltantes.length > 0 && (
+                        <>
+                          <p className="text-amber-800">
+                            {faltantes.length} trabajador{faltantes.length === 1 ? '' : 'es'} con
+                            datos incompletos (CUIL o fecha de ingreso). La planilla se genera igual
+                            con &quot;—&quot; en los campos faltantes; completalos para una
+                            presentación válida:
+                          </p>
+                          <ul className="list-inside list-disc">
+                            {faltantes.map((e) => (
+                              <li key={e.empleado_id}>
+                                <Link
+                                  href={`/empleados/${e.empleado_id}/editar`}
+                                  className="underline underline-offset-2"
+                                >
+                                  {e.apellido}, {e.nombre}
+                                </Link>{' '}
+                                — falta {!e.cuil ? 'CUIL' : ''}
+                                {!e.cuil && !e.fecha_ingreso ? ' y ' : ''}
+                                {!e.fecha_ingreso ? 'fecha de ingreso' : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
@@ -213,6 +234,51 @@ export default async function RarPlanillaPage({
                                 </td>
                                 <td className="px-4 py-2 font-mono text-xs">
                                   {e.agentes.map((a) => a.codigo).join(', ')}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {presentaciones.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Presentaciones anteriores</CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-0 pb-0">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="text-muted-foreground border-b text-left text-xs uppercase">
+                            <tr>
+                              <th className="px-4 py-2 font-medium">Período</th>
+                              <th className="px-4 py-2 font-medium">Presentado</th>
+                              <th className="px-4 py-2 font-medium">Vence</th>
+                              <th className="px-4 py-2 font-medium text-right">Descarga</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {presentaciones.map((p) => (
+                              <tr key={p.id} className="border-b last:border-0">
+                                <td className="px-4 py-2 font-medium">{p.periodo}</td>
+                                <td className="px-4 py-2">
+                                  {formatCivilDateAR(p.fecha_presentacion)}
+                                </td>
+                                <td className="px-4 py-2">
+                                  {formatCivilDateAR(p.fecha_vencimiento)}
+                                </td>
+                                <td className="px-4 py-2 text-right">
+                                  <a
+                                    href={`/api/rar/presentaciones/${p.id}/pdf`}
+                                    download
+                                    className="inline-flex items-center gap-1.5 underline underline-offset-2"
+                                  >
+                                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                                    PDF presentado
+                                  </a>
                                 </td>
                               </tr>
                             ))}
