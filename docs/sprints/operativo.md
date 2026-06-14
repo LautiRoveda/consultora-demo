@@ -346,4 +346,54 @@ Arranque de la **épica RAR** (Relevamiento de Agentes de Riesgo): la DJ anual q
 - **Capas de auth**: CRUD del catálogo owner-only (`requireOwner`); exposición assign/quitar member-level (`getCurrentConsultora`) con defense cross-tenant en cada borde (assign idempotente 23505→ok silencioso; remove con NOT_FOUND).
 - **UI**: módulo nuevo `src/app/(app)/rar/` — catálogo en `/rar/agentes` (lista + form crear/editar + archivar/restaurar + CTA sembrar) y exposición en `/rar/exposicion` (selector de puesto + card asignar/quitar agentes), tabs Agentes/Exposición. Item RAR en el sidebar (`NAV_ITEMS`) + quick-link en el dashboard (icono `Biohazard`), guard anti-drift T-127 verde.
 - **Tests**: integration `t143-ring-a` (red→green: mismatch agente/puesto/consultora_id → 23503), `t143-rar-rls` (cross-tenant de las 2 tablas), `t143-rar-actions` (CRUD + idempotencia real del seed + assign/remove); unit `t143-schema` (Zod 1:1 con los CHECK) + `t143-agente-tipo-sql-sync` (test-meta anti-drift enum SQL↔TS, **NO** valida fidelidad legal ESOP). Gotcha cazado en CI: el caso Ring A "mismatch consultora_id" chocaba con el unique del PK (23505) antes que la FK compuesta → se usó un puesto fresco para liberar el PK (commit `4c4505c`).
-- **Pendiente de la épica**: **Fase 2** (nómina de expuestos derivada de la herencia puesto→empleado + planilla PDF + tabla `rar_presentaciones`) y **Fase 3** (vencimiento anual del RAR en el calendario).
+- **Resto de la épica (al cierre de Fase 1)**: Fase 2 (nómina + planilla PDF + `rar_presentaciones`) y Fase 3 (vencimiento anual en el calendario) → **completadas** en T-144..T-147 (ver abajo). **Épica RAR ✅ CERRADA en prod.**
+
+## T-144 ✅ RAR Fase 2 — nómina de expuestos + planilla PDF (NTE+DAR) — EN PROD
+
+Squash #261. Segunda fase de la épica RAR: la planilla imprimible del Relevamiento de Agentes de Riesgo (Res SRT 37/2010 + Dto 658/96), generada **on-the-fly desde la nómina viva** (sin snapshot todavía — eso llega en Fase 3a). **Sin migración** (solo lectura sobre el modelo de Fase 1 / T-145).
+
+- **Query** `listExpuestosByCliente` (`rar/queries.ts`): nómina de trabajadores expuestos derivada de la **herencia puesto→empleado** — un empleado expuesto es el que tiene ≥1 puesto con ≥1 agente. 3 selects de un nivel + merge in-JS (NO el embed anidado de 4 niveles, frágil); dedup de agentes por empleado + set del establecimiento (DAR). Marca `faltan_datos` (CUIL/fecha de ingreso) sin excluir al empleado.
+- **Template** `RarPlanillaTemplate` (`(print)/rar/planilla/[clienteId]/print/`): header del empleador + **DAR** (Declaración de Agentes de Riesgo, agrupada por tipo físico→químico→bio→ergo) + **NTE** (Nómina de Trabajadores Expuestos, tabla) + declaración legal Res 37/2010 + bloque de firma manuscrita del Responsable de HyS. CSS inline (Puppeteer `setContent`).
+- **Route** `/api/rar/planilla/[clienteId]/pdf`: molde EPP (T-104) — billing gate pre-Puppeteer + internal fetch al print con `x-internal-pdf-render` + AbortController 20s + `htmlToPdf` + audit `rar_planilla_exported_pdf` (`after()`). Nómina vacía es válida (PDF "sin personal expuesto", D5).
+- **UI** `/rar/planilla`: selector de cliente + preview (DAR + tabla de expuestos) + descarga + banner ámbar de datos faltantes. Filename `planilla-rar-<slug>-<fecha>.pdf` (`buildRarPlanillaFilename`, fecha de generación).
+
+## T-145 ✅ RAR exposición por establecimiento (refactor del modelo) — EN PROD
+
+Squash #262, migración `20260613000002`. **Refactor del modelo de exposición**: de `puesto_agentes` (puesto×agente **global** al tenant) a `cliente_puesto_agentes` (cliente×puesto×agente, **3 FK compuestas Ring A** — cliente, puesto y agente, todos contra `(id, consultora_id)`). **Drop de `puesto_agentes`** (0 filas en prod — feature nuevo, sin datos reales). **ADR-0016 decisión B revisada** (B2 → B2′, exposición por establecimiento).
+
+- **Motivo**: el RAR es una DJ **por establecimiento**; dos clientes con el mismo puesto pueden tener exposiciones distintas. El modelo puesto-global era un **defecto conceptual** (no una simplificación válida) que habría producido nóminas incorrectas — se corrigió **antes** de apilar la planilla (Fase 2) y el vencimiento (Fase 3) encima, barato sin datos reales. Lección en `lessons-learned.md` ("Defecto conceptual de modelo en una fase temprana").
+- **UI** de exposición re-anclada a cliente→puesto→agentes (la exposición se declara dentro del cliente/establecimiento). Audit triggers + RLS helpers T-015 (junction SELECT/INSERT/DELETE sin UPDATE).
+
+## T-146 ✅ RAR Fase 3a — vencimiento anual + alertas — EN PROD
+
+Squash #263, migración `20260613000003`. Tercera fase (parte a): el RAR vence al año y dispara alertas en el calendario.
+
+- **Datos**: tabla `rar_presentaciones` (**inmutable** — solo INSERT auditado; **snapshot legal jsonb** = cliente header + nómina NTE/DAR congelada al presentar; Ring A: unique compuesto + FK compuestas a `clientes`/`calendar_events`; unique `(consultora, cliente, periodo)`) + tipo `rar_anual` en `calendar_events` (**system-generated**, recurrence NULL — el próximo vencimiento nace de la próxima presentación, no de auto-recurrencia).
+- **RPC** `gen_rar_vencimiento_calendar_for` (service-role, security definer): cierra el ciclo `rar_anual` anterior del cliente (`status='completed'`) + crea el evento nuevo + reminders `[60,30,7,0]` (cadencia legal-crítica) + inserta la presentación inmutable con el snapshot. `fecha_vencimiento` **configurable** (default +12m).
+- **Action** `presentarRarAction` (member + billing): arma el snapshot desde la nómina viva + llama la RPC; warnings no bloqueantes (datos faltantes + cliente sin ART). UI: botón "Marcar como presentado" → "Presentado el … · vence el …".
+- **Guard T-133** extendido (`rar_anual` como tipo system) + test-meta `t133-system-tipos-sql-sync` generalizado. PDF **no persistido** (se regenera del snapshot en T-147).
+
+## T-147 ✅ RAR Fase 3b — semáforo + historial + descarga histórica — EN PROD
+
+Squash `486387a` (#264), migración `20260613000004` (CREATE OR REPLACE). Cierre de la épica RAR: enriquecimiento sobre el core de Fase 3a. **Migración aplicada a prod ANTES del merge** (diff-validado: única pendiente `20260613000004` + verificación funcional con tsx/sesión real: un `rar_anual` pending vencido devuelve `vencido`) — el código nuevo depende de la rama.
+
+- **Semáforo**: 4ª rama `union all` `rar_anual` en `semaforo_clientes` (calcada de `accion_correctiva`: cliente directo de `metadata->>'cliente_id'`, cast `::uuid` en CASE+regex plan-independiente, tenancy validada en ambos lados). **CREATE OR REPLACE de firma idéntica → `types.ts` sin drift.** El RAR vencido ahora pinta el cliente en el dashboard (antes solo informes/EPP/acción correctiva lo pintaban).
+- **Descarga histórica**: print page + route `/api/rar/presentaciones/[presentacionId]/pdf` que rinden el **snapshot congelado** (lo presentado, no la nómina viva que pudo cambiar) con el mismo `RarPlanillaTemplate` de Fase 2. `parseRarSnapshot` coacciona el jsonb defensivamente al shape del template (fallback por key; un snapshot corrupto degrada a campos en blanco, no tira la request). Filename por **período** (`buildRarPlanillaHistoricaFilename`). Billing gate + cross-tenant 404 + audit `rar_planilla_historica_exported_pdf`. Pipeline PDF **duplicado a propósito** (el route de Fase 2 quedó intacto; el DRY queda como FU de DEVEX).
+- **UI** `/rar/planilla`: sección "Presentaciones anteriores" (período · presentado · vence + descarga por fila) + **ART faltante** sumado al banner ámbar pre-presentación (antes solo listaba trabajadores con datos faltantes).
+- **Tests**: semáforo +4 casos `rar_anual` (vencido / próximo / `cliente_id` basura degrada solo ese / forjado cross-tenant no leakea) + route histórico (8 gates: happy desde snapshot con filename por período · 400/401/403 · 402 billing · 404 cross-tenant · 404 inexistente · 504 timeout) + unit del filename histórico.
+
+## DEVEX · DRY del pipeline PDF (unificar los 5 routes) 🔜
+
+Los 5 routes de PDF (informes / epp / checklists / rar-planilla / rar-historica) repiten el mismo bloque frágil: internal fetch al print page + `x-internal-pdf-render` + AbortController 20s + `injectBaseHref` + `htmlToPdf` + mapeo de errores 500/504. Hoy son 5 copias del bloque más propenso a bugs. **FU**: extraer un helper `renderPrintPageToPdf({ request, printPath })` que devuelva el `Buffer` o un error tipado; auth/billing/load-entity/audit/headers quedan per-route. Se difirió en T-147 (se duplicó el bloque a propósito para no tocar el route de Fase 2 ni sus tests). Disparador: el 6º route de PDF, o un bug que haya que arreglar en los 5 a la vez.
+
+## RAR · validación legal por el matriculado 🔜
+
+La fidelidad legal de los artefactos del RAR la valida un matriculado (el test-meta solo chequea consistencia interna, **NO** fidelidad legal). Pendiente de revisión: (a) los **22 códigos ESOP** del catálogo sembrado (Res SRT 81/2019 Anexo III) — en particular "Iluminación insuficiente" (90006), dudosa como agente de **enfermedad profesional**; (b) el texto de la DJ `RES_37_2010_DECLARACION` de la planilla. Disparador: revisión del matriculado / feedback del amigo HyS.
+
+## RAR · follow-ups de producto 🔜 DORMIDO
+
+Cuando el dolor aparezca (ya contemplados en ADR-0016 / decisiones del modelo):
+
+- **Override de exposición por empleado** y **multi-establecimiento** (hoy cliente=establecimiento, exposición por puesto del establecimiento) — extensión prevista en ADR-0016 (junction empleado×agente como override, o tabla `establecimientos`).
+- **Re-presentar el mismo período** (corrección de una DJ ya presentada) — hoy el unique `(consultora, cliente, periodo)` lo bloquea con `DUPLICATE`.
+- **Persistir el PDF histórico en Storage** (hoy se regenera del snapshot on-the-fly) — solo si un requisito legal exige el byte-exacto del documento presentado.
