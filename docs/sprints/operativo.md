@@ -397,3 +397,23 @@ Cuando el dolor aparezca (ya contemplados en ADR-0016 / decisiones del modelo):
 - **Override de exposición por empleado** y **multi-establecimiento** (hoy cliente=establecimiento, exposición por puesto del establecimiento) — extensión prevista en ADR-0016 (junction empleado×agente como override, o tabla `establecimientos`).
 - **Re-presentar el mismo período** (corrección de una DJ ya presentada) — hoy el unique `(consultora, cliente, periodo)` lo bloquea con `DUPLICATE`.
 - **Persistir el PDF histórico en Storage** (hoy se regenera del snapshot on-the-fly) — solo si un requisito legal exige el byte-exacto del documento presentado.
+
+## T-150 🚧 Aggregate gate job `ci-passed` + transición del ruleset (auditoría CI/CD, hallazgo V-2)
+
+Fase 1 de la auditoría CI/CD. Cierra **V-2**: el ruleset de `main` exige **3 required checks por nombre** (`CI` + `Integration (Supabase local)` + `E2E (Supabase local)`), lo que es frágil: renombrar o **shardear** un job (T-149, posterior) deja el nombre viejo "expected" para siempre → **deadlock del ruleset** (ningún PR mergea). T-150 es el prerrequisito no-deadlock de T-149.
+
+- **Qué**: un job paraguas `ci-passed` (display name **`CI passed`**) en `.github/workflows/ci.yml`, `if: always()` + `needs: [ci, integration-tests, e2e-tests]`. El step lee `RESULTS` (= `join(needs.*.result, ',')`) **vía `env:`** (anti script-injection) y falla si **cualquier** resultado `!= success` (cubre `failure`/`cancelled`/`skipped`/estados futuros — más estricto que grepear un set fijo de estados malos). Sin `permissions:` (hardening = T-154).
+- **Restricción dura respetada**: los 3 jobs reales quedan **intactos** (cero renombre/shardeo/cambio de steps); solo se agregó el job nuevo. Cero cambios a tests.
+- **Orden no-deadlock**: T-150 SOLO agrega `ci-passed`. Durante el merge, los **3 viejos siguen siendo los required** (el PR mergea con ellos). La migración del ruleset al único required `CI passed` la ejecuta el **owner post-merge** (Fase 2, abajo).
+- **Demo red→green** (obligatoria, validación real del gate): en la branch, step temporal `run: exit 1` en `ci` → push → `CI passed` queda **rojo** (`::error::Algún job requerido no pasó`); revertir → push → 3 jobs verdes + `CI passed` **verde** (`✅ Todos los jobs requeridos en verde.`).
+
+### Fase 2 — transición del ruleset (la ejecuta el OWNER, post-merge)
+
+`main` está protegida por un **Ruleset** (no classic protection). Pasos staged sin deadlock:
+
+1. Ver el ruleset: `gh api repos/<owner>/<repo>/rulesets` → id del ruleset de `main`; detalle con `gh api repos/<owner>/<repo>/rulesets/<id>`.
+2. **Agregar** `CI passed` a `required_status_checks` **dejando los 3 viejos** (4 required temporales). Esperar a que un PR muestre los 4 checks corriendo.
+3. Confirmado que `CI passed` corre y es verde, **quitar** `CI` + `Integration (Supabase local)` + `E2E (Supabase local)`, dejando **solo `CI passed`**.
+4. Recién con el ruleset flipeado, actualizar el listado de required en `docs/handoff-orquestador.md` a `CI passed`.
+
+> El merge del PR de T-150 va **primero** (protegido por los 3 viejos); la transición del ruleset va **justo después**. No mergear sin coordinar con el owner.
