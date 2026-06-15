@@ -5,12 +5,9 @@ import { after } from 'next/server';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { requireBillingAccess } from '@/shared/billing/access';
 import { getGateMessage } from '@/shared/billing/messages';
-import { resolveInternalBaseUrl } from '@/shared/lib/resolve-internal-base-url';
 import { logger } from '@/shared/observability/logger';
-import { getInternalPdfRenderToken } from '@/shared/pdf/browser-pool';
 import { buildChecklistInspeccionFilename } from '@/shared/pdf/filename';
-import { injectBaseHref } from '@/shared/pdf/inject-base-href';
-import { htmlToPdf, PdfRenderTimeoutError } from '@/shared/pdf/render';
+import { pdfDownloadResponse, renderPrintPageToPdf } from '@/shared/pdf/render-print-page';
 import { getValidatedClientIp } from '@/shared/security/identify';
 import { createClient } from '@/shared/supabase/server';
 import { createServiceRoleClient } from '@/shared/supabase/service-role';
@@ -32,7 +29,6 @@ import { createServiceRoleClient } from '@/shared/supabase/service-role';
  * cap 20s → audit `after()` → 200 application/pdf + Content-Disposition.
  */
 
-const HARD_CAP_MS = 20_000;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function errorResponse(status: number, code: string, message: string): Response {
@@ -101,66 +97,16 @@ export async function GET(
     );
   }
 
-  const baseUrl = resolveInternalBaseUrl(request);
-  const cookieHeader = request.headers.get('cookie') ?? '';
-  const printUrl = `${baseUrl}/checklists/ejecuciones/${id}/print`;
-
-  const ac = new AbortController();
-  const hardCap = setTimeout(() => ac.abort(), HARD_CAP_MS);
-
-  let html: string;
-  try {
-    const printRes = await fetch(printUrl, {
-      method: 'GET',
-      headers: { cookie: cookieHeader, 'x-internal-pdf-render': getInternalPdfRenderToken() },
-      signal: ac.signal,
-      cache: 'no-store',
-    });
-    if (!printRes.ok) {
-      clearTimeout(hardCap);
-      logger.error(
-        { executionId: id, userId: user.id, consultoraId: consultora.id, status: printRes.status },
-        'checklist_pdf_route: print page fetch fallo',
-      );
-      return errorResponse(500, 'INTERNAL_ERROR', 'No se pudo renderear la inspección.');
-    }
-    html = await printRes.text();
-  } catch (err) {
-    clearTimeout(hardCap);
-    if (ac.signal.aborted) {
-      logger.warn(
-        { executionId: id, userId: user.id, consultoraId: consultora.id },
-        'checklist_pdf_route: hard cap timeout en internal fetch',
-      );
-      return errorResponse(504, 'RENDER_TIMEOUT', 'El PDF tardó demasiado. Reintentá.');
-    }
-    logger.error(
-      { err: String(err), executionId: id, userId: user.id, consultoraId: consultora.id },
-      'checklist_pdf_route: internal fetch fallo',
-    );
-    return errorResponse(500, 'INTERNAL_ERROR', 'No se pudo renderear la inspección.');
-  }
-
-  const htmlWithBase = injectBaseHref(html, baseUrl);
-  let pdfBuffer: Buffer;
-  try {
-    pdfBuffer = await htmlToPdf(htmlWithBase);
-  } catch (err) {
-    clearTimeout(hardCap);
-    if (err instanceof PdfRenderTimeoutError) {
-      logger.warn(
-        { executionId: id, userId: user.id, consultoraId: consultora.id, stage: err.message },
-        'checklist_pdf_route: render timeout',
-      );
-      return errorResponse(504, 'RENDER_TIMEOUT', 'El PDF tardó demasiado. Reintentá.');
-    }
-    logger.error(
-      { err: String(err), executionId: id, userId: user.id, consultoraId: consultora.id },
-      'checklist_pdf_route: htmlToPdf fallo',
-    );
-    return errorResponse(500, 'INTERNAL_ERROR', 'Hubo un error generando el PDF.');
-  }
-  clearTimeout(hardCap);
+  // Internal fetch al print page + HTML → PDF via el pipeline compartido (T-148).
+  const rendered = await renderPrintPageToPdf({
+    request,
+    printPath: `/checklists/ejecuciones/${id}/print`,
+    recurso: 'la inspección',
+    logPrefix: 'checklist_pdf_route',
+    logBase: { executionId: id, userId: user.id, consultoraId: consultora.id },
+  });
+  if (!rendered.ok) return rendered.response;
+  const pdfBuffer = rendered.pdf;
 
   const generationMs = Date.now() - t0;
   const filename = buildChecklistInspeccionFilename({
@@ -194,18 +140,7 @@ export async function GET(
     'checklist_inspeccion_pdf_exported',
   );
 
-  const asciiFilename = filename.replace(/[^\x20-\x7e]/g, '_');
-  const utf8Filename = encodeURIComponent(filename);
-  return new Response(new Uint8Array(pdfBuffer), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Length': String(pdfBuffer.length),
-      'Content-Disposition': `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`,
-      'Cache-Control': 'private, no-store',
-      'X-Robots-Tag': 'noindex',
-    },
-  });
+  return pdfDownloadResponse({ pdf: pdfBuffer, filename });
 }
 
 type AuditLogArgs = {
