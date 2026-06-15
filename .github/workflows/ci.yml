@@ -423,6 +423,35 @@ jobs:
           path: test-results/
           retention-days: 7
 
+  # T-150 (auditoría CI/CD, hallazgo V-2): job paraguas. Está pensado para ser el
+  # ÚNICO required check del ruleset de `main` (la transición la hace el owner
+  # post-merge, ver docs/sprints/operativo.md T-150). Depende de los 3 jobs reales;
+  # renombrar / shardear / agregar jobs detrás de él NO requiere tocar el ruleset.
+  ci-passed:
+    name: CI passed
+    if: always() # corre aunque un upstream falle/cancele, para poder pintarse rojo
+    needs: [ci, integration-tests, e2e-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verificar que todos los jobs requeridos pasaron
+        env:
+          # Vía env, NO interpolado en el `run` (evita script-injection; patrón GH
+          # recomendado). Los valores son controlados, pero el costo es cero.
+          RESULTS: ${{ join(needs.*.result, ',') }}
+        run: |
+          echo "Resultados upstream: $RESULTS"
+          # Estricto: TODO lo que no sea exactamente "success" es rojo. Cubre
+          # failure / cancelled / skipped y cualquier estado futuro desconocido
+          # (más seguro que grepear un set fijo de estados malos).
+          for r in ${RESULTS//,/ }; do
+            if [ "$r" != "success" ]; then
+              echo "::error::Algún job requerido no pasó (resultados: $RESULTS)."
+              exit 1
+            fi
+          done
+          echo "✅ Todos los jobs requeridos en verde."
+
   # NOTA T-022.5: el deploy a VPS Hostinger se dispara **manualmente** desde
   # EasyPanel UI (Service consultora-demo → botón "Implementar") tras cada
   # merge a `main`. EasyPanel v2.30.0 Self-Hosted no expone Auto Deploy ni

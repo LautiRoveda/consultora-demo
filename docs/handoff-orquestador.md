@@ -60,7 +60,7 @@ El trabajo fluye entre tres actores; el **owner es el canal** entre los dos agen
 4. **Commits separados para diff limpio.** Doc / código / tracking en commits distintos. *Ejemplo FU5:* (1) guard + sync §4, (2) docstring backup-storage, (3) operativo.md.
 5. **Probar que los guards sirven.** Si se agrega un test/guard, demo **red→green** (sacar lo protegido → rojo → restaurar → verde), no solo "el test pasa". El guard sin demo red→green no cuenta.
 6. **Verificación antes de afirmar.** `pnpm typecheck` + `pnpm lint` + tests en verde, **con la salida a la vista**, antes de decir "hecho". Nada de "está hecho" sin evidencia.
-7. **CI verde en los required.** Push → abrir PR → monitorear los 3 checks required: `CI`, `E2E (Supabase local)`, `Integration (Supabase local)`.
+7. **CI verde en los required.** Push → abrir PR → monitorear los 3 checks required: `CI`, `E2E (Supabase local)`, `Integration (Supabase local)`. (T-150 agregó el job paraguas `CI passed` que depende de los 3; **pasará a ser el único required cuando el owner migre el ruleset** — hasta entonces siguen los 3, ver §Metodología de merge.)
 8. **Nunca mergear sin OK del owner + CI verde.** Abrir el PR, reportar el estado, y **PARAR**. El merge lo decide Lautaro.
 9. **Red automática > disciplina humana.** Cuando algo se cuela en silencio (flaky, patrón muerto, drift doc↔código), no alcanza con arreglar la instancia: agregar un **guard que lo bloquee en CI** para que la CLASE de problema no vuelva (mini-test de buckets T-082, guard DELETE-muerto T-113b, `verify:dr-config` T-082-FU5).
 
@@ -71,6 +71,7 @@ El trabajo fluye entre tres actores; el **owner es el canal** entre los dos agen
 - **Post-merge:** pasar el **SHA** al owner + **borrar la branch** (`gh pr merge --squash --delete-branch`) + `git fetch --prune` local para limpiar la referencia remota podada.
 - **Nunca** force-push ni `--no-verify` salvo pedido explícito del owner.
 - **Branch protection de `main` es un Ruleset** (no classic branch protection). Implicancia operativa: `gh api repos/<owner>/<repo>/branches/main/protection` devuelve **`404 Branch not protected` — esto es ESPERADO, NO significa que main esté desprotegida**. Para ver las reglas reales: `gh api repos/<owner>/<repo>/rules/branches/main`. El ruleset enforced incluye: required status checks strict (`CI` + `E2E (Supabase local)` + `Integration (Supabase local)`), PR obligatorio (0 approvals pero checks deben pasar), bloqueo de deletion + non-fast-forward. Por eso **todo** cambio —incluido "solo doc"— va por branch + PR.
+  - **Transición a `CI passed` (T-150, V-2):** T-150 agregó el job paraguas `CI passed` (`needs` los 3 jobs reales) para que renombrar/shardear jobs (T-149) no rompa el ruleset. **Plan**: el owner migra el ruleset a `CI passed` como **único** required (pasos staged en `docs/sprints/operativo.md` T-150 §Fase 2). **Mientras la migración no esté hecha, los 3 checks de arriba SIGUEN siendo los required** — este listado se actualiza recién cuando el ruleset flipee.
 
 ## Backlog DORMIDO (con disparadores)
 
