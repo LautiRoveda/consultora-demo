@@ -171,6 +171,10 @@ jobs:
           fi
           echo "✅ Bundle del cliente limpio."
 
+      # TEMP demo red→green T-150 — se revierte antes del merge (se cancela en el squash).
+      - name: TEMP forzar fallo del job ci (demo gate ci-passed)
+        run: exit 1
+
   # T-111 F1: smoke de integration tests contra un Supabase LOCAL efímero (Docker
   # del runner). CERO secrets de prod — todas las env son placeholders para que
   # env.ts (Zod) valide al import; los servicios externos se mockean y el stack
