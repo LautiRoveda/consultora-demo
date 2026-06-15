@@ -8,12 +8,9 @@ import { INFORME_TIPOS } from '@/app/(app)/informes/schema';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
 import { requireBillingAccess } from '@/shared/billing/access';
 import { getGateMessage } from '@/shared/billing/messages';
-import { resolveInternalBaseUrl } from '@/shared/lib/resolve-internal-base-url';
 import { logger } from '@/shared/observability/logger';
-import { getInternalPdfRenderToken } from '@/shared/pdf/browser-pool';
 import { buildPdfFilename } from '@/shared/pdf/filename';
-import { injectBaseHref } from '@/shared/pdf/inject-base-href';
-import { htmlToPdf, PdfRenderTimeoutError } from '@/shared/pdf/render';
+import { pdfDownloadResponse, renderPrintPageToPdf } from '@/shared/pdf/render-print-page';
 import { getValidatedClientIp } from '@/shared/security/identify';
 import { createClient } from '@/shared/supabase/server';
 import { createServiceRoleClient } from '@/shared/supabase/service-role';
@@ -39,7 +36,6 @@ import { createServiceRoleClient } from '@/shared/supabase/service-role';
  *     attachment + filename.
  */
 
-const HARD_CAP_MS = 20_000;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ErrorBody = { code: string; message: string };
@@ -113,83 +109,18 @@ export async function GET(
     );
   }
 
-  // 6. Internal fetch al print page. Pasamos las cookies del request original
-  // para que el `createClient()` de adentro vea la sesion. El token defiende
-  // contra acceso directo desde browser.
-  const baseUrl = resolveInternalBaseUrl(request);
-  const cookieHeader = request.headers.get('cookie') ?? '';
-  const printUrl = `${baseUrl}/informes/${id}/print`;
-
-  // AbortController como hard cap. Si los timeouts internos de htmlToPdf
-  // (setContent 10s + page.pdf 15s) fallan en disparar, este lo aborta a 20s.
-  const ac = new AbortController();
-  const hardCap = setTimeout(() => ac.abort(), HARD_CAP_MS);
-
-  let html: string;
-  try {
-    const printRes = await fetch(printUrl, {
-      method: 'GET',
-      headers: {
-        cookie: cookieHeader,
-        'x-internal-pdf-render': getInternalPdfRenderToken(),
-      },
-      signal: ac.signal,
-      // Bypass de cualquier cache (no deberia haber, pero defensivo).
-      cache: 'no-store',
-    });
-    if (!printRes.ok) {
-      logger.error(
-        {
-          informeId: id,
-          userId: user.id,
-          consultoraId: consultora.id,
-          status: printRes.status,
-        },
-        'pdf_route: print page fetch fallo',
-      );
-      clearTimeout(hardCap);
-      return errorResponse(500, 'INTERNAL_ERROR', 'No se pudo renderear el informe.');
-    }
-    html = await printRes.text();
-  } catch (err) {
-    clearTimeout(hardCap);
-    if (ac.signal.aborted) {
-      logger.warn(
-        { informeId: id, userId: user.id, consultoraId: consultora.id },
-        'pdf_route: hard cap timeout en internal fetch',
-      );
-      return errorResponse(504, 'RENDER_TIMEOUT', 'El PDF tardó demasiado. Reintentá.');
-    }
-    logger.error(
-      { err: String(err), informeId: id, userId: user.id, consultoraId: consultora.id },
-      'pdf_route: internal fetch fallo',
-    );
-    return errorResponse(500, 'INTERNAL_ERROR', 'No se pudo renderear el informe.');
-  }
-
-  // 7. HTML → PDF. Inyectamos `<base href>` antes de pasar a Puppeteer porque
-  // `setContent` renderea en about:blank y las URLs relativas del CSS de
-  // Tailwind no resuelven sin base. Reusamos el `baseUrl` ya computed arriba.
-  const htmlWithBase = injectBaseHref(html, baseUrl);
-  let pdfBuffer: Buffer;
-  try {
-    pdfBuffer = await htmlToPdf(htmlWithBase);
-  } catch (err) {
-    clearTimeout(hardCap);
-    if (err instanceof PdfRenderTimeoutError) {
-      logger.warn(
-        { informeId: id, userId: user.id, consultoraId: consultora.id, stage: err.message },
-        'pdf_route: render timeout',
-      );
-      return errorResponse(504, 'RENDER_TIMEOUT', 'El PDF tardó demasiado. Reintentá.');
-    }
-    logger.error(
-      { err: String(err), informeId: id, userId: user.id, consultoraId: consultora.id },
-      'pdf_route: htmlToPdf fallo',
-    );
-    return errorResponse(500, 'INTERNAL_ERROR', 'Hubo un error generando el PDF.');
-  }
-  clearTimeout(hardCap);
+  // 6-7. Internal fetch al print page + HTML → PDF via el pipeline compartido
+  // (T-148). El helper hace fetch con token + AbortController hard cap 20s +
+  // injectBaseHref + htmlToPdf, y mapea los errores a HTTP con estos logs.
+  const rendered = await renderPrintPageToPdf({
+    request,
+    printPath: `/informes/${id}/print`,
+    recurso: 'el informe',
+    logPrefix: 'pdf_route',
+    logBase: { informeId: id, userId: user.id, consultoraId: consultora.id },
+  });
+  if (!rendered.ok) return rendered.response;
+  const pdfBuffer = rendered.pdf;
 
   const generationMs = Date.now() - t0;
   const filename = buildPdfFilename({
@@ -244,19 +175,8 @@ export async function GET(
     'informe_pdf_exported',
   );
 
-  // 9. Response. RFC 6266 filename + filename* para UTF-8 (acentos en titulo).
-  const asciiFilename = filename.replace(/[^\x20-\x7e]/g, '_');
-  const utf8Filename = encodeURIComponent(filename);
-  return new Response(new Uint8Array(pdfBuffer), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Length': String(pdfBuffer.length),
-      'Content-Disposition': `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`,
-      'Cache-Control': 'private, no-store',
-      'X-Robots-Tag': 'noindex',
-    },
-  });
+  // 9. Response 200 con los headers de descarga (RFC 6266 filename + filename*).
+  return pdfDownloadResponse({ pdf: pdfBuffer, filename });
 }
 
 type AuditLogArgs = {
