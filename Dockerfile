@@ -9,7 +9,7 @@
 # fijado para matchear package.json packageManager field.
 
 # ─── Stage 1: dependencias ──────────────────────────────────────────────────
-FROM node:22-alpine AS deps
+FROM node:22.22.3-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -37,7 +37,7 @@ RUN pnpm install --frozen-lockfile --ignore-scripts \
  && pnpm rebuild sharp esbuild
 
 # ─── Stage 2: build ─────────────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM node:22.22.3-alpine AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -127,7 +127,7 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
 RUN pnpm build
 
 # ─── Stage 3: runner ────────────────────────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM node:22.22.3-alpine AS runner
 WORKDIR /app
 
 # Chromium para generación de PDFs (T-023). puppeteer-core usa este binario
