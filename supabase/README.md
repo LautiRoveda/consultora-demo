@@ -88,6 +88,34 @@ pnpm db:types
 - SQL en minúscula por convención (siguiendo `docs/technical/03-data-model.md`).
 - Toda tabla nueva: `consultora_id` + RLS habilitado + policy + index. Sin excepción.
 
+## Seguridad de migraciones — lint squawk (T-151)
+
+CI lintea con **squawk** (`pnpm lint:migrations`, job `Migrations lint (squawk)`) **solo las migraciones nuevas del PR** (diff vs `origin/main`); las históricas ya están en prod y NUNCA se re-lintean. Config en [`.squawk.toml`](../.squawk.toml). El job es uno de los `needs` del gate `ci-passed`: una migración insegura pinta el CI rojo **antes** del merge. Cierra el hallazgo P-1 de la auditoría CI/CD (la clase de incidente de T-016: una migración que "aplica" bien pero cuelga prod por locks).
+
+Reglas que más vas a tocar (el set completo está ON salvo `prefer-robust-stmts` y `ban-drop-column`, excluidas a propósito):
+
+1. **Timeouts al tope (`require-timeout-settings`).** Toda migración nueva que toque tablas en uso arranca con:
+
+   ```sql
+   set lock_timeout = '2s';
+   set statement_timeout = '30s';
+   -- ...el resto de la migración
+   ```
+
+   `lock_timeout` acota cuánto esperás un lock (si no lo conseguís rápido, fallás en vez de colgar la tabla); `statement_timeout` corta operaciones largas. Sin ambos al tope, el job va rojo.
+
+2. **`CREATE INDEX CONCURRENTLY` (`require-concurrent-index-creation`).** Crear un índice sobre una tabla **existente** bloquea writes; usá `concurrently`. Excepción: un índice sobre una tabla creada en la **misma** migración no se flaggea (no hay tráfico concurrente todavía).
+
+   - Los índices concurrentes van en una migración **aislada** nombrada `*_concurrently.sql` (p.ej. `..._mi_idx_concurrently.sql`), con el `create index concurrently` como única sentencia. `supabase db push` solo la corre fuera de transacción si es la única sentencia → por eso **no** lleva los `set ...timeout` del tope (y el lint la saltea: `require-timeout-settings` no aplica).
+
+3. **`NOT NULL` sin default (`adding-required-field` / `adding-not-nullable-field`).** Agregar una columna `not null` sin default a una tabla con datos fuerza un rewrite/scan. Hacela nullable, o con un default no-volátil, y backfilleá aparte.
+
+4. **Constraints con lock (`constraint-missing-not-valid`, `adding-foreign-key-constraint`, `disallowed-unique-constraint`).** Agregar un CHECK/FK/UNIQUE valida toda la tabla bajo lock. Patrón expand-contract: `add constraint ... not valid` primero, luego `validate constraint ...` en una sentencia aparte.
+
+5. **Drops de columna (expand-contract).** `ban-drop-column` está **excluida** (no enforzada) porque dropeás columnas a propósito. La convención (no lint, disciplina): dropeá una columna **solo después** de cortar todos sus consumers (código + tipos + triggers) en un release previo. Ver el lesson de T-129 fase B (grepear `new.col`/`old.col` en triggers antes del drop).
+
+Si squawk tira un falso positivo en sintaxis válida de Supabase, no apagues la regla global: documentá el caso. Para correrlo local: `pnpm lint:migrations` (no-op verde si tu branch no toca `supabase/migrations/`).
+
 ## Estado de extensiones (post-T-005)
 
 Migration `<ts>_extensions.sql` instaló:
