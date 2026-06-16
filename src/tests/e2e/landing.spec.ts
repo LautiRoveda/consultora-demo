@@ -1,8 +1,6 @@
 import { expect, test } from '@playwright/test';
 
 test('landing carga con hero, CTAs y FAQ', async ({ page }) => {
-  // T-149 DEMO red→green (a) — fallo INTENCIONAL, se revierte. NO mergear.
-  expect(1, 'T-149 demo (a): un shard de E2E en rojo debe pintar ci-passed rojo').toBe(2);
   await page.goto('/');
 
   // Title con el formato del template ("default · ConsultoraDemo").
