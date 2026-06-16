@@ -16,6 +16,8 @@
 // Docker local. Para debug puntual contra prod existe `test:integration:remote`.
 import { execFileSync, spawnSync } from 'node:child_process';
 
+import { startSupabaseWithRetry } from './supabase-start-retry.mjs';
+
 const IS_WIN = process.platform === 'win32';
 const run = (args, opts = {}) =>
   execFileSync('pnpm', args, { encoding: 'utf8', shell: IS_WIN, ...opts });
@@ -25,12 +27,13 @@ function fail(msg) {
   process.exit(1);
 }
 
-// 1. Stack local (idempotente: si ya corre, es un no-op rapido).
-console.log('[t111] supabase start (Docker)...');
+// 1. Stack local (idempotente: si ya corre, es un no-op rapido). T-153: con retry acotado
+// para el flake del 502 del edge-runtime (ver scripts/supabase-start-retry.mjs).
+console.log('[t111] supabase start (Docker, con retry)...');
 try {
-  run(['exec', 'supabase', 'start'], { stdio: 'inherit' });
+  await startSupabaseWithRetry();
 } catch {
-  fail('`supabase start` fallo. Verifica que Docker este corriendo.');
+  fail('`supabase start` fallo tras los reintentos. Verifica que Docker este corriendo.');
 }
 
 // 2. DB efimera limpia + todas las migraciones.
