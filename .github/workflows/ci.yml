@@ -423,14 +423,59 @@ jobs:
           path: test-results/
           retention-days: 7
 
+  # T-151 (auditoría CI/CD, hallazgo P-1): lint de seguridad de migraciones SQL con
+  # squawk. Corre SOLO sobre las migraciones NUEVAS del PR (scripts/lint-migrations.mjs
+  # hace `git diff --diff-filter=AM origin/main...HEAD -- supabase/migrations/*.sql`),
+  # NUNCA sobre las históricas (ya en prod, inmutables). No-op verde si el PR no toca
+  # migraciones. CERO secrets: squawk parsea SQL estático, no toca ninguna DB.
+  # fetch-depth:0 es OBLIGATORIO: el diff triple-dot necesita la historia + main para
+  # el merge-base (el checkout default es shallow depth=1 y rompería el diff).
+  migrations-lint:
+    name: Migrations lint (squawk)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm store cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint de migraciones nuevas (squawk)
+        run: pnpm lint:migrations
+
   # T-150 (auditoría CI/CD, hallazgo V-2): job paraguas. Está pensado para ser el
   # ÚNICO required check del ruleset de `main` (la transición la hace el owner
-  # post-merge, ver docs/sprints/operativo.md T-150). Depende de los 3 jobs reales;
+  # post-merge, ver docs/sprints/operativo.md T-150). Depende de los jobs reales;
   # renombrar / shardear / agregar jobs detrás de él NO requiere tocar el ruleset.
   ci-passed:
     name: CI passed
     if: always() # corre aunque un upstream falle/cancele, para poder pintarse rojo
-    needs: [ci, integration-tests, e2e-tests]
+    needs: [ci, integration-tests, e2e-tests, migrations-lint]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

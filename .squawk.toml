@@ -1,0 +1,46 @@
+# T-151 · Config de squawk — lint de seguridad de migraciones SQL.
+#
+# Lo invoca scripts/lint-migrations.mjs (`pnpm lint:migrations`) SOLO sobre las
+# migraciones NUEVAS del PR (diff --diff-filter=AM origin/main...HEAD). Las
+# migraciones históricas ya están en prod, son inmutables y NUNCA se re-lintean.
+# Los flags del CLI pisan esta config si hiciera falta.
+
+# Supabase corre Postgres 17 (supabase/config.toml -> major_version = 17). Habilita
+# los checks específicos de versión (p.ej. lock levels de ALTER TABLE por versión).
+pg_version = "17"
+
+# `supabase db push` envuelve CADA migración en una transacción implícita. Con esto
+# require-concurrent-index-creation IGNORA correctamente los CREATE INDEX sobre
+# tablas creadas en la MISMA migración, y los checks de transaccionalidad razonan
+# como en prod. La excepción son los índices concurrentes aislados (ver
+# excluded_paths), que `db push` corre FUERA de transacción.
+assume_in_transaction = true
+
+# Reglas apagadas. squawk no tiene severidad por regla: una regla está ON (bloquea)
+# u OFF (ni se reporta). El resto del set queda ON por defecto.
+excluded_rules = [
+  # Exige IF NOT EXISTS / IF EXISTS (idempotencia). Las migraciones del repo usan
+  # `create or replace` y drop+add, NUNCA IF NOT EXISTS -> sería 100% ruido y
+  # empujaría un estilo que el repo deliberadamente no usa. NO enforza timeouts
+  # (ese es require-timeout-settings, que dejamos ON).
+  "prefer-robust-stmts",
+  # Los drops de columna son intencionales en el flujo expand-contract (ej.
+  # T-129 fase B: drop tras cortar los consumers). La convención vive documentada
+  # en supabase/README.md, no enforzada. squawk no tiene "warning", así que la
+  # alternativa a OFF sería bloquear cada expand-contract legítimo.
+  "ban-drop-column",
+]
+
+# Selección de ARCHIVOS (no de reglas) la maneja scripts/lint-migrations.mjs:
+# (1) solo las migraciones nuevas del PR, (2) excluye los índices concurrentes
+# aislados *_concurrently.sql. NO usamos `excluded_paths` acá a propósito: cuando a
+# squawk se le pasa un path explícito que matchea excluded_paths, aborta con
+# "Failed to find files for provided patterns" + exit 1 (sería un rojo falso si la
+# única migración nueva fuese un índice concurrente). El script filtra esos archivos
+# ANTES de invocar squawk y hace no-op verde si la lista queda vacía.
+#
+# Por qué se aíslan los CONCURRENTLY: `supabase db push` corre CREATE INDEX
+# CONCURRENTLY FUERA de transacción solo si es ~la única sentencia del archivo. En
+# esos archivos NO se pueden poner `set lock_timeout`/`set statement_timeout` al tope
+# (rompería esa detección), así que require-timeout-settings daría un falso positivo
+# SOLO ahí. El resto de las migraciones SIGUE exigiendo timeouts.
