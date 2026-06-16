@@ -245,6 +245,15 @@ El guard `EXEC_NOT_DRAFT` flapeaba dentro del mega-test del runner de checklists
 - Probado **red→green** en CI (viejo 5/20 rojo → nuevo 20/20 verde). Test-only, sin migración.
 - PR #236, merge `ee11408`.
 
+## T-153 ✅ Estrategia de flaky tests (Fase 3, V-3) — EN MAIN
+
+Que el gate no se mine con re-runs manuales (rescatar un flaky a mano entrena a ignorar rojos). El componente E2E de V-3 ya estaba (`retries: isCI ? 2 : 0`, `workers: 1`, `trace: on-first-retry` en `playwright.config.ts`). Esta tanda cerró lo que faltaba:
+
+- **Retry acotado del `supabase start`** (CORE) — helper único `scripts/supabase-start-retry.mjs` (`startSupabaseWithRetry`, comandos inyectables → testeable sin Docker), reusado en los **3 sitios** donde se levanta el stack: `scripts/test-integration-local.mjs` + `scripts/test-e2e-local.mjs` + `ci.yml` job Integration (su `supabase start` real vive inline en el paso "types.ts sin drift", ANTES del script → es el único punto donde el flake podía matar el job). 3 intentos, backoff, `supabase stop --no-backup` entre intentos (un start parcial deja containers a medias que un re-`start` idempotente no repara). Mata el flake del 502 del edge-runtime que se rescataba con re-run manual (FU dormido del handoff, ahora cerrado).
+- **Retry de vitest SOLO en integration** — `retry: 1` en el project `integration` (`vitest.config.ts`). Unit/component NO heredan (projects separados; el config raíz no define `retry`) → un retry ahí escondería bugs reales. Visible: un test que pasa al 2º intento se marca "retried".
+- **Quarantine `@flaky` — DIFERIDO** (no hay flaky activo; T-132 cerró el de checklists). Criterio de activación documentado en `docs/lessons-learned.md` ("Estrategia de flaky tests"): se arma cuando aparezca un flaky que convenga aislar en vez de arreglar en el momento (tag `@flaky` + job principal `--grep-invert` que bloquea + job secundario `--grep` con `continue-on-error`).
+- **Validación**: unit test del wrapper `src/tests/unit/supabase-start-retry.test.ts` (4 casos: éxito al 1er intento sin stop/sleep · reintenta tras fallos y procede · propaga el fallo tras agotar intentos sin colgar · `maxAttempts=1` no reintenta). El 502 es intermitente → no hay demo red→green natural; el unit test ES la validación.
+
 ## T-133 ✅ Calendar hardening: M-1 (input trust) + L-1 (re-scope semáforo) — EN PROD
 
 Auditoría de seguridad (Opus 4.8), hallazgos M-1 + L-1. Cierra en el borde de input la raíz del vector del semáforo (antes solo mitigado downstream con el regex UUID de T-131) y cubre la superficie UPDATE directo (PostgREST) que RLS no puede expresar.
