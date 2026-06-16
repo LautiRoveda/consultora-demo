@@ -1,4 +1,3 @@
-// T-149 demo (b): drift intencional — gen-types no produce esta línea → types-gate rojo. Se revierte. NO mergear.
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
