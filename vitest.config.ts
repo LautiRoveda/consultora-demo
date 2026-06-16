@@ -20,6 +20,20 @@ export default defineConfig({
         'src/app/**/not-found.tsx',
         'src/**/*.d.ts',
       ],
+      // T-156: gate anti-regresión sobre la superficie REALMENTE testeada por los 3
+      // projects (unit+component+integration). SOLO branches + functions GLOBAL:
+      // Lines/Statements (~49%) están contaminados por ~210 .tsx que solo cubren los
+      // E2E (invisibles a v8) → una página nueva sin unit los bajaría sin ser regresión.
+      // branches/functions son robustos a ese ruido y muerden ante regresión de lógica.
+      // Baseline medido (3 projects, CI con DB): branches 74.33% · functions 74.30%.
+      // Umbral ~2 pts abajo por el retry:1 de integration (anti-flake). NO se setean
+      // lines/statements → no gatean (se siguen reportando en html/lcov).
+      // Aplica solo cuando corre con --coverage (el coverage job de ci.yml vía
+      // scripts/test-coverage-local.mjs); `pnpm test` (unit+comp) no lo dispara.
+      thresholds: {
+        branches: 72,
+        functions: 72,
+      },
     },
     projects: [
       {

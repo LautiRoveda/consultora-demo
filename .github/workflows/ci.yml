@@ -251,6 +251,89 @@ jobs:
       - name: Integration tests (Supabase local efímero)
         run: pnpm test:integration
 
+  # T-156 (auditoría CI/CD, Fase 5): gate de cobertura anti-REGRESIÓN. Corre los 3
+  # projects (unit+component+integration) con coverage v8 en una sola pasada contra un
+  # Supabase LOCAL efímero (igual aislamiento que integration-tests: CERO secrets de
+  # prod, todo placeholder, los servicios externos se mockean, NUNCA --linked). vitest
+  # aplica los thresholds de vitest.config.ts (branches+functions GLOBAL ≥72) y sale ≠0
+  # si caen → este job rojo → ci-passed rojo. Lines/Statements NO gatean (contaminados
+  # por ~210 .tsx que solo cubren los E2E, invisibles a v8). Job DEDICADO (corre en
+  # paralelo, bajo el wall-clock del shard E2E): mantiene integration-tests como señal
+  # pura sin instrumentación v8; el costo es que integration corre una 2ª vez acá.
+  coverage:
+    name: Coverage gate (branches + functions)
+    permissions:
+      contents: read # T-154 S-1: solo lo que exige actions/checkout
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SENTRY_DSN: https://placeholder@o0.ingest.sentry.io/0
+      SENTRY_ORG: placeholder-org
+      SENTRY_PROJECT: placeholder-project
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      ANTHROPIC_API_KEY: ci_placeholder_anthropic_integration_mocks_sdk_aaaa
+      RESEND_API_KEY: re_placeholder_ci_does_not_call_resend
+      RESEND_FROM_ADDRESS: placeholder-ci@example.com
+      INTERNAL_CRON_SECRET: ci_placeholder_secret_32_chars_minimum_aaaaaa
+      TELEGRAM_BOT_TOKEN: ci_placeholder_telegram_bot_token_40_chars_aaa
+      TELEGRAM_BOT_USERNAME: consultorademo_ci_bot
+      TELEGRAM_WEBHOOK_SECRET: ci_placeholder_telegram_webhook_secret_32_chars
+      VAPID_PRIVATE_KEY: ci_placeholder_vapid_private_key_44_chars_b64url_aaa
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ci_placeholder_vapid_public_key_88_chars_b64url_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      VAPID_SUBJECT: mailto:ci-placeholder@example.com
+      ARS_PRICE_MONTHLY: '3000000'
+      MP_ACCESS_TOKEN: ci_placeholder_mercadopago_token_40_chars_minimum_aaaa
+      MP_WEBHOOK_SECRET: ci_placeholder_mercadopago_webhook_secret_32_chars
+      BILLING_GATE_DISABLED: 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false # T-155 S-4: no persistir el token git (no hay git ops post-checkout)
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm store cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # scripts/test-coverage-local.mjs: supabase start (retry T-153) -> db reset ->
+      # status -o env -> `vitest run --coverage --no-file-parallelism` (3 projects).
+      # vitest aplica los thresholds → falla acá si branches/functions caen bajo 72.
+      - name: Coverage gate (3 projects, Supabase local efímero)
+        run: pnpm test:coverage:local
+
+      # Reporte HTML para debug. continue-on-error: el upload NUNCA tumba el gate
+      # (el gate es el step de arriba). No va al needs de ci-passed: es reporte.
+      - name: Upload coverage HTML report
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-html
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: ignore
+
   # T-112: E2E (Playwright) contra un Supabase LOCAL efímero (Docker del runner),
   # espejo del job integration-tests (F1). CERO secrets de prod — todas las env son
   # placeholders que pasan la validación Zod de env.ts; las 3 keys de Supabase salen
@@ -581,9 +664,10 @@ jobs:
     permissions: {} # T-154 S-1: no hace checkout, solo evalúa needs.* → deny-all
     if: always() # corre aunque un upstream falle/cancele, para poder pintarse rojo
     # T-149: el matrix `e2e-tests` aparece UNA vez en needs y agrega las 3 instancias
-    # (result == success solo si las 3 pasan). `types-gate` agregado como gate. El job
-    # de reporte `e2e-report-merge` NO va acá: es reporte, no debe bloquear el merge.
-    needs: [ci, integration-tests, e2e-tests, types-gate, migrations-lint, workflows-sast]
+    # (result == success solo si las 3 pasan). `types-gate` agregado como gate. T-156:
+    # `coverage` (gate de cobertura branches+functions) agregado como gate. El job de
+    # reporte `e2e-report-merge` NO va acá: es reporte, no debe bloquear el merge.
+    needs: [ci, integration-tests, coverage, e2e-tests, types-gate, migrations-lint, workflows-sast]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

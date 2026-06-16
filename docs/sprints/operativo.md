@@ -458,6 +458,11 @@ Paralelizar/shardear los jobs pesados de CI para bajar el wall-clock. **Depende 
 
 Completa la Fase 2: extender el lint de migraciones a las que tocan datos (DML / backfills), no solo DDL estructural. Lo que falta para cerrar la Fase 2 de la auditoría (T-151 cubrió el DDL).
 
-## T-156 🔜 Coverage gate en CI (auditoría CI/CD, Fase 5)
+## T-156 ✅ Coverage gate en CI (auditoría CI/CD, Fase 5)
 
-Gate de cobertura en CI (umbral >70%, pirámide 70/20/10 — principio no negociable #4). Hoy la cobertura no se mide en el pipeline.
+Gate de cobertura en CI. **Anti-REGRESIÓN, NO aspiracional** — corrige el target original ">70% / pirámide 70/20/10": ese número no aplica a la cobertura v8, que **no captura los E2E** (Playwright). ~210 archivos `.tsx` (páginas/componentes/`ui/`/templates) solo los ejercitan los E2E → quedan a 0% bajo vitest y contaminan Lines/Statements. Medido (3 projects unit+component+integration, CI con DB): **branches 74.33% · functions 74.30% · lines/statements 49.11%**.
+
+- **Métricas gateadas: SOLO branches + functions, GLOBAL.** Lines/Statements se reportan (html/lcov) pero NO gatean: una página nueva sin unit (cubierta solo por E2E) los bajaría sin ser regresión. branches/functions son robustos a ese ruido y muerden ante regresión de **lógica**. Umbral **72/72** (~2 pts bajo el real, margen anti-flake por el `retry:1` de integration). `thresholds` en `vitest.config.ts`.
+- **Dónde corre:** job dedicado `coverage` en `ci.yml` (`scripts/test-coverage-local.mjs`: start+retry → db reset → `vitest run --coverage --no-file-parallelism` sobre los 3 projects, mismo aislamiento que `integration-tests`, cero secrets de prod). Va al `needs` de `ci-passed` (es gate). El upload del HTML es `continue-on-error` → no tumba el gate. Tradeoff: integration corre una 2ª vez acá (mantiene `integration-tests` como señal pura sin instrumentación v8).
+- **Hardening:** `permissions: contents: read` · 5 actions por SHA · `persist-credentials: false` · `node-version-file: .nvmrc`.
+- Probado **red→green** en CI (umbral 75 / quitar test de lógica → `ci-passed` rojo → revertir → verde).
