@@ -86,3 +86,21 @@ updates:
       - 'area:ci'
     commit-message:
       prefix: 'chore(actions)'
+
+  # === Ecosystem: docker (base image del Dockerfile) ===
+  # T-155 S-4: mantiene `node:<patch>-alpine` de los 3 stages al día (bumps de
+  # patch del runtime Node). Misma cadencia que los otros ecosystems.
+  - package-ecosystem: 'docker'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'Etc/UTC'
+    open-pull-requests-limit: 3
+    labels:
+      - 'dependencies'
+      - 'auto-pr'
+      - 'area:ci'
+    commit-message:
+      prefix: 'chore(docker)'
