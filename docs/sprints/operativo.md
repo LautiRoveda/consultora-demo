@@ -425,4 +425,39 @@ Fase 1 de la auditoría CI/CD. Cierra **V-2**: el ruleset de `main` exige **3 re
 3. Confirmado que `CI passed` corre y es verde, **quitar** `CI` + `Integration (Supabase local)` + `E2E (Supabase local)`, dejando **solo `CI passed`**.
 4. Recién con el ruleset flipeado, actualizar el listado de required en `docs/handoff-orquestador.md` a `CI passed`.
 
-> El merge del PR de T-150 va **primero** (protegido por los 3 viejos); la transición del ruleset va **justo después**. No mergear sin coordinar con el owner.
+> El merge del PR de T-150 va **primero** (protegido por los 3 viejos); la transición del ruleset va **justo después**. No mergear sin coordinar con el owner. **Estado al 2026-06-16: transición del ruleset PENDIENTE** — los 3 required viejos siguen vigentes; T-150 queda 🚧 hasta que el owner flipee el ruleset.
+
+## T-151 ✅ Squawk lint de migraciones en CI (auditoría CI/CD, hallazgo P-1) — EN MAIN
+
+Fase 2 de la auditoría CI/CD. Lint de seguridad de las migraciones SQL **nuevas del PR** (diff vs `origin/main`) con [squawk](https://squawkhq.com): caza migraciones que pueden lockear la tabla (ADD COLUMN con default volátil, índices sin `CONCURRENTLY`, falta de `lock_timeout`, etc.) antes de que lleguen a prod.
+
+- **Job** `migrations-lint` en `.github/workflows/ci.yml`, sumado a `needs` de `ci-passed` (gating real vía el umbrella). Corre `scripts/lint-migrations.mjs` (resuelve el diff de `supabase/migrations/` vs la base, invoca squawk solo sobre lo nuevo). Config en `.squawk.toml` (reglas habilitadas + excludes justificados). Convención (`lock_timeout`/`CONCURRENTLY`) documentada en `supabase/README.md`.
+- Validado red→green (los commits de demo se absorben en el squash; diff neto = solo T-151). Squash `1ce231c`.
+
+## T-154 ✅ Hardening del pipeline: permissions least-privilege + SHA pinning (auditoría CI/CD, hallazgos S-1/S-2) — EN MAIN
+
+Fase 4 de la auditoría CI/CD. Endurece la superficie de los workflows. **Cero cambios funcionales**: los jobs corren igual.
+
+- **S-1 permissions least-privilege** (`ci.yml` + `security.yml`): `permissions:` deny-all a nivel top + `contents: read` por job (solo los que hacen checkout); `ci-passed` queda con `{}` (solo evalúa `needs`).
+- **S-2 SHA pinning**: las 5 actions (`checkout`, `pnpm/action-setup`, `setup-node`, `cache`, `upload-artifact`) pinneadas por **SHA de 40 chars** + comentario `# vX.Y.Z` (defiende contra un tag móvil reapuntado a código malicioso; dependabot github-actions mantiene los SHAs al día → pinear no congela versiones). Gate de completitud: `grep -rnE "@v[0-9]" .github/workflows/` no devuelve ninguna línea `uses:`.
+- Squash `216a601` (#273).
+
+## T-155 ✅ Hardening de higiene: pin Node + dependabot docker + SECURITY.md + zizmor SAST (auditoría CI/CD, hallazgos S-3/S-4) — EN MAIN
+
+Fase 4 de la auditoría CI/CD. Reproducibilidad del runtime + gobernanza + SAST de los workflows.
+
+- **S-3 pin de Node (fuente única)**: `.nvmrc = 22.22.3` (LTS Jod, ≥22.22.1 que exige lint-staged v17) + `package.json engines.node >=22.22.1` + workflows (`ci.yml` x4 + `security.yml` x1) pasan de `node-version: 22` a `node-version-file: .nvmrc` + Dockerfile 3 stages `node:22-alpine → node:22.22.3-alpine`. Cero cambios funcionales.
+- **S-4 gobernanza + SAST**: dependabot ecosystem `docker` nuevo (mantiene `node:<patch>-alpine` de los 3 stages al día, cadencia weekly) + `SECURITY.md` (cómo reportar en privado, alcance app+pipeline+Dockerfile, soporte solo `main`) + job `workflows-sast` (`pipx run zizmor` sobre `.github/workflows/`, sin action third-party nueva; sumado a `needs` de `ci-passed`). Fix de causa raíz del único finding (`artipacked` x5): `persist-credentials: false` en los 6 checkouts (ningún job hace git ops post-checkout) → zizmor pasa de 5 findings a 0 (verde offline + online).
+- Squash `4b34d40` (#274).
+
+## T-149 🔜 Sharding de jobs de CI (auditoría CI/CD, Fase 5)
+
+Paralelizar/shardear los jobs pesados de CI para bajar el wall-clock. **Depende de la transición del ruleset a `CI passed`** (T-150 Fase 2): sin el aggregate gate único, renombrar o shardear un job deadlockea el ruleset (el nombre viejo queda "expected" para siempre).
+
+## T-152 🔜 Lint de migraciones sobre datos / DML (auditoría CI/CD, Fase 2)
+
+Completa la Fase 2: extender el lint de migraciones a las que tocan datos (DML / backfills), no solo DDL estructural. Lo que falta para cerrar la Fase 2 de la auditoría (T-151 cubrió el DDL).
+
+## T-156 🔜 Coverage gate en CI (auditoría CI/CD, Fase 5)
+
+Gate de cobertura en CI (umbral >70%, pirámide 70/20/10 — principio no negociable #4). Hoy la cobertura no se mide en el pipeline.
