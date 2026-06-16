@@ -50,6 +50,13 @@ export default defineConfig({
           // Timeouts generosos por latencia de sa-east-1 + creación de users via auth.admin.
           testTimeout: 30000,
           hookTimeout: 60000,
+          // T-153 · retry acotado SOLO acá: los integration tests tocan una DB real
+          // (latencia, claims JWT, datos compartidos) → un fallo aislado puede ser flake de
+          // infra, no regresión. Un test que pasa al 2º intento sigue marcándose como
+          // "retried" en el reporter → visible, no oculta el flake. unit/component NO heredan
+          // este retry (son projects separados y el config raíz no define `retry`): ahí un
+          // retry escondería bugs reales en código determinístico.
+          retry: 1,
         },
       },
     ],
