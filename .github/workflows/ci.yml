@@ -110,6 +110,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false # T-155 S-4: zizmor artipacked — no persistir el token git (no hay git ops post-checkout)
 
       # IMPORTANTE: pnpm va ANTES que setup-node. setup-node@v5 detecta el
       # packageManager field de package.json e intenta hacer caching automático
@@ -210,6 +212,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false # T-155 S-4: zizmor artipacked — no persistir el token git (no hay git ops post-checkout)
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -307,6 +311,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false # T-155 S-4: zizmor artipacked — no persistir el token git (no hay git ops post-checkout)
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -455,6 +461,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
+          persist-credentials: false # T-155 S-4: zizmor artipacked — verificar en CI que el wrapper SIGA linteando (repo privado: el fallback `git fetch origin main` podría necesitar el token)
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -484,6 +491,29 @@ jobs:
       - name: Lint de migraciones nuevas (squawk)
         run: pnpm lint:migrations
 
+  # T-155 S-4 (auditoría Fase 4): SAST de los propios workflows con zizmor.
+  # Detecta template-injection, permisos excesivos, actions sin pinear, artipacked
+  # (persistencia de credenciales), cache-poisoning, etc. pipx viene preinstalado en
+  # ubuntu-latest → no agrega una action third-party que pinear. zizmor fijado por
+  # versión (1.25.2). Los online audits usan github.token (solo lectura). Gating:
+  # ci-passed lo incluye en `needs` (abajo).
+  workflows-sast:
+    name: Workflows SAST (zizmor)
+    permissions:
+      contents: read # zizmor lee los workflows; online audits via github.token (read)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false # T-155 S-4: zizmor artipacked — no persistir el token git
+
+      - name: zizmor (lint de seguridad de los workflows)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pipx run zizmor==1.25.2 .github/workflows/
+
   # T-150 (auditoría CI/CD, hallazgo V-2): job paraguas. Está pensado para ser el
   # ÚNICO required check del ruleset de `main` (la transición la hace el owner
   # post-merge, ver docs/sprints/operativo.md T-150). Depende de los jobs reales;
@@ -492,7 +522,7 @@ jobs:
     name: CI passed
     permissions: {} # T-154 S-1: no hace checkout, solo evalúa needs.* → deny-all
     if: always() # corre aunque un upstream falle/cancele, para poder pintarse rojo
-    needs: [ci, integration-tests, e2e-tests, migrations-lint]
+    needs: [ci, integration-tests, e2e-tests, migrations-lint, workflows-sast]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
