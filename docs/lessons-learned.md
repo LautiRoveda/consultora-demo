@@ -220,6 +220,26 @@ Un `revalidatePath` en vuelo (de un save/foto previo del mismo test) re-renderiz
 
 El orquestador E2E forwardea `argv`; `pnpm test:e2e:local -- --grep <x>` leakea el `--` a Playwright, que lo lee como filtro de archivos → "No tests found". Invocá el node script directo (`node scripts/test-e2e-local.mjs <args>`). Bonus: `--retries=0` por CLI pisa el `retries:2` del config (útil para demostrar un flake red→green sin que los retries lo escondan).
 
+## Estrategia de flaky tests (T-153)
+
+### Retry acotado del `supabase start` (flake del 502 del edge-runtime)
+
+**Origen**: T-153. **Aplicable a**: cualquier orquestador que levante el stack Supabase local en CI.
+
+El `supabase start` SALE CON ERROR (exit code ≠ 0) cuando el container edge-runtime devuelve 502 durante el arranque → la suite no corre y antes se rescataba con re-run manual (que entrena a ignorar rojos). La superficie de retry es el **exit code de `supabase start`**, no un health check aparte: el CLI ya verifica la salud de los containers y falla el comando. Helper único `scripts/supabase-start-retry.mjs` (`startSupabaseWithRetry`, comandos inyectables → testeable sin Docker), reusado en los **3 sitios** donde se levanta el stack (los 2 scripts orquestadores + `ci.yml` job Integration, que tiene su `supabase start` real inline en el paso de drift de tipos, ANTES del script). Retry **acotado** (3 intentos, backoff), nunca infinito. **`supabase stop --no-backup` entre intentos**: un start parcial deja containers a medias que un re-`start` "idempotente" no repara (reporta "already running" sin sanar el edge-runtime). El 502 es intermitente → no hay demo red→green natural; la validación es el **unit test del wrapper** (mock que falla N veces → verifica reintentos acotados + propagación del éxito y del fallo final sin colgar), no "lo agregué".
+
+### Retry de tests: SOLO donde el flake es de infra, NUNCA en código determinístico
+
+**Origen**: T-153.
+
+`retry: 1` en el project `integration` de vitest (tocan una DB real: latencia, claims JWT, datos compartidos → un fallo aislado puede ser flake de infra). Unit/component NO heredan el retry (projects separados; el config raíz no define `retry`) — ahí un retry escondería bugs reales en código determinístico. El retry es **visible**: un test que pasa al 2º intento se marca "retried" en el reporter, no se oculta. Mismo principio en Playwright (`retries: isCI ? 2 : 0`).
+
+### Quarantine `@flaky`: cuándo armarlo (criterio, no andamiaje preventivo)
+
+**Origen**: T-153 (decisión: DIFERIDO).
+
+NO implementar el mecanismo de quarantine sin un flaky activo que aislar — es código muerto (al cerrar T-153 no había ninguno: T-132 cerró el de checklists-ejecuciones). Se arma **cuando aparezca un flaky que convenga aislar en vez de arreglar en el momento** (infra de terceros, no determinismo que requiere investigación). Forma: tag `@flaky` en el test + job principal `playwright test --grep-invert @flaky` (bloquea el merge) + job secundario `--grep @flaky` con `continue-on-error: true` (reporta, no gatea). Aislar ≠ ignorar: el job secundario lo mantiene visible mientras se investiga.
+
 ## Server actions
 
 ### Discriminated union return — NUNCA throw

@@ -246,6 +246,9 @@ jobs:
       # el stack + reseteamos nosotros (idempotente: el test:integration de abajo
       # repite start/reset sin efecto). Va temprano: post-reset, antes de que los
       # tests muten datos (el schema no cambia con los inserts, pero por prolijidad).
+      # T-153 · Éste es el ÚNICO `supabase start` real del job (el del script de abajo es
+      # no-op idempotente). Lo corremos vía scripts/supabase-start-retry.mjs para que el flake
+      # del 502 del edge-runtime no mate el job (antes se rescataba con re-run manual).
       # `git diff --exit-code` es read-only en CI: NO commitea, solo falla
       # (mostrando el diff) si el generado difiere del committeado → hay que
       # correr `pnpm db:types` y commitear.
@@ -255,13 +258,13 @@ jobs:
       # dos lados → idempotentes entre sí pese al skew PostgREST prod 14.5 ↔ local 14.x.
       - name: types.ts sin drift (db:types gate)
         run: |
-          pnpm exec supabase start
+          node scripts/supabase-start-retry.mjs
           pnpm exec supabase db reset
           node scripts/gen-types.mjs --local
           git diff --exit-code src/shared/supabase/types.ts
 
       # `pnpm test:integration` = scripts/test-integration-local.mjs:
-      #   supabase start (Docker local) -> db reset -> status -o env -> vitest.
+      #   supabase start (con retry T-153) -> db reset -> status -o env -> vitest.
       # El supabase CLI viene del devDep (pnpm exec), misma versión que local.
       # Falla el job si la suite falla (el script propaga el exit code).
       - name: Integration tests (Supabase local efímero)
@@ -384,7 +387,7 @@ jobs:
           echo "CHROMIUM_PATH=$CHROMIUM_PATH"
 
       # `pnpm test:e2e:local` = scripts/test-e2e-local.mjs:
-      #   supabase start (Docker local) -> db reset -> status -o env -> playwright.
+      #   supabase start (con retry T-153) -> db reset -> status -o env -> playwright.
       # El webServer (CI) buildea+corre la app heredando las 3 keys LOCALES, así que el
       # build SERVIDO (.next/server) queda horneado apuntando a 127.0.0.1:54321 (lo
       # verifica el gate de abajo). NUNCA usa --linked → imposible tocar prod. Falla el
