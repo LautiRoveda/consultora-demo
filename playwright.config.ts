@@ -8,7 +8,10 @@ export default defineConfig({
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
   workers: isCI ? 1 : undefined,
-  reporter: isCI ? [['list'], ['html', { open: 'never' }]] : [['list'], ['html']],
+  // T-149: en CI cada shard emite un reporte `blob`; el job `e2e-report-merge`
+  // los consolida en un HTML único con `playwright merge-reports`. En local, html
+  // directo. El blob escribe `blob-report/report-<shard>.zip` auto-nombrado.
+  reporter: isCI ? [['list'], ['blob']] : [['list'], ['html']],
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
