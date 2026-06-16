@@ -11,9 +11,16 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# T-154 S-1: least-privilege del GITHUB_TOKEN. Deny-all a nivel top — cada job
+# declara abajo el mínimo que necesita (los jobs con checkout: contents: read;
+# ci-passed: nada). Un step comprometido no puede escribir en el repo.
+permissions: {}
+
 jobs:
   ci:
     name: CI
+    permissions:
+      contents: read # T-154 S-1: solo lo que exige actions/checkout
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # T-112: el job `ci` ya NO corre E2E (se mudaron al job `e2e-tests` aislado),
@@ -177,6 +184,8 @@ jobs:
   # Supabase es local. NUNCA toca la prod-linked DB (el script no usa --linked).
   integration-tests:
     name: Integration (Supabase local)
+    permissions:
+      contents: read # T-154 S-1: solo lo que exige actions/checkout
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -265,6 +274,11 @@ jobs:
   # flakiness inicial se resolvió (T-113d) → promovido a required.
   e2e-tests:
     name: E2E (Supabase local)
+    # T-154 S-1: contents: read alcanza. upload-artifact (abajo, if: failure) sube
+    # vía el Artifact Service con ACTIONS_RUNTIME_TOKEN, NO el GITHUB_TOKEN → no
+    # requiere actions: write ni otro permiso de repo.
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -432,6 +446,8 @@ jobs:
   # el merge-base (el checkout default es shallow depth=1 y rompería el diff).
   migrations-lint:
     name: Migrations lint (squawk)
+    permissions:
+      contents: read # T-154 S-1: solo lo que exige actions/checkout
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -474,6 +490,7 @@ jobs:
   # renombrar / shardear / agregar jobs detrás de él NO requiere tocar el ruleset.
   ci-passed:
     name: CI passed
+    permissions: {} # T-154 S-1: no hace checkout, solo evalúa needs.* → deny-all
     if: always() # corre aunque un upstream falle/cancele, para poder pintarse rojo
     needs: [ci, integration-tests, e2e-tests, migrations-lint]
     runs-on: ubuntu-latest

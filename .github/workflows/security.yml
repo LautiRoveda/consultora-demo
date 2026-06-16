@@ -29,9 +29,15 @@ concurrency:
   group: security-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# T-154 S-1: least-privilege del GITHUB_TOKEN. Deny-all a nivel top — el job
+# audit declara abajo el mínimo (contents: read para actions/checkout).
+permissions: {}
+
 jobs:
   audit:
     name: pnpm audit
+    permissions:
+      contents: read # T-154 S-1: solo lo que exige actions/checkout
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
