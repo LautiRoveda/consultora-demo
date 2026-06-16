@@ -31,7 +31,7 @@ export default defineConfig({
       // Aplica solo cuando corre con --coverage (el coverage job de ci.yml vía
       // scripts/test-coverage-local.mjs); `pnpm test` (unit+comp) no lo dispara.
       thresholds: {
-        branches: 72,
+        branches: 75,
         functions: 72,
       },
     },
