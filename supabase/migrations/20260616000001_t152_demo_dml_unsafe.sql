@@ -6,4 +6,4 @@
 set statement_timeout = '60s';
 set lock_timeout = '10s';
 
-update public.consultoras set name = name;
+update public.consultoras set name = name where id is not null;
