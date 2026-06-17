@@ -240,6 +240,26 @@ El `supabase start` SALE CON ERROR (exit code ≠ 0) cuando el container edge-ru
 
 NO implementar el mecanismo de quarantine sin un flaky activo que aislar — es código muerto (al cerrar T-153 no había ninguno: T-132 cerró el de checklists-ejecuciones). Se arma **cuando aparezca un flaky que convenga aislar en vez de arreglar en el momento** (infra de terceros, no determinismo que requiere investigación). Forma: tag `@flaky` en el test + job principal `playwright test --grep-invert @flaky` (bloquea el merge) + job secundario `--grep @flaky` con `continue-on-error: true` (reporta, no gatea). Aislar ≠ ignorar: el job secundario lo mantiene visible mientras se investiga.
 
+## CI/CD pipeline
+
+### Coverage v8 mide solo los archivos cargados en la corrida
+
+**Origen**: T-156.
+
+v8 cuenta branches/functions SOLO de los archivos que se cargan en la corrida → el coverage gate es estable únicamente si corren los **3 projects completos** (unit+component+integration). Medir con la suite que va a gatear, no con un subset, o el umbral baila.
+
+### Aggregate gate único desacopla los nombres de los jobs del ruleset
+
+**Origen**: T-150.
+
+Un único required (`CI passed`) que cuelga de los jobs reales vía `needs` desacopla los nombres de los jobs del branch protection → shardear / renombrar / agregar jobs ya no toca el ruleset (que de otro modo deja el nombre viejo "expected" para siempre y deadlockea el merge).
+
+### El sharding rinde solo si los tests dominan el wall-clock
+
+**Origen**: T-149.
+
+Con setup fijo grande (un `supabase start` + build por shard), la ganancia del sharding es decreciente — el setup se paga N veces. Medir el desglose por step antes de shardear: si el setup, no los tests, domina el wall-clock, shardear suma costo sin bajar el tiempo.
+
 ## Server actions
 
 ### Discriminated union return — NUNCA throw

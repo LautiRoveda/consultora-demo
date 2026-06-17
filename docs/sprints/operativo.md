@@ -407,25 +407,25 @@ Cuando el dolor aparezca (ya contemplados en ADR-0016 / decisiones del modelo):
 - **Re-presentar el mismo período** (corrección de una DJ ya presentada) — hoy el unique `(consultora, cliente, periodo)` lo bloquea con `DUPLICATE`.
 - **Persistir el PDF histórico en Storage** (hoy se regenera del snapshot on-the-fly) — solo si un requisito legal exige el byte-exacto del documento presentado.
 
-## T-150 🚧 Aggregate gate job `ci-passed` + transición del ruleset (auditoría CI/CD, hallazgo V-2)
+## T-150 ✅ Aggregate gate job `ci-passed` + transición del ruleset (auditoría CI/CD, hallazgo V-2) — EN MAIN
 
-Fase 1 de la auditoría CI/CD. Cierra **V-2**: el ruleset de `main` exige **3 required checks por nombre** (`CI` + `Integration (Supabase local)` + `E2E (Supabase local)`), lo que es frágil: renombrar o **shardear** un job (T-149, posterior) deja el nombre viejo "expected" para siempre → **deadlock del ruleset** (ningún PR mergea). T-150 es el prerrequisito no-deadlock de T-149.
+Fase 1 de la auditoría CI/CD — **CERRADA** (job en `main` + transición del ruleset ejecutada por el owner). Cierra **V-2**: el ruleset de `main` exigía **3 required checks por nombre** (`CI` + `Integration (Supabase local)` + `E2E (Supabase local)`), lo que era frágil: renombrar o **shardear** un job (T-149) dejaba el nombre viejo "expected" para siempre → **deadlock del ruleset** (ningún PR mergea). T-150 fue el prerrequisito no-deadlock de T-149.
 
 - **Qué**: un job paraguas `ci-passed` (display name **`CI passed`**) en `.github/workflows/ci.yml`, `if: always()` + `needs: [ci, integration-tests, e2e-tests]`. El step lee `RESULTS` (= `join(needs.*.result, ',')`) **vía `env:`** (anti script-injection) y falla si **cualquier** resultado `!= success` (cubre `failure`/`cancelled`/`skipped`/estados futuros — más estricto que grepear un set fijo de estados malos). Sin `permissions:` (hardening = T-154).
 - **Restricción dura respetada**: los 3 jobs reales quedan **intactos** (cero renombre/shardeo/cambio de steps); solo se agregó el job nuevo. Cero cambios a tests.
-- **Orden no-deadlock**: T-150 SOLO agrega `ci-passed`. Durante el merge, los **3 viejos siguen siendo los required** (el PR mergea con ellos). La migración del ruleset al único required `CI passed` la ejecuta el **owner post-merge** (Fase 2, abajo).
-- **Demo red→green** (obligatoria, validación real del gate): en la branch, step temporal `run: exit 1` en `ci` → push → `CI passed` queda **rojo** (`::error::Algún job requerido no pasó`); revertir → push → 3 jobs verdes + `CI passed` **verde** (`✅ Todos los jobs requeridos en verde.`).
+- **Orden no-deadlock**: T-150 SOLO agregó `ci-passed`. El PR mergeó protegido por los 3 viejos; la migración del ruleset al único required `CI passed` la ejecutó el **owner post-merge** (Fase 2, abajo).
+- **Demo red→green** (obligatoria, validación real del gate): en la branch, step temporal `run: exit 1` en `ci` → push → `CI passed` queda **rojo** (`::error::Algún job requerido no pasó`); revertir → push → jobs verdes + `CI passed` **verde** (`✅ Todos los jobs requeridos en verde.`).
 
-### Fase 2 — transición del ruleset (la ejecuta el OWNER, post-merge)
+### Fase 2 — transición del ruleset (HECHA por el owner, post-merge) ✅
 
-`main` está protegida por un **Ruleset** (no classic protection). Pasos staged sin deadlock:
+`main` está protegida por un **Ruleset** (no classic protection). Pasos staged que se ejecutaron sin deadlock:
 
 1. Ver el ruleset: `gh api repos/<owner>/<repo>/rulesets` → id del ruleset de `main`; detalle con `gh api repos/<owner>/<repo>/rulesets/<id>`.
 2. **Agregar** `CI passed` a `required_status_checks` **dejando los 3 viejos** (4 required temporales). Esperar a que un PR muestre los 4 checks corriendo.
 3. Confirmado que `CI passed` corre y es verde, **quitar** `CI` + `Integration (Supabase local)` + `E2E (Supabase local)`, dejando **solo `CI passed`**.
-4. Recién con el ruleset flipeado, actualizar el listado de required en `docs/handoff-orquestador.md` a `CI passed`.
+4. Con el ruleset flipeado, actualizar el listado de required en `docs/handoff-orquestador.md` a `CI passed`.
 
-> El merge del PR de T-150 va **primero** (protegido por los 3 viejos); la transición del ruleset va **justo después**. No mergear sin coordinar con el owner. **Estado al 2026-06-16: transición del ruleset PENDIENTE** — los 3 required viejos siguen vigentes; T-150 queda 🚧 hasta que el owner flipee el ruleset.
+> **Estado: CERRADO.** El owner ya migró el ruleset → **`CI passed` es el único required**; los 3 viejos (`CI` / `Integration (Supabase local)` / `E2E (Supabase local)`) **ya NO son required** (siguen corriendo como jobs, ahora colgados de `ci-passed` vía `needs`). Renombrar / shardear / agregar jobs detrás del umbrella ya no toca branch protection. Fase 1 ✅.
 
 ## T-151 ✅ Squawk lint de migraciones en CI (auditoría CI/CD, hallazgo P-1) — EN MAIN
 
@@ -450,15 +450,23 @@ Fase 4 de la auditoría CI/CD. Reproducibilidad del runtime + gobernanza + SAST 
 - **S-4 gobernanza + SAST**: dependabot ecosystem `docker` nuevo (mantiene `node:<patch>-alpine` de los 3 stages al día, cadencia weekly) + `SECURITY.md` (cómo reportar en privado, alcance app+pipeline+Dockerfile, soporte solo `main`) + job `workflows-sast` (`pipx run zizmor` sobre `.github/workflows/`, sin action third-party nueva; sumado a `needs` de `ci-passed`). Fix de causa raíz del único finding (`artipacked` x5): `persist-credentials: false` en los 6 checkouts (ningún job hace git ops post-checkout) → zizmor pasa de 5 findings a 0 (verde offline + online).
 - Squash `4b34d40` (#274).
 
-## T-149 🔜 Sharding de jobs de CI (auditoría CI/CD, Fase 5)
+## T-149 ✅ Sharding de jobs de CI (auditoría CI/CD, Fase 5) — EN MAIN
 
-Paralelizar/shardear los jobs pesados de CI para bajar el wall-clock. **Depende de la transición del ruleset a `CI passed`** (T-150 Fase 2): sin el aggregate gate único, renombrar o shardear un job deadlockea el ruleset (el nombre viejo queda "expected" para siempre).
+Paralelizó/shardeó los jobs pesados de CI para bajar el wall-clock, habilitado por el aggregate gate único de T-150 (sin él, renombrar/shardear un job deadlockea el ruleset). Squash `58d5308` (#278).
 
-## T-152 🔜 Lint de migraciones sobre datos / DML (auditoría CI/CD, Fase 2)
+- **E2E matrix en 3 shards** (`strategy.matrix.shard: [1, 2, 3]` en `e2e-tests`, `fail-fast: false`): cada shard levanta su PROPIO Supabase efímero y corre `node scripts/test-e2e-local.mjs --shard=i/3` (invocación DIRECTA, no `pnpm … --`, para que el `--shard` llegue al argv y no lo coma el `--`). Reparto por suma de tests (fullyParallel) → ~34 tests/shard; wall-clock del E2E ~5m52s. `ci-passed` espera las 3 instancias vía un único item en `needs` (verde solo si las 3 pasan).
+- **`types-gate` como job propio**: se extrajo de `integration-tests` el gate de drift de `db:types` (vivía ahí cargando un `supabase start` + `db reset` ~150s para ~5s de trabajo real). Ahora corre en paralelo, sumado al `needs` de `ci-passed`; `integration-tests` queda solo con su suite.
+- **`e2e-report-merge`**: cada shard sube su `blob-report/`; este job los junta en un HTML único (`playwright merge-reports`). Reporter `blob` en CI. **NO** está en el `needs` de `ci-passed` (es reporte, no gate → un merge de reporte rojo no debe bloquear el PR).
 
-Completa la Fase 2: extender el lint de migraciones a las que tocan datos (DML / backfills), no solo DDL estructural. Lo que falta para cerrar la Fase 2 de la auditoría (T-151 cubrió el DDL).
+## T-152 ✅ Lint de migraciones sobre datos / DML (auditoría CI/CD, Fase 2) — EN MAIN
 
-## T-156 ✅ Coverage gate en CI (auditoría CI/CD, Fase 5)
+Completa la **Fase 2** (junto con T-151 que cubrió el DDL): extiende el lint de migraciones a las que tocan datos (DML / backfills), no solo DDL estructural. Squash `932c033` (#280).
+
+- **`scripts/lib/dml-lint.mjs`** — heurístico con **3 reglas**: `UPDATE`/`DELETE` sin `WHERE` + `TRUNCATE`. Preprocesamiento que blanquea comentarios / strings / cuerpos de función (evita FP por SQL embebido), con KEEP de los `DO` blocks (esos sí se analizan).
+- **2.º pass en `scripts/lint-migrations.mjs`**: corre después del squawk (DDL) sobre las mismas migraciones nuevas del PR. Pragma de escape `-- lint:dml-allow` para los casos legítimos.
+- **0 falsos positivos** sobre las 63 migraciones históricas (validado).
+
+## T-156 ✅ Coverage gate en CI (auditoría CI/CD, Fase 5) — EN MAIN (#279)
 
 Gate de cobertura en CI. **Anti-REGRESIÓN, NO aspiracional** — corrige el target original ">70% / pirámide 70/20/10": ese número no aplica a la cobertura v8, que **no captura los E2E** (Playwright). ~210 archivos `.tsx` (páginas/componentes/`ui/`/templates) solo los ejercitan los E2E → quedan a 0% bajo vitest y contaminan Lines/Statements. Medido (3 projects unit+component+integration, CI con DB): **branches 74.33% · functions 74.30% · lines/statements 49.11%**.
 
