@@ -386,6 +386,31 @@ describe('archiveAgenteAction + restoreAgenteAction', () => {
   });
 });
 
+describe('aislamiento cross-tenant: update/archive/restore de agente ajeno (B-1)', () => {
+  // Regression guard del aislamiento cross-tenant de las 3 actions de catálogo.
+  // HOY ya da NOT_FOUND por la RLS de rar_agentes; el `.eq('consultora_id', ...)`
+  // agregado en T-157 es la 2da barrera (defense-in-depth). Este test NO es un
+  // red→green del `.eq` — cazaría una *regresión futura de la RLS*, no el `.eq`.
+  // `agenteBId` (consultora B) no se muta: las 3 cortan en NOT_FOUND.
+  it('owner A operando sobre agenteB → NOT_FOUND en las 3', async () => {
+    await signInAs(emailOwnerA);
+    const { updateAgenteAction, archiveAgenteAction, restoreAgenteAction } =
+      await import('@/app/(app)/rar/actions');
+
+    const upd = await updateAgenteAction(agenteBId, { nombre: `Hijack ${runId}` });
+    expect(upd.ok).toBe(false);
+    if (!upd.ok) expect(upd.code).toBe('NOT_FOUND');
+
+    const arch = await archiveAgenteAction(agenteBId);
+    expect(arch.ok).toBe(false);
+    if (!arch.ok) expect(arch.code).toBe('NOT_FOUND');
+
+    const rest = await restoreAgenteAction(agenteBId);
+    expect(rest.ok).toBe(false);
+    if (!rest.ok) expect(rest.code).toBe('NOT_FOUND');
+  });
+});
+
 describe('seedDefaultCatalogAction', () => {
   it('consultora vacía → siembra AGENTES_658_DEFAULT.length; re-invocar → 0 (idempotente)', async () => {
     await signInAs(emailOwnerSeed);

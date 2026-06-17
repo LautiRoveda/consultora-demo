@@ -275,6 +275,7 @@ export async function updateAgenteAction(id: unknown, patch: unknown): Promise<U
     .from('rar_agentes')
     .select('id')
     .eq('id', idParsed.data)
+    .eq('consultora_id', auth.ctx.consultoraId)
     .maybeSingle();
   if (!existing) {
     return { ok: false, code: 'NOT_FOUND', message: 'Agente no encontrado.' };
@@ -285,6 +286,7 @@ export async function updateAgenteAction(id: unknown, patch: unknown): Promise<U
     .from('rar_agentes')
     .update(update)
     .eq('id', idParsed.data)
+    .eq('consultora_id', auth.ctx.consultoraId)
     .select('id')
     .single();
 
@@ -328,6 +330,7 @@ export async function archiveAgenteAction(id: unknown): Promise<ArchiveResult> {
     .from('rar_agentes')
     .select('id, archived_at')
     .eq('id', idParsed.data)
+    .eq('consultora_id', auth.ctx.consultoraId)
     .maybeSingle();
   if (!existing) {
     return { ok: false, code: 'NOT_FOUND', message: 'Agente no encontrado.' };
@@ -340,6 +343,7 @@ export async function archiveAgenteAction(id: unknown): Promise<ArchiveResult> {
     .from('rar_agentes')
     .update({ archived_at: new Date().toISOString() })
     .eq('id', idParsed.data)
+    .eq('consultora_id', auth.ctx.consultoraId)
     .select('id')
     .single();
 
@@ -379,6 +383,7 @@ export async function restoreAgenteAction(id: unknown): Promise<RestoreResult> {
     .from('rar_agentes')
     .select('id, archived_at')
     .eq('id', idParsed.data)
+    .eq('consultora_id', auth.ctx.consultoraId)
     .maybeSingle();
   if (!existing) {
     return { ok: false, code: 'NOT_FOUND', message: 'Agente no encontrado.' };
@@ -391,6 +396,7 @@ export async function restoreAgenteAction(id: unknown): Promise<RestoreResult> {
     .from('rar_agentes')
     .update({ archived_at: null })
     .eq('id', idParsed.data)
+    .eq('consultora_id', auth.ctx.consultoraId)
     .select('id')
     .single();
 
