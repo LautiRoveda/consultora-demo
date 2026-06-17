@@ -13,8 +13,10 @@
 // La config de las reglas vive en .squawk.toml (raíz del repo); squawk la levanta
 // automáticamente desde el cwd.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+
+import { findViolations } from './lib/dml-lint.mjs';
 
 const IS_WIN = process.platform === 'win32';
 const MIGRATIONS_GLOB = 'supabase/migrations/*.sql';
@@ -126,7 +128,7 @@ if (files.length === 0) {
 log(`Linteando ${files.length} migración(es) nueva(s) vs ${base}:`);
 files.forEach((f) => log(`  - ${f}`));
 
-// 4. squawk vía pnpm exec (devDep, binario nativo). Levanta .squawk.toml del cwd.
+// 4a. squawk vía pnpm exec (devDep, binario nativo). Levanta .squawk.toml del cwd.
 const r = spawnSync('pnpm', ['exec', 'squawk', ...files], {
   stdio: 'inherit',
   shell: IS_WIN,
@@ -136,4 +138,29 @@ if (r.error) {
   console.error(`\n[lint:migrations] No pude invocar squawk: ${r.error.message}`);
   process.exit(1);
 }
-process.exit(r.status ?? 1); // propaga el exit code de squawk (>0 = violaciones)
+const squawkStatus = r.status ?? 1; // >0 = violaciones DDL
+
+// 4b. Pass heurístico de DML peligroso (T-152) sobre los MISMOS archivos: squawk es
+// DDL-céntrico y no ve UPDATE/DELETE sin WHERE ni TRUNCATE. Best-effort (ver
+// scripts/lib/dml-lint.mjs). Corre SIEMPRE (aunque squawk haya fallado) para dar el
+// feedback completo en una sola corrida.
+log('Chequeo heurístico de DML peligroso (UPDATE/DELETE sin WHERE, TRUNCATE)...');
+let dmlCount = 0;
+for (const abs of files) {
+  const violations = findViolations(readFileSync(abs, 'utf8'));
+  dmlCount += violations.length;
+  violations.forEach((v) =>
+    console.error(`[lint:migrations][dml] ${abs}:${v.line}  [${v.rule}]  ${v.snippet}`),
+  );
+}
+if (dmlCount > 0) {
+  console.error(
+    `\n[lint:migrations] ${dmlCount} violación(es) DML peligroso. Si es intencional y ` +
+      'seguro, agregá el pragma `-- lint:dml-allow <regla> — <motivo>` en la sentencia.',
+  );
+} else {
+  log('Sin DML peligroso detectado (verde).');
+}
+
+// El job migrations-lint falla si CUALQUIERA de los dos pasos disparó.
+process.exit(squawkStatus !== 0 || dmlCount > 0 ? 1 : 0);
