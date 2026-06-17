@@ -1,12 +1,11 @@
 'use server';
 
-import type { BillingGateReason } from '@/shared/billing/access';
+import type { AccessFailure } from '@/shared/auth/with-billing';
 import type { Database } from '@/shared/supabase/types';
 import { revalidatePath } from 'next/cache';
 
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
-import { requireBillingAccess } from '@/shared/billing/access';
-import { getGateMessage } from '@/shared/billing/messages';
+import { requireMemberWithBilling } from '@/shared/auth/with-billing';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
 import { normalizeCuit } from '@/shared/templates/common/cuit';
@@ -36,11 +35,7 @@ export type CreateEmpleadoResult =
       fieldErrors: Record<string, string[]>;
       message: string;
     }
-  | {
-      ok: false;
-      code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'INTERNAL_ERROR';
-      message: string;
-    }
+  | { ok: false; code: 'INTERNAL_ERROR'; message: string }
   | {
       ok: false;
       code: 'CLIENTE_NOT_FOUND_OR_FORBIDDEN';
@@ -59,12 +54,9 @@ export type CreateEmpleadoResult =
       fieldErrors: { puesto_id: string[] };
       message: string;
     }
-  | {
-      ok: false;
-      code: 'BILLING_GATED';
-      reason: BillingGateReason;
-      message: string;
-    };
+  // T-115: AccessFailure cubre UNAUTHENTICATED | NO_CONSULTORA | FORBIDDEN_NOT_OWNER
+  // | INTERNAL_ERROR | BILLING_GATED.
+  | AccessFailure;
 
 export type UpdateEmpleadoResult =
   | { ok: true; empleadoId: string; puestoWarning?: true }
@@ -165,41 +157,11 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return {
-      ok: false,
-      code: 'UNAUTHENTICATED',
-      message: 'Necesitás iniciar sesión.',
-    };
-  }
-
-  const consultora = await getCurrentConsultora(supabase, user.id);
-  if (!consultora) {
-    logger.warn({ userId: user.id }, 'createEmpleadoAction: user without consultora membership');
-    return {
-      ok: false,
-      code: 'NO_CONSULTORA',
-      message: 'No tenés una consultora asociada.',
-    };
-  }
-
-  // T-073 · Trial gate.
-  const billing = await requireBillingAccess(supabase, consultora);
-  if (!billing.ok) {
-    logger.info(
-      { userId: user.id, consultoraId: consultora.id, reason: billing.reason },
-      'createEmpleadoAction: billing gated',
-    );
-    return {
-      ok: false,
-      code: 'BILLING_GATED',
-      reason: billing.reason,
-      message: getGateMessage(billing.reason),
-    };
-  }
+  // T-073 · Trial gate (member gate). T-115: `requireMemberWithBilling` envuelve el
+  // billing en try/catch → INTERNAL_ERROR de dominio, no un reject sin manejar.
+  const access = await requireMemberWithBilling(supabase);
+  if (!access.ok) return access;
+  const { userId, consultora } = access.ctx;
 
   // Cross-tenant defense (lesson T-050): FK constraint valida existencia pero
   // NO respeta RLS — atacante podría INSERT con cliente_id de otro tenant.
@@ -211,7 +173,7 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
     .maybeSingle();
   if (!cliente) {
     logger.warn(
-      { userId: user.id, consultoraId: consultora.id, clienteId: parsed.data.cliente_id },
+      { userId, consultoraId: consultora.id, clienteId: parsed.data.cliente_id },
       'createEmpleadoAction: cliente_id not found or cross-tenant',
     );
     return {
@@ -249,7 +211,7 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
       dni: normalizedDni,
       ...(normalizedCuil !== undefined ? { cuil: normalizedCuil } : {}),
       consultora_id: consultora.id,
-      created_by: user.id,
+      created_by: userId,
     })
     .select('id')
     .single();
@@ -265,7 +227,7 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
 
   if (error?.code === RLS_VIOLATION_CODE) {
     logger.warn(
-      { userId: user.id, consultoraId: consultora.id, err: error.message },
+      { userId, consultoraId: consultora.id, err: error.message },
       'createEmpleadoAction: RLS rejected insert (drift — any-member gate expected)',
     );
     return {
@@ -277,7 +239,7 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
 
   if (error?.code === CHECK_VIOLATION_CODE) {
     logger.warn(
-      { userId: user.id, consultoraId: consultora.id, err: error.message },
+      { userId, consultoraId: consultora.id, err: error.message },
       'createEmpleadoAction: SQL CHECK violation (drift Zod-vs-SQL)',
     );
     return {
@@ -289,7 +251,7 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
 
   if (error || !data) {
     logger.error(
-      { err: error, userId: user.id, consultoraId: consultora.id },
+      { err: error, userId, consultoraId: consultora.id },
       'createEmpleadoAction: insert failed',
     );
     return {
@@ -310,13 +272,13 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
       empleado_id: data.id,
       puesto_id,
       consultora_id: consultora.id,
-      asignado_por: user.id,
+      asignado_por: userId,
     });
     if (joinError && joinError.code !== UNIQUE_VIOLATION_CODE) {
       logger.error(
         {
           err: joinError,
-          userId: user.id,
+          userId,
           consultoraId: consultora.id,
           empleadoId: data.id,
           puesto_id,
@@ -332,7 +294,7 @@ export async function createEmpleadoAction(input: unknown): Promise<CreateEmplea
   logger.info(
     {
       empleadoId: data.id,
-      userId: user.id,
+      userId,
       consultoraId: consultora.id,
       clienteId: parsed.data.cliente_id,
       action: 'create_empleado',

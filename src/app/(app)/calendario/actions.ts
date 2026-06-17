@@ -1,12 +1,11 @@
 'use server';
 
-import type { BillingGateReason } from '@/shared/billing/access';
+import type { AccessFailure } from '@/shared/auth/with-billing';
 import type { Database, Json } from '@/shared/supabase/types';
 import { revalidatePath } from 'next/cache';
 
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
-import { requireBillingAccess } from '@/shared/billing/access';
-import { getGateMessage } from '@/shared/billing/messages';
+import { requireMemberWithBilling } from '@/shared/auth/with-billing';
 import {
   addRecurrenceMonths,
   computeReminderRows,
@@ -72,15 +71,12 @@ export type CreateEventResult =
   | { ok: false; code: 'INVALID_INPUT'; fieldErrors: Record<string, string[]>; message: string }
   | {
       ok: false;
-      code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'FORBIDDEN' | 'INTERNAL_ERROR';
+      code: 'FORBIDDEN' | 'INTERNAL_ERROR';
       message: string;
     }
-  | {
-      ok: false;
-      code: 'BILLING_GATED';
-      reason: BillingGateReason;
-      message: string;
-    };
+  // T-115: AccessFailure cubre UNAUTHENTICATED | NO_CONSULTORA | FORBIDDEN_NOT_OWNER
+  // | INTERNAL_ERROR | BILLING_GATED.
+  | AccessFailure;
 
 export async function createCalendarEventAction(input: unknown): Promise<CreateEventResult> {
   const parsed = createCalendarEventSchema.safeParse(input);
@@ -94,38 +90,13 @@ export async function createCalendarEventAction(input: unknown): Promise<CreateE
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false, code: 'UNAUTHENTICATED', message: 'Iniciá sesión.' };
-  }
-
-  const consultora = await getCurrentConsultora(supabase, user.id);
-  if (!consultora) {
-    return {
-      ok: false,
-      code: 'NO_CONSULTORA',
-      message: 'Tu cuenta no tiene una consultora vinculada.',
-    };
-  }
-
-  // T-073 · Trial gate. Si el silent path de publishInformeAction (T-036) llama
-  // a este action con trial vencido, queda gated — el publish primario igual
-  // pasa (UPDATE no se bloquea) y el silent path se logea como fallido.
-  const billing = await requireBillingAccess(supabase, consultora);
-  if (!billing.ok) {
-    logger.info(
-      { userId: user.id, consultoraId: consultora.id, reason: billing.reason },
-      'createCalendarEventAction: billing gated',
-    );
-    return {
-      ok: false,
-      code: 'BILLING_GATED',
-      reason: billing.reason,
-      message: getGateMessage(billing.reason),
-    };
-  }
+  // T-073 · Trial gate (member gate). T-115: `requireMemberWithBilling` envuelve el
+  // billing en try/catch → INTERNAL_ERROR de dominio, no un reject sin manejar. Si
+  // el silent path de publishInformeAction (T-036) llama con trial vencido, queda
+  // gated — el publish primario igual pasa (UPDATE no se bloquea).
+  const access = await requireMemberWithBilling(supabase);
+  if (!access.ok) return access;
+  const { userId, consultora } = access.ctx;
 
   const offsets = parsed.data.reminder_offsets_days ?? [
     ...DEFAULT_REMINDER_OFFSETS_BY_TYPE[parsed.data.tipo],
@@ -143,7 +114,7 @@ export async function createCalendarEventAction(input: unknown): Promise<CreateE
       recurrence_months: parsed.data.recurrence_months ?? null,
       metadata: (parsed.data.metadata ?? null) as Json | null,
       reminder_offsets_days: [...offsets],
-      created_by: user.id,
+      created_by: userId,
     })
     .select('id')
     .single();
@@ -152,7 +123,7 @@ export async function createCalendarEventAction(input: unknown): Promise<CreateE
     // RLS rejection (cross-tenant attempt or created_by spoof): code 42501.
     if (eventError?.code === RLS_VIOLATION_CODE) {
       logger.warn(
-        { userId: user.id, consultoraId: consultora.id, code: 'FORBIDDEN' },
+        { userId, consultoraId: consultora.id, code: 'FORBIDDEN' },
         'createCalendarEventAction: RLS rejected insert',
       );
       return {
@@ -162,7 +133,7 @@ export async function createCalendarEventAction(input: unknown): Promise<CreateE
       };
     }
     logger.error(
-      { err: eventError, userId: user.id, consultoraId: consultora.id, tipo: parsed.data.tipo },
+      { err: eventError, userId, consultoraId: consultora.id, tipo: parsed.data.tipo },
       'createCalendarEventAction: insert event failed',
     );
     return {
@@ -224,7 +195,7 @@ export async function createCalendarEventAction(input: unknown): Promise<CreateE
     {
       eventId: event.id,
       consultoraId: consultora.id,
-      userId: user.id,
+      userId,
       tipo: parsed.data.tipo,
       remindersCreated,
       remindersSkippedPast: skippedPast,

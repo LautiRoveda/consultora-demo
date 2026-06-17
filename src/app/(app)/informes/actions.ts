@@ -1,6 +1,6 @@
 'use server';
 
-import type { BillingGateReason } from '@/shared/billing/access';
+import type { AccessFailure } from '@/shared/auth/with-billing';
 import type { Json } from '@/shared/supabase/types';
 import type { InformeTipo } from './schema';
 import { revalidatePath } from 'next/cache';
@@ -11,8 +11,7 @@ import { DEFAULT_REMINDER_OFFSETS_BY_TYPE } from '@/app/(app)/calendario/default
 import { getEventsByInformeId } from '@/app/(app)/calendario/queries';
 import { markOnboardingCompletedIfPending } from '@/app/(app)/onboarding/mark-completed';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
-import { requireBillingAccess } from '@/shared/billing/access';
-import { getGateMessage } from '@/shared/billing/messages';
+import { requireMemberWithBilling } from '@/shared/auth/with-billing';
 import { addRecurrenceMonths } from '@/shared/calendar/scheduling';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
@@ -44,17 +43,10 @@ export type CreateInformeResult =
       metadataPersisted: boolean;
     }
   | { ok: false; code: 'INVALID_INPUT'; fieldErrors: Record<string, string[]>; message: string }
-  | {
-      ok: false;
-      code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'INTERNAL_ERROR';
-      message: string;
-    }
-  | {
-      ok: false;
-      code: 'BILLING_GATED';
-      reason: BillingGateReason;
-      message: string;
-    };
+  | { ok: false; code: 'INTERNAL_ERROR'; message: string }
+  // T-115: AccessFailure cubre UNAUTHENTICATED | NO_CONSULTORA | FORBIDDEN_NOT_OWNER
+  // | INTERNAL_ERROR | BILLING_GATED.
+  | AccessFailure;
 
 /**
  * Crea un informe en la consultora del user logueado.
@@ -88,41 +80,11 @@ export async function createInformeAction(input: unknown): Promise<CreateInforme
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return {
-      ok: false,
-      code: 'UNAUTHENTICATED',
-      message: 'Iniciá sesión para crear un informe.',
-    };
-  }
-
-  const consultora = await getCurrentConsultora(supabase, user.id);
-  if (!consultora) {
-    logger.warn({ userId: user.id }, 'createInformeAction: user sin consultora');
-    return {
-      ok: false,
-      code: 'NO_CONSULTORA',
-      message: 'Tu cuenta no tiene una consultora vinculada.',
-    };
-  }
-
-  // T-073 · Trial gate.
-  const billing = await requireBillingAccess(supabase, consultora);
-  if (!billing.ok) {
-    logger.info(
-      { userId: user.id, consultoraId: consultora.id, reason: billing.reason },
-      'createInformeAction: billing gated',
-    );
-    return {
-      ok: false,
-      code: 'BILLING_GATED',
-      reason: billing.reason,
-      message: getGateMessage(billing.reason),
-    };
-  }
+  // T-073 · Trial gate (member gate). T-115: `requireMemberWithBilling` envuelve el
+  // billing en try/catch → INTERNAL_ERROR de dominio, no un reject sin manejar.
+  const access = await requireMemberWithBilling(supabase);
+  if (!access.ok) return access;
+  const { userId, consultora } = access.ctx;
 
   // T-050 · Cross-tenant defense.
   // El FK `informes.cliente_id REFERENCES clientes(id)` valida que la row exista
@@ -138,7 +100,7 @@ export async function createInformeAction(input: unknown): Promise<CreateInforme
       .maybeSingle();
     if (!cli) {
       logger.warn(
-        { userId: user.id, consultoraId: consultora.id, clienteId: parsed.data.cliente_id },
+        { userId, consultoraId: consultora.id, clienteId: parsed.data.cliente_id },
         'createInformeAction: cliente_id no visible bajo RLS — posible cross-tenant',
       );
       return {
@@ -158,7 +120,7 @@ export async function createInformeAction(input: unknown): Promise<CreateInforme
       consultora_id: consultora.id,
       tipo: parsed.data.tipo,
       titulo: parsed.data.titulo,
-      created_by: user.id,
+      created_by: userId,
       cliente_id: parsed.data.cliente_id ?? null,
     })
     .select('id')
@@ -166,7 +128,7 @@ export async function createInformeAction(input: unknown): Promise<CreateInforme
 
   if (error || !data) {
     logger.error(
-      { err: error, userId: user.id, consultoraId: consultora.id },
+      { err: error, userId, consultoraId: consultora.id },
       'createInformeAction: insert fallo',
     );
     return {
@@ -188,7 +150,7 @@ export async function createInformeAction(input: unknown): Promise<CreateInforme
         {
           informeId: data.id,
           tipo: parsed.data.tipo,
-          userId: user.id,
+          userId,
           consultoraId: consultora.id,
           issueCount: parsedMeta.error.issues.length,
         },
@@ -208,7 +170,7 @@ export async function createInformeAction(input: unknown): Promise<CreateInforme
             err: metaErr,
             informeId: data.id,
             tipo: parsed.data.tipo,
-            userId: user.id,
+            userId,
             consultoraId: consultora.id,
           },
           'createInformeAction: metadata insert fallo, informe creado sin datos',
@@ -227,7 +189,7 @@ export async function createInformeAction(input: unknown): Promise<CreateInforme
   logger.info(
     {
       informeId: data.id,
-      userId: user.id,
+      userId,
       consultoraId: consultora.id,
       tipo: parsed.data.tipo,
       metadataPersisted,
