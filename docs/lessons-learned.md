@@ -456,7 +456,7 @@ Tras reboot del VPS Hostinger por mantenimiento, el VIP allocation del swarm que
 
 ### EasyPanel Auto Deploy via GitHub webhook
 
-**Origen**: T-022.5-FU3. Push a `main` dispara deploy automático sin intervención. Habilitado en EasyPanel CE self-hosted. Pre-FU3 era click manual "Implementar" en EasyPanel UI tras cada merge.
+**Origen**: T-022.5 (FU3 cerrado el 2026-06-17). Push a `main` dispara deploy automático del código sin intervención (webhook GitHub → EasyPanel). **Activado el 2026-06-17** por el owner; antes era click manual "Implementar" tras cada merge (en la migración original EasyPanel v2.30.0 no exponía la opción — historia en ADR-0007). Fallback: "Implementar" manual.
 
 **El auto-deploy publica el CÓDIGO, NO las migraciones** (T-059). Las migraciones de Supabase siguen siendo `db push --linked` manual y diff-validado (T-016). Implicancia: si un PR mete una migración + código que la usa con un nav-item `live`, mergear auto-deploya el código → si la migración no se aplica a prod en la **misma ventana del merge**, el feature queda **roto en prod** (tablas inexistentes). Práctica segura: aplicar la migración en la ventana del merge, o mantener el nav-item `soon`/gated hasta aplicarla. *Caso testigo: checklists (T-057..T-059) — nav `live` + migraciones diferidas → `/checklists` roto en prod hasta el `db push`.*
 

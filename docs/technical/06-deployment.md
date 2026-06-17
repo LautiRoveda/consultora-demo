@@ -25,7 +25,7 @@ Cualquier cambio operacional sobre deploy se refleja acá.
 ## Flow de deploy
 
 1. **PR abierto contra `main`** → GitHub Actions corre los 3 required (CI / E2E / Integration). **No hay preview deploy automático en VPS** — los preview deploys de Vercel quedaron descartados para T-022.5; si se necesita un preview, EasyPanel permite levantar un service apuntando temporalmente a la branch desde la UI (manual).
-2. **Merge a `main`** → **Auto Deploy** (GitHub webhook → EasyPanel) dispara `docker build` + redeploy **del código** sin intervención. Build toma 2-5 min. Habilitado en **T-022.5-FU3** (antes era click manual "Implementar"). Fallback manual: EasyPanel UI → Service consultora-demo → "Implementar" (ver §"Redeploy manual sin código nuevo").
+2. **Merge a `main`** → **Auto Deploy** (GitHub webhook → EasyPanel) dispara `docker build` + redeploy **del código** sin intervención. Build toma 2-5 min. **Activado el 2026-06-17** (antes era click manual "Implementar"). Fallback manual: EasyPanel UI → Service consultora-demo → "Implementar" (ver §"Redeploy manual sin código nuevo").
 3. **⚠️ El auto-deploy publica SOLO el código, NO las migraciones de Supabase.** Las migraciones siguen siendo `supabase db push --linked` manual y diff-validado (T-016). Si un PR mete una migración + código que la usa (ej. un nav-item `live`), **aplicar la migración en la misma ventana del merge** — si no, el feature queda **roto en prod** (tablas inexistentes) hasta el `db push`. *Caso testigo: checklists (T-057..T-059) — nav `live` + migración diferida → `/checklists` roto hasta el push.* Alternativa segura: mantener el nav-item `soon`/gated hasta aplicar la migración.
 4. **Gate de CI verde**: `main` protegida con los 3 required (CI / E2E / Integration); el merge solo procede con CI verde → el auto-deploy publica código ya validado.
 5. **Intervención manual**: las **migraciones de DB** (`db push`), los cambios de env vars / config de Service (UI EasyPanel) y el redeploy manual de fallback.
@@ -136,7 +136,7 @@ EasyPanel mantiene historial de deploys. Para volver a uno anterior:
 
 ### EasyPanel GitHub connection (Source)
 
-EasyPanel necesita acceso al repo para fetchear el código en cada click "Implementar". La conexión es **Source** del Service (vía Personal Access Token o GitHub App connection, según versión de EasyPanel). NO confundir con el Auto Deploy: la **Source connection** (PAT) es el acceso al repo; el **Auto Deploy** (webhook GitHub → EasyPanel, habilitado en T-022.5-FU3) es lo que dispara el rebuild al merge. Ambos deben estar OK para que el deploy automático funcione.
+EasyPanel necesita acceso al repo para fetchear el código en cada click "Implementar". La conexión es **Source** del Service (vía Personal Access Token o GitHub App connection, según versión de EasyPanel). NO confundir con el Auto Deploy: la **Source connection** (PAT) es el acceso al repo; el **Auto Deploy** (webhook GitHub → EasyPanel, activado el 2026-06-17) es lo que dispara el rebuild al merge. Ambos deben estar OK para que el deploy automático funcione.
 
 1. GitHub → Settings → Developer settings → Personal access tokens → generar token nuevo con scope mínimo (`repo:status` + `contents:read` para repos privados; `public_repo` si fuera público).
 2. Revocar token viejo en GitHub.
@@ -249,7 +249,7 @@ Sin `CHROMIUM_PATH`, los tests de PDF fallan pero los demás (auth, signup, land
 
 ### El auto-deploy no buildeó tras el merge
 
-- El deploy del código es **automático** (webhook GitHub → EasyPanel, T-022.5-FU3). Si tras el merge el build no arrancó: verificar que el webhook/Source connection esté OK (sección "EasyPanel GitHub connection (Source)" arriba) y, como fallback, clickeá "Implementar" en EasyPanel UI → Service consultora-demo.
+- El deploy del código es **automático** (webhook GitHub → EasyPanel, activado el 2026-06-17). Si tras el merge el build no arrancó: verificar que el webhook/Source connection esté OK (sección "EasyPanel GitHub connection (Source)" arriba) y, como fallback, clickeá "Implementar" en EasyPanel UI → Service consultora-demo.
 - Si el build no arranca o falla:
   - EasyPanel → Service → Implementaciones (Deploy history) → ver el último intento + logs.
   - Verificar que la Source connection (PAT GitHub) no expiró — sección "EasyPanel GitHub connection (Source)" arriba.

@@ -82,7 +82,7 @@ Aceptamos como tradeoffs: pérdida de preview deploys automáticos, responsabili
 - **Node version**: **22 LTS alpine** matcheando `.github/workflows/ci.yml`. `@supabase/realtime-js` requiere WS nativo de Node 22.
 - **Next.js output**: **`'standalone'`** en `next.config.ts`. Reduce imagen de ~1.2 GB a ~150 MB.
 - **Build location**: **dentro de EasyPanel** (no en GitHub Actions + push GHCR). Más simple para Sprint 2; fallback documentado si OOM.
-- **Deploy trigger**: **click manual "Implementar"** desde EasyPanel UI tras cada merge a `main`. EasyPanel v2.30.0 Self-Hosted **no expone Auto Deploy** ni webhook URL custom en la UI (ambos approaches fueron probados en este PR — pasamos por: 1) job custom en GH Actions con webhook EasyPanel; 2) Auto Deploy nativo; 3) deploy manual click). Sin job custom en `.github/workflows/ci.yml`. Gate de CI verde se mantiene por convención operacional (Lautaro solo clickea "Implementar" tras CI verde) + opcionalmente branch protection rule. Tracking de revisita en upgrade EasyPanel: **T-022.5-FU3**.
+- **Deploy trigger**: **Auto Deploy activo** (activado el 2026-06-17) — el push/merge a `main` dispara `docker build` + redeploy **del código** sin intervención (webhook GitHub → EasyPanel). Sin job de deploy en `.github/workflows/ci.yml`: el código lo publica el webhook de EasyPanel. **Histórico**: en la migración original (T-022.5) EasyPanel v2.30.0 Self-Hosted no exponía Auto Deploy ni webhook URL custom (se probaron 2 approaches automáticos —job custom en GH Actions con webhook + Auto Deploy nativo— sin éxito) → se aceptó **click manual "Implementar"**; el auto recién quedó disponible y se activó el 2026-06-17 (ver bloque T-022.5-FU3 abajo). Gate de CI verde por `main` protegida (required checks). El click "Implementar" queda como **fallback manual** si el auto falla.
 - **`max_tokens`**: **hardcode 8192** en `actions.ts` (no env var). 1 fuente de verdad, requiere PR para cambiar.
 - **EasyPanel project placement**: dentro del project existente **`agendalo`** (no project nuevo) — política de Lautaro para evitar fragmentación. Cotenants intocables.
 - **Hot backup Vercel**: 4 semanas post-cutover, auto-deploy pausado (no Disconnect). Cubre ciclo recovery + margen para regresiones tardías.
@@ -110,7 +110,7 @@ Esta sección es **operacional** — Lautaro la sigue campo por campo en EasyPan
 | Source type | GitHub |
 | Repository | `LautiRoveda/consultora-demo` |
 | Branch | `chore/T-022.5-vps-migration` (inicial, para smoke pre-merge) → cambiar a `main` después de PARADA #2 verde |
-| Auto deploy on push | **OFF / no soportado** en EasyPanel v2.30.0 Self-Hosted. Deploy se dispara con click manual "Implementar" tras cada merge a `main`. Tracking T-022.5-FU3 (revisitar en upgrade). |
+| Auto deploy on push | **ON · activado 2026-06-17** (webhook GitHub → EasyPanel; push a `main` → rebuild del código). En la migración original (v2.30.0) no se exponía → se aceptó click manual; cerrado en T-022.5-FU3. Fallback manual: "Implementar". |
 
 ### Build
 
@@ -171,38 +171,35 @@ NEXT_PUBLIC_SITE_URL=https://consultora-demo.test-ia.cloud
 ANTHROPIC_API_KEY=<key>
 ```
 
-### Deploy manual (click "Implementar")
+### Deploy automático (push a `main`)
 
-EasyPanel v2.30.0 Self-Hosted no expone Auto Deploy ni webhook URL custom en la UI. El deploy productivo se dispara manualmente:
+**Auto Deploy activo desde el 2026-06-17.** El merge a `main` dispara el rebuild + redeploy del código sin intervención (webhook GitHub → EasyPanel). El "Implementar" manual queda como **fallback** si el auto no arranca.
 
-1. **GitHub → Settings → Developer settings → Personal access tokens**: generar PAT con scopes mínimos para que EasyPanel pueda fetchear el repo en cada build:
+1. **Source connection (PAT)** — EasyPanel necesita acceso al repo para fetchear el código en cada build. **GitHub → Settings → Developer settings → Personal access tokens**: PAT con scopes mínimos:
    - `repo:status` + `contents:read` para repos privados (caso actual).
    - `public_repo` si fuera público (no aplica).
-2. **EasyPanel → Service consultora-demo → Source → GitHub**: pegar el PAT (esta es la **Source connection**, no Auto Deploy). Branch: `main`.
-3. **Flow operacional tras cada merge a `main`**:
+
+   **EasyPanel → Service consultora-demo → Source → GitHub**: pegar el PAT (esta es la **Source connection**, no el Auto Deploy). Branch: `main`.
+2. **Flow operacional tras cada merge a `main`**:
    - Lautaro mergea PR (post-CI verde).
-   - Entra a **EasyPanel UI → Service consultora-demo → botón "Implementar"**.
-   - EasyPanel fetchea HEAD de `main` + `docker build` + redeploy (2-5 min).
+   - El **Auto Deploy** dispara automáticamente: EasyPanel fetchea HEAD de `main` + `docker build` + redeploy (2-5 min).
    - Lautaro verifica que el deploy aparezca en Implementaciones (Deploy history) con commit SHA correcto.
-4. **No se agregan secrets en GitHub Actions** para deploy — el workflow `ci.yml` no tiene job de deploy.
-5. **Gate de CI verde** se mantiene por convención operacional (no clickear "Implementar" sin CI verde). Opcionalmente reforzar con branch protection rule: Settings → Branches → main → "Require status checks to pass before merging" → check `CI` workflow.
+   - **Fallback manual**: si el auto no arrancó, click **"Implementar"** en EasyPanel UI → Service consultora-demo.
+3. **No se agregan secrets en GitHub Actions** para deploy — el código lo publica el webhook de EasyPanel, no un job de `ci.yml`.
+4. **Gate de CI verde**: `main` protegida con required checks (ver §ruleset / branch protection) → el auto-deploy publica solo código ya validado.
 
-### T-022.5-FU3 · Revisitar Auto Deploy en upgrade EasyPanel
+### T-022.5-FU3 · Revisitar Auto Deploy en upgrade EasyPanel — ✅ CERRADO (2026-06-17)
 
-**Status**: ✅ RESUELTO. **Resuelto (anotado 2026-06-06):** el Auto Deploy quedó habilitado vía webhook GitHub → EasyPanel; el push a `main` dispara redeploy automático del código. Ver `docs/technical/06-deployment.md` §"Flow de deploy" + la lección "EasyPanel Auto Deploy via GitHub webhook" en `docs/lessons-learned.md`. El contexto histórico de abajo (por qué se aceptó deploy manual en su momento, y los 2 approaches automáticos que fallaron en v2.30.0) queda como registro — la decisión original NO se reescribe.
+**Cerrado el 2026-06-17:** el owner activó el **Auto Deploy** en EasyPanel — el push a `main` dispara redeploy automático del código (webhook GitHub → EasyPanel). El click manual "Implementar" queda como fallback. <!-- TODO(owner): completar el mecanismo exacto por el que quedó disponible (upgrade de EasyPanel a una versión que expone Auto Deploy | la opción apareció en la versión actual). -->
 
-**Contexto**: EasyPanel v2.30.0 Self-Hosted no expone Auto Deploy ni webhook URL en UI. Probamos en este PR 2 approaches automáticos antes de aceptar deploy manual:
+> **Nota:** una anotación previa (2026-06-06) dio el FU por resuelto vía webhook, pero ese intento **no quedó operativo** — el deploy siguió siendo manual hasta la activación real del 2026-06-17.
 
-1. **GitHub Actions job custom con webhook EasyPanel**: la URL del webhook no es discoverable en v2.30.0 — no podemos cargar el secret.
-2. **EasyPanel Auto Deploy nativo**: la UI no expone la opción para activarlo en self-hosted v2.30.0 (existe en versión cloud).
+**Contexto histórico (T-022.5, migración original)**: EasyPanel v2.30.0 Self-Hosted no exponía Auto Deploy ni webhook URL en UI. Se probaron 2 approaches automáticos antes de aceptar deploy manual:
 
-**Trigger del FU**: cuando upgradeés a una versión de EasyPanel que sí exponga Auto Deploy o webhook URL, revisitá esta decisión. El costo de ergonomía del click manual es bajo en MVP (~30s extra por deploy) pero compounding con frecuencia de merges. Pasar a auto reduce errores humanos (olvidar el click).
+1. **GitHub Actions job custom con webhook EasyPanel**: la URL del webhook no era discoverable en v2.30.0 — no se podía cargar el secret.
+2. **EasyPanel Auto Deploy nativo**: la UI no exponía la opción para activarlo en self-hosted v2.30.0 (existía en versión cloud).
 
-**Acción al cerrar T-022.5-FU3**:
-- Activar Auto Deploy en EasyPanel UI (o configurar webhook custom + restaurar job `deploy` en ci.yml — preferir Auto Deploy nativo).
-- Actualizar `docs/technical/06-deployment.md` flow.
-- Actualizar este ADR (sección "Sub-decisiones derivadas" + tabla Service config).
-- Sacar este bloque T-022.5-FU3.
+El costo de ergonomía del click manual era bajo en MVP (~30s extra por deploy) pero compounding con la frecuencia de merges; pasar a auto reduce errores humanos (olvidar el click). La opción quedó disponible y se activó el 2026-06-17.
 
 ### Validación post-creación
 
