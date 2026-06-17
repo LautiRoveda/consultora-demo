@@ -2,7 +2,7 @@ import { type NextRequest } from 'next/server';
 
 import { suggestEppForEmpleado } from '@/shared/ai/epp-suggest';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
-import { requireBillingAccess } from '@/shared/billing/access';
+import { billingAccessForRoute } from '@/shared/billing/access';
 import { getGateMessage } from '@/shared/billing/messages';
 import { logger } from '@/shared/observability/logger';
 import { getRateLimiter } from '@/shared/security/rate-limit';
@@ -84,15 +84,25 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   // 4. Billing gate. Bloqueamos pre-IA para no quemar tokens si la consultora
   // no puede generar.
-  const billing = await requireBillingAccess(supabase, consultora);
+  const billing = await billingAccessForRoute(supabase, consultora, {
+    userId: user.id,
+    consultoraId: consultora.id,
+  });
   if (!billing.ok) {
-    logger.info(
-      { userId: user.id, consultoraId: consultora.id, reason: billing.reason },
-      'epp_suggest_billing_gated',
-    );
-    return Response.json(
-      { code: 'BILLING_GATED', reason: billing.reason, message: getGateMessage(billing.reason) },
-      { status: 402 },
+    if (billing.kind === 'gated') {
+      logger.info(
+        { userId: user.id, consultoraId: consultora.id, reason: billing.reason },
+        'epp_suggest_billing_gated',
+      );
+      return Response.json(
+        { code: 'BILLING_GATED', reason: billing.reason, message: getGateMessage(billing.reason) },
+        { status: 402 },
+      );
+    }
+    return errorResponse(
+      503,
+      'INTERNAL_ERROR',
+      'No se pudo validar la suscripción. Reintentá en unos minutos.',
     );
   }
 

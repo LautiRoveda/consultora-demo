@@ -1,14 +1,11 @@
 'use server';
 
-import type { OwnerContext } from '@/shared/auth/requireOwner';
-import type { BillingGateReason } from '@/shared/billing/access';
+import type { AccessFailure } from '@/shared/auth/with-billing';
 import type { Database } from '@/shared/supabase/types';
 import type { VersionEditContext } from './queries';
 import { revalidatePath } from 'next/cache';
 
-import { requireOwner } from '@/shared/auth/requireOwner';
-import { requireBillingAccess } from '@/shared/billing/access';
-import { getGateMessage } from '@/shared/billing/messages';
+import { requireOwnerWithBilling } from '@/shared/auth/with-billing';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
 
@@ -60,14 +57,9 @@ type InvalidInput = {
   message: string;
 };
 
-/** Falla común del preámbulo (auth + owner + billing). */
-type AuthBillingFailure =
-  | {
-      ok: false;
-      code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'FORBIDDEN_NOT_OWNER' | 'INTERNAL_ERROR';
-      message: string;
-    }
-  | { ok: false; code: 'BILLING_GATED'; reason: BillingGateReason; message: string };
+/** Falla común del preámbulo (auth + owner + billing). T-115: alias del shape
+ *  compartido `AccessFailure` (antes era una copia local byte-idéntica). */
+type AuthBillingFailure = AccessFailure;
 
 type DuplicateName = {
   ok: false;
@@ -167,47 +159,8 @@ function invalidInput(
   return { ok: false, code: 'INVALID_INPUT', fieldErrors, message };
 }
 
-type PreambleFailure = AuthBillingFailure;
-
-/**
- * Preámbulo de toda mutación: owner-gate (requireOwner) + trial-gate
- * (requireBillingAccess, envuelto en try/catch — `getActiveSubscription` tira ante
- * un error de DB; lo mapeamos a INTERNAL_ERROR en vez de un reject sin manejar).
- */
-async function requireOwnerWithBilling(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-): Promise<{ ok: true; ctx: OwnerContext } | PreambleFailure> {
-  const auth = await requireOwner(supabase);
-  if (!auth.ok) return auth;
-
-  try {
-    const billing = await requireBillingAccess(supabase, auth.ctx.consultora);
-    if (!billing.ok) {
-      logger.info(
-        { userId: auth.ctx.userId, consultoraId: auth.ctx.consultoraId, reason: billing.reason },
-        'checklists: billing gated',
-      );
-      return {
-        ok: false,
-        code: 'BILLING_GATED',
-        reason: billing.reason,
-        message: getGateMessage(billing.reason),
-      };
-    }
-  } catch (err) {
-    logger.error(
-      { err, userId: auth.ctx.userId, consultoraId: auth.ctx.consultoraId },
-      'checklists: requireBillingAccess threw',
-    );
-    return {
-      ok: false,
-      code: 'INTERNAL_ERROR',
-      message: 'No se pudo validar la suscripción. Reintentá en unos minutos.',
-    };
-  }
-
-  return { ok: true, ctx: auth.ctx };
-}
+// T-115: `requireOwnerWithBilling` se consolidó al helper compartido
+// `@/shared/auth/with-billing` (la copia local pre-T-058 era byte-idéntica).
 
 function isNameUniqueViolation(err: { code?: string; message?: string } | null): boolean {
   if (!err || err.code !== UNIQUE_VIOLATION_CODE) return false;

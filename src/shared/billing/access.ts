@@ -7,6 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { getActiveSubscription } from '@/app/(app)/settings/billing/queries';
 import { env } from '@/env';
+import { logger } from '@/shared/observability/logger';
 
 /**
  * T-073 · Trial gate enforcement.
@@ -81,4 +82,31 @@ export async function requireBillingAccess(
 ): Promise<BillingStatus> {
   const suscripcion = await getActiveSubscription(supabase);
   return getBillingStatus(consultora, suscripcion);
+}
+
+/**
+ * Variante para Route Handlers (devuelven `Response`, no la discriminated-union
+ * de las Server Actions). Envuelve `requireBillingAccess` en try/catch (T-115):
+ * `getActiveSubscription` tira ante un error de DB y, sin esto, Next devuelve un
+ * 500 opaco sin body JSON ni log estructurado. El route mapea cada variante a su
+ * propia `Response`: `gated` → 402 (preservado), `error` → 503 INTERNAL_ERROR.
+ */
+export type BillingForRoute =
+  | { ok: true }
+  | { ok: false; kind: 'gated'; reason: BillingGateReason }
+  | { ok: false; kind: 'error' };
+
+export async function billingAccessForRoute(
+  supabase: SupabaseClient<Database>,
+  consultora: Pick<CurrentConsultora, 'plan' | 'trialHasta'>,
+  ctxForLog: Record<string, unknown>,
+): Promise<BillingForRoute> {
+  try {
+    const billing = await requireBillingAccess(supabase, consultora);
+    if (!billing.ok) return { ok: false, kind: 'gated', reason: billing.reason };
+    return { ok: true };
+  } catch (err) {
+    logger.error({ err, ...ctxForLog }, 'billingAccessForRoute: requireBillingAccess threw');
+    return { ok: false, kind: 'error' };
+  }
 }

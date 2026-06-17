@@ -1,13 +1,11 @@
 'use server';
 
-import type { BillingGateReason } from '@/shared/billing/access';
+import type { AccessFailure } from '@/shared/auth/with-billing';
 import type { Database } from '@/shared/supabase/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
 
-import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
-import { requireBillingAccess } from '@/shared/billing/access';
-import { getGateMessage } from '@/shared/billing/messages';
+import { requireMemberWithBilling } from '@/shared/auth/with-billing';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
 import { mapIncidenteToAccidenteMetadata } from '@/shared/templates/accidente/from-incidente';
@@ -38,22 +36,25 @@ export type RegisterIncidenteResult =
   | { ok: true; incidenteId: string }
   | { ok: false; code: 'INVALID_INPUT'; fieldErrors: Record<string, string[]>; message: string }
   | { ok: false; code: 'CROSS_TENANT_REF'; message: string }
-  | { ok: false; code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'INTERNAL_ERROR'; message: string }
-  | { ok: false; code: 'BILLING_GATED'; reason: BillingGateReason; message: string };
+  | { ok: false; code: 'INTERNAL_ERROR'; message: string }
+  // T-115: AccessFailure cubre UNAUTHENTICATED | NO_CONSULTORA | FORBIDDEN_NOT_OWNER | INTERNAL_ERROR | BILLING_GATED.
+  | AccessFailure;
 
 export type CorregirIncidenteResult =
   | { ok: true; incidenteId: string }
   | { ok: false; code: 'INVALID_INPUT'; fieldErrors: Record<string, string[]>; message: string }
   | { ok: false; code: 'CROSS_TENANT_REF' | 'NOT_FOUND' | 'ALREADY_CORRECTED'; message: string }
-  | { ok: false; code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'INTERNAL_ERROR'; message: string }
-  | { ok: false; code: 'BILLING_GATED'; reason: BillingGateReason; message: string };
+  | { ok: false; code: 'INTERNAL_ERROR'; message: string }
+  // T-115: AccessFailure cubre UNAUTHENTICATED | NO_CONSULTORA | FORBIDDEN_NOT_OWNER | INTERNAL_ERROR | BILLING_GATED.
+  | AccessFailure;
 
 export type AnularIncidenteResult =
   | { ok: true; incidenteId: string }
   | { ok: false; code: 'INVALID_INPUT'; fieldErrors: Record<string, string[]>; message: string }
   | { ok: false; code: 'NOT_FOUND' | 'ALREADY_CORRECTED'; message: string }
-  | { ok: false; code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'INTERNAL_ERROR'; message: string }
-  | { ok: false; code: 'BILLING_GATED'; reason: BillingGateReason; message: string };
+  | { ok: false; code: 'INTERNAL_ERROR'; message: string }
+  // T-115: AccessFailure cubre UNAUTHENTICATED | NO_CONSULTORA | FORBIDDEN_NOT_OWNER | INTERNAL_ERROR | BILLING_GATED.
+  | AccessFailure;
 
 export type GenerarInvestigacionIaResult =
   | { ok: true; informeId: string; redirectTo: string }
@@ -69,12 +70,11 @@ export type GenerarInvestigacionIaResult =
         | 'NOT_VIGENTE'
         | 'NO_CLIENTE'
         | 'CROSS_TENANT_REF'
-        | 'UNAUTHENTICATED'
-        | 'NO_CONSULTORA'
         | 'INTERNAL_ERROR';
       message: string;
     }
-  | { ok: false; code: 'BILLING_GATED'; reason: BillingGateReason; message: string };
+  // T-115: AccessFailure cubre UNAUTHENTICATED | NO_CONSULTORA | FORBIDDEN_NOT_OWNER | INTERNAL_ERROR | BILLING_GATED.
+  | AccessFailure;
 
 // ============ Helpers ============
 
@@ -148,37 +148,16 @@ export async function registerIncidenteAction(input: unknown): Promise<RegisterI
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false, code: 'UNAUTHENTICATED', message: 'Necesitás iniciar sesión.' };
-  }
-
-  const consultora = await getCurrentConsultora(supabase, user.id);
-  if (!consultora) {
-    logger.warn({ userId: user.id }, 'registerIncidenteAction: user without consultora membership');
-    return { ok: false, code: 'NO_CONSULTORA', message: 'No tenés una consultora asociada.' };
-  }
-
-  const billing = await requireBillingAccess(supabase, consultora);
-  if (!billing.ok) {
-    logger.info(
-      { userId: user.id, consultoraId: consultora.id, reason: billing.reason },
-      'registerIncidenteAction: billing gated',
-    );
-    return {
-      ok: false,
-      code: 'BILLING_GATED',
-      reason: billing.reason,
-      message: getGateMessage(billing.reason),
-    };
-  }
+  // T-073 · Trial gate (member gate). T-115: `requireMemberWithBilling` envuelve el
+  // billing en try/catch → INTERNAL_ERROR de dominio, no un reject sin manejar.
+  const access = await requireMemberWithBilling(supabase);
+  if (!access.ok) return access;
+  const { userId, consultora } = access.ctx;
 
   const crossRef = await findCrossTenantRef(supabase, parsed.data);
   if (crossRef) {
     logger.warn(
-      { userId: user.id, consultoraId: consultora.id, crossRef },
+      { userId, consultoraId: consultora.id, crossRef },
       'registerIncidenteAction: cross-tenant ref rejected',
     );
     return {
@@ -190,13 +169,13 @@ export async function registerIncidenteAction(input: unknown): Promise<RegisterI
 
   const { data, error } = await supabase
     .from('incidentes')
-    .insert({ ...parsed.data, consultora_id: consultora.id, created_by: user.id })
+    .insert({ ...parsed.data, consultora_id: consultora.id, created_by: userId })
     .select('id')
     .single();
 
   if (error?.code === CHECK_VIOLATION_CODE) {
     logger.warn(
-      { userId: user.id, consultoraId: consultora.id, err: error.message },
+      { userId, consultoraId: consultora.id, err: error.message },
       'registerIncidenteAction: SQL CHECK violation (drift Zod-vs-SQL)',
     );
     return {
@@ -208,7 +187,7 @@ export async function registerIncidenteAction(input: unknown): Promise<RegisterI
 
   if (error?.code === RLS_VIOLATION_CODE) {
     logger.warn(
-      { userId: user.id, consultoraId: consultora.id, err: error.message },
+      { userId, consultoraId: consultora.id, err: error.message },
       'registerIncidenteAction: RLS rejected insert',
     );
     return {
@@ -220,7 +199,7 @@ export async function registerIncidenteAction(input: unknown): Promise<RegisterI
 
   if (error || !data) {
     logger.error(
-      { err: error, userId: user.id, consultoraId: consultora.id },
+      { err: error, userId, consultoraId: consultora.id },
       'registerIncidenteAction: insert failed',
     );
     return {
@@ -234,7 +213,7 @@ export async function registerIncidenteAction(input: unknown): Promise<RegisterI
   logger.info(
     {
       incidenteId: data.id,
-      userId: user.id,
+      userId,
       consultoraId: consultora.id,
       action: 'register_incidente',
     },
@@ -256,27 +235,11 @@ export async function corregirIncidenteAction(input: unknown): Promise<CorregirI
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false, code: 'UNAUTHENTICATED', message: 'Necesitás iniciar sesión.' };
-  }
-
-  const consultora = await getCurrentConsultora(supabase, user.id);
-  if (!consultora) {
-    return { ok: false, code: 'NO_CONSULTORA', message: 'No tenés una consultora asociada.' };
-  }
-
-  const billing = await requireBillingAccess(supabase, consultora);
-  if (!billing.ok) {
-    return {
-      ok: false,
-      code: 'BILLING_GATED',
-      reason: billing.reason,
-      message: getGateMessage(billing.reason),
-    };
-  }
+  // T-073 · Trial gate (member gate). T-115: `requireMemberWithBilling` envuelve el
+  // billing en try/catch → INTERNAL_ERROR de dominio, no un reject sin manejar.
+  const access = await requireMemberWithBilling(supabase);
+  if (!access.ok) return access;
+  const { userId, consultora } = access.ctx;
 
   // El registro a corregir debe existir en el tenant (SELECT RLS-scoped).
   const { data: target } = await supabase
@@ -303,7 +266,7 @@ export async function corregirIncidenteAction(input: unknown): Promise<CorregirI
 
   const { data, error } = await supabase
     .from('incidentes')
-    .insert({ ...parsed.data, consultora_id: consultora.id, created_by: user.id })
+    .insert({ ...parsed.data, consultora_id: consultora.id, created_by: userId })
     .select('id')
     .single();
 
@@ -317,7 +280,7 @@ export async function corregirIncidenteAction(input: unknown): Promise<CorregirI
 
   if (error?.code === CHECK_VIOLATION_CODE) {
     logger.warn(
-      { userId: user.id, consultoraId: consultora.id, err: error.message },
+      { userId, consultoraId: consultora.id, err: error.message },
       'corregirIncidenteAction: SQL CHECK violation (drift Zod-vs-SQL)',
     );
     return {
@@ -331,7 +294,7 @@ export async function corregirIncidenteAction(input: unknown): Promise<CorregirI
     logger.error(
       {
         err: error,
-        userId: user.id,
+        userId,
         consultoraId: consultora.id,
         corrigeId: parsed.data.corrige_id,
       },
@@ -349,7 +312,7 @@ export async function corregirIncidenteAction(input: unknown): Promise<CorregirI
     {
       incidenteId: data.id,
       corrigeId: parsed.data.corrige_id,
-      userId: user.id,
+      userId,
       consultoraId: consultora.id,
       action: 'corregir_incidente',
     },
@@ -366,27 +329,11 @@ export async function anularIncidenteAction(input: unknown): Promise<AnularIncid
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false, code: 'UNAUTHENTICATED', message: 'Necesitás iniciar sesión.' };
-  }
-
-  const consultora = await getCurrentConsultora(supabase, user.id);
-  if (!consultora) {
-    return { ok: false, code: 'NO_CONSULTORA', message: 'No tenés una consultora asociada.' };
-  }
-
-  const billing = await requireBillingAccess(supabase, consultora);
-  if (!billing.ok) {
-    return {
-      ok: false,
-      code: 'BILLING_GATED',
-      reason: billing.reason,
-      message: getGateMessage(billing.reason),
-    };
-  }
+  // T-073 · Trial gate (member gate). T-115: `requireMemberWithBilling` envuelve el
+  // billing en try/catch → INTERNAL_ERROR de dominio, no un reject sin manejar.
+  const access = await requireMemberWithBilling(supabase);
+  if (!access.ok) return access;
+  const { userId, consultora } = access.ctx;
 
   // Leemos la fila a anular (RLS-scoped → solo de mi tenant). Copiamos los
   // campos que el CHECK tipo<->gravedad exige al tombstone.
@@ -407,7 +354,7 @@ export async function anularIncidenteAction(input: unknown): Promise<AnularIncid
 
   const tombstone: IncidenteInsert = {
     consultora_id: consultora.id,
-    created_by: user.id,
+    created_by: userId,
     corrige_id: parsed.data.id,
     anulacion: true,
     tipo: target.tipo,
@@ -434,7 +381,7 @@ export async function anularIncidenteAction(input: unknown): Promise<AnularIncid
 
   if (error || !data) {
     logger.error(
-      { err: error, userId: user.id, consultoraId: consultora.id, incidenteId: parsed.data.id },
+      { err: error, userId, consultoraId: consultora.id, incidenteId: parsed.data.id },
       'anularIncidenteAction: insert failed',
     );
     return {
@@ -449,7 +396,7 @@ export async function anularIncidenteAction(input: unknown): Promise<AnularIncid
     {
       incidenteId: data.id,
       anulaId: parsed.data.id,
-      userId: user.id,
+      userId,
       consultoraId: consultora.id,
       action: 'anular_incidente',
     },
@@ -480,27 +427,11 @@ export async function generarInvestigacionIaAction(
   const id = parsedId.data;
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false, code: 'UNAUTHENTICATED', message: 'Necesitás iniciar sesión.' };
-  }
-
-  const consultora = await getCurrentConsultora(supabase, user.id);
-  if (!consultora) {
-    return { ok: false, code: 'NO_CONSULTORA', message: 'No tenés una consultora asociada.' };
-  }
-
-  const billing = await requireBillingAccess(supabase, consultora);
-  if (!billing.ok) {
-    return {
-      ok: false,
-      code: 'BILLING_GATED',
-      reason: billing.reason,
-      message: getGateMessage(billing.reason),
-    };
-  }
+  // T-073 · Trial gate (member gate). T-115: `requireMemberWithBilling` envuelve el
+  // billing en try/catch → INTERNAL_ERROR de dominio, no un reject sin manejar.
+  const access = await requireMemberWithBilling(supabase);
+  if (!access.ok) return access;
+  const { userId, consultora } = access.ctx;
 
   const result = await getIncidenteById(supabase, id);
   if (!result) {
@@ -667,7 +598,7 @@ export async function generarInvestigacionIaAction(
     {
       incidenteId: id,
       informeId: created.informeId,
-      userId: user.id,
+      userId,
       consultoraId: consultora.id,
       action: 'link_investigacion_ia',
     },

@@ -5,7 +5,7 @@ import { after } from 'next/server';
 import { getPresentacionById } from '@/app/(app)/rar/queries';
 import { parseRarSnapshot } from '@/app/(app)/rar/snapshot';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
-import { requireBillingAccess } from '@/shared/billing/access';
+import { billingAccessForRoute } from '@/shared/billing/access';
 import { getGateMessage } from '@/shared/billing/messages';
 import { logger } from '@/shared/observability/logger';
 import { buildRarPlanillaHistoricaFilename } from '@/shared/pdf/filename';
@@ -30,7 +30,7 @@ import { createServiceRoleClient } from '@/shared/supabase/service-role';
  *  1. Validar `presentacionId` UUID.
  *  2. Auth: getUser. Null → 401.
  *  3. Consultora: getCurrentConsultora. Null → 403.
- *  3.5 Trial gate: requireBillingAccess (operación Puppeteer costosa).
+ *  3.5 Trial gate: billingAccessForRoute (operación Puppeteer costosa).
  *  4. Cargar presentación via RLS. Null → 404.
  *  4.5 Cross-tenant defense: consultora_id mismatch → 404.
  *  5. Internal fetch al print page histórico con header `x-internal-pdf-render`.
@@ -72,15 +72,26 @@ export async function GET(
     return errorResponse(403, 'NO_CONSULTORA', 'Tu cuenta no tiene una consultora vinculada.');
   }
 
-  const billing = await requireBillingAccess(supabase, consultora);
+  const billing = await billingAccessForRoute(supabase, consultora, {
+    userId: user.id,
+    consultoraId: consultora.id,
+    presentacionId,
+  });
   if (!billing.ok) {
-    logger.info(
-      { userId: user.id, consultoraId: consultora.id, presentacionId, reason: billing.reason },
-      'rar_historica_pdf_route: billing gated',
-    );
-    return Response.json(
-      { code: 'BILLING_GATED', reason: billing.reason, message: getGateMessage(billing.reason) },
-      { status: 402 },
+    if (billing.kind === 'gated') {
+      logger.info(
+        { userId: user.id, consultoraId: consultora.id, presentacionId, reason: billing.reason },
+        'rar_historica_pdf_route: billing gated',
+      );
+      return Response.json(
+        { code: 'BILLING_GATED', reason: billing.reason, message: getGateMessage(billing.reason) },
+        { status: 402 },
+      );
+    }
+    return errorResponse(
+      503,
+      'INTERNAL_ERROR',
+      'No se pudo validar la suscripción. Reintentá en unos minutos.',
     );
   }
 

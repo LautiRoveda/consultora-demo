@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { after } from 'next/server';
 
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
-import { requireBillingAccess } from '@/shared/billing/access';
+import { billingAccessForRoute } from '@/shared/billing/access';
 import { getGateMessage } from '@/shared/billing/messages';
 import { logger } from '@/shared/observability/logger';
 import { buildChecklistInspeccionFilename } from '@/shared/pdf/filename';
@@ -59,15 +59,26 @@ export async function GET(
     return errorResponse(403, 'NO_CONSULTORA', 'Tu cuenta no tiene una consultora vinculada.');
   }
 
-  const billing = await requireBillingAccess(supabase, consultora);
+  const billing = await billingAccessForRoute(supabase, consultora, {
+    userId: user.id,
+    consultoraId: consultora.id,
+    executionId: id,
+  });
   if (!billing.ok) {
-    logger.info(
-      { userId: user.id, consultoraId: consultora.id, executionId: id, reason: billing.reason },
-      'checklist_pdf_route: billing gated',
-    );
-    return Response.json(
-      { code: 'BILLING_GATED', reason: billing.reason, message: getGateMessage(billing.reason) },
-      { status: 402 },
+    if (billing.kind === 'gated') {
+      logger.info(
+        { userId: user.id, consultoraId: consultora.id, executionId: id, reason: billing.reason },
+        'checklist_pdf_route: billing gated',
+      );
+      return Response.json(
+        { code: 'BILLING_GATED', reason: billing.reason, message: getGateMessage(billing.reason) },
+        { status: 402 },
+      );
+    }
+    return errorResponse(
+      503,
+      'INTERNAL_ERROR',
+      'No se pudo validar la suscripción. Reintentá en unos minutos.',
     );
   }
 

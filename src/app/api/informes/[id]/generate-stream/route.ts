@@ -10,7 +10,7 @@ import { getSystemPromptForTipo } from '@/shared/ai/prompts';
 import { injectSRTTables } from '@/shared/ai/srt-tables';
 import { streamAnthropicMessage } from '@/shared/ai/stream';
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
-import { requireBillingAccess } from '@/shared/billing/access';
+import { billingAccessForRoute } from '@/shared/billing/access';
 import { getGateMessage } from '@/shared/billing/messages';
 import { logger } from '@/shared/observability/logger';
 import { getValidatedClientIp } from '@/shared/security/identify';
@@ -113,15 +113,26 @@ export async function POST(
   // 4.5. T-073 · Trial gate. Bloqueamos pre-rate-limit y pre-fetch del informe
   // para no consumir cuota / DB cycles si la consultora no puede generar.
   // Status 402 Payment Required.
-  const billing = await requireBillingAccess(supabase, consultora);
+  const billing = await billingAccessForRoute(supabase, consultora, {
+    userId: user.id,
+    consultoraId: consultora.id,
+    informeId: id,
+  });
   if (!billing.ok) {
-    logger.info(
-      { userId: user.id, consultoraId: consultora.id, informeId: id, reason: billing.reason },
-      'generate_stream: billing gated',
-    );
-    return Response.json(
-      { code: 'BILLING_GATED', reason: billing.reason, message: getGateMessage(billing.reason) },
-      { status: 402 },
+    if (billing.kind === 'gated') {
+      logger.info(
+        { userId: user.id, consultoraId: consultora.id, informeId: id, reason: billing.reason },
+        'generate_stream: billing gated',
+      );
+      return Response.json(
+        { code: 'BILLING_GATED', reason: billing.reason, message: getGateMessage(billing.reason) },
+        { status: 402 },
+      );
+    }
+    return errorResponse(
+      503,
+      'INTERNAL_ERROR',
+      'No se pudo validar la suscripción. Reintentá en unos minutos.',
     );
   }
 

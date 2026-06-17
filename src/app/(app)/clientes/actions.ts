@@ -1,13 +1,12 @@
 'use server';
 
-import type { BillingGateReason } from '@/shared/billing/access';
+import type { AccessFailure } from '@/shared/auth/with-billing';
 import type { Database } from '@/shared/supabase/types';
 import type { ClienteSummary } from './queries';
 import { revalidatePath } from 'next/cache';
 
 import { getCurrentConsultora } from '@/shared/auth/getCurrentConsultora';
-import { requireBillingAccess } from '@/shared/billing/access';
-import { getGateMessage } from '@/shared/billing/messages';
+import { requireMemberWithBilling } from '@/shared/auth/with-billing';
 import { logger } from '@/shared/observability/logger';
 import { createClient } from '@/shared/supabase/server';
 import { normalizeCuit } from '@/shared/templates/common/cuit';
@@ -34,21 +33,14 @@ export type CreateClienteResult =
     }
   | {
       ok: false;
-      code: 'UNAUTHENTICATED' | 'NO_CONSULTORA' | 'INTERNAL_ERROR';
-      message: string;
-    }
-  | {
-      ok: false;
       code: 'DUPLICATE_CUIT';
       fieldErrors: { cuit: string[] };
       message: string;
     }
-  | {
-      ok: false;
-      code: 'BILLING_GATED';
-      reason: BillingGateReason;
-      message: string;
-    };
+  // T-115: AccessFailure cubre UNAUTHENTICATED | NO_CONSULTORA | FORBIDDEN_NOT_OWNER
+  // | INTERNAL_ERROR | BILLING_GATED. El INTERNAL_ERROR de dominio (insert fallido)
+  // comparte shape, así que sigue tipando.
+  | AccessFailure;
 
 export type UpdateClienteResult =
   | { ok: true; clienteId: string }
@@ -142,43 +134,12 @@ export async function createClienteAction(input: unknown): Promise<CreateCliente
     };
   }
 
+  // T-073 · Trial gate (member gate). T-115: `requireMemberWithBilling` envuelve
+  // el billing en try/catch → INTERNAL_ERROR de dominio, no un reject sin manejar.
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return {
-      ok: false,
-      code: 'UNAUTHENTICATED',
-      message: 'Necesitás iniciar sesión.',
-    };
-  }
-
-  const consultora = await getCurrentConsultora(supabase, user.id);
-  if (!consultora) {
-    logger.warn({ userId: user.id }, 'createClienteAction: user without consultora membership');
-    return {
-      ok: false,
-      code: 'NO_CONSULTORA',
-      message: 'No tenés una consultora asociada.',
-    };
-  }
-
-  // T-073 · Trial gate. Bloqueamos CREATE si trial vencido / sub expirada /
-  // sub cancelada (período pasado). Bypass dev via BILLING_GATE_DISABLED.
-  const billing = await requireBillingAccess(supabase, consultora);
-  if (!billing.ok) {
-    logger.info(
-      { userId: user.id, consultoraId: consultora.id, reason: billing.reason },
-      'createClienteAction: billing gated',
-    );
-    return {
-      ok: false,
-      code: 'BILLING_GATED',
-      reason: billing.reason,
-      message: getGateMessage(billing.reason),
-    };
-  }
+  const access = await requireMemberWithBilling(supabase);
+  if (!access.ok) return access;
+  const { userId, consultoraId } = access.ctx;
 
   const normalizedCuit = normalizeCuit(parsed.data.cuit);
 
@@ -187,8 +148,8 @@ export async function createClienteAction(input: unknown): Promise<CreateCliente
     .insert({
       ...parsed.data,
       cuit: normalizedCuit,
-      consultora_id: consultora.id,
-      created_by: user.id,
+      consultora_id: consultoraId,
+      created_by: userId,
     })
     .select('id')
     .single();
@@ -204,7 +165,7 @@ export async function createClienteAction(input: unknown): Promise<CreateCliente
 
   if (error?.code === RLS_VIOLATION_CODE) {
     logger.warn(
-      { userId: user.id, consultoraId: consultora.id, err: error.message },
+      { userId, consultoraId, err: error.message },
       'createClienteAction: RLS rejected insert (drift — any-member gate expected)',
     );
     return {
@@ -216,7 +177,7 @@ export async function createClienteAction(input: unknown): Promise<CreateCliente
 
   if (error?.code === CHECK_VIOLATION_CODE) {
     logger.warn(
-      { userId: user.id, consultoraId: consultora.id, err: error.message },
+      { userId, consultoraId, err: error.message },
       'createClienteAction: SQL CHECK violation (drift Zod-vs-SQL)',
     );
     return {
@@ -227,10 +188,7 @@ export async function createClienteAction(input: unknown): Promise<CreateCliente
   }
 
   if (error || !data) {
-    logger.error(
-      { err: error, userId: user.id, consultoraId: consultora.id },
-      'createClienteAction: insert failed',
-    );
+    logger.error({ err: error, userId, consultoraId }, 'createClienteAction: insert failed');
     return {
       ok: false,
       code: 'INTERNAL_ERROR',
@@ -242,8 +200,8 @@ export async function createClienteAction(input: unknown): Promise<CreateCliente
   logger.info(
     {
       clienteId: data.id,
-      userId: user.id,
-      consultoraId: consultora.id,
+      userId,
+      consultoraId,
       action: 'create_cliente',
     },
     'createClienteAction: created',
