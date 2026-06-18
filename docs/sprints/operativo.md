@@ -79,13 +79,9 @@ Contraste: el path TS `createCalendarEventAction` SÍ crea los reminders (vía `
 
 **Resuelto #204** (squash `87fb22b`, 2026-06-04). Migración `20260604000002`: redefinición de la RPC (patrón T-057, replica `computeReminderRows` — 12:00 UTC, omite pasado, `ON CONFLICT`) + backfill idempotente. red→green ejecutado en CI (run rojo → verde). `db push`: backfill 45 reminders. Verificación post: `huerfanos_futuros=0`. Smoke OK.
 
-## T-115 🔜 Hardening: envolver `requireBillingAccess` en try/catch en los módulos que no lo hacen [MEDIA]
+## T-115 ✅ Hardening del billing-gate: call-sites al helper seguro — EN MAIN (#282)
 
-**Detectado en T-058.** `requireBillingAccess` (`src/shared/billing/access.ts`) llama a `getActiveSubscription` (`settings/billing/queries.ts`), que **tira** (`throw new Error(...)`) ante cualquier error de la query de suscripción. A diferencia de `getCurrentConsultora` (devuelve `null`, nunca tira), un fallo transitorio de DB en el billing-gate se propaga como un **reject sin manejar** de la Server Action → 500 en vez de un error de dominio limpio.
-
-El preámbulo de **checklists** (T-058) ya lo envuelve en try/catch → `INTERNAL_ERROR` (ver `requireOwnerWithBilling` en `src/app/(app)/checklists/actions.ts`). Los módulos pre-T-058 que invocan `requireBillingAccess` **sin** try/catch siguen expuestos: `clientes/actions.ts`, `accidentabilidad/actions.ts`, y cualquier otro CREATE/EXPORT/GENERATE gateado (grep `requireBillingAccess`). **Fix:** envolver la llamada en cada módulo (o, mejor, extraer un helper compartido `requireOwnerWithBilling` / `requireBillingAccessSafe` que ya devuelva el discriminated-union failure `INTERNAL_ERROR`, y migrar los call-sites). **No se tocó en T-058** (sería scope creep cross-module). **Verificación**: unit test que mockee `getActiveSubscription` para tirar y asserte que la action devuelve `INTERNAL_ERROR` en vez de propagar.
-
-> **Avance parcial (T-060a):** ya existe el helper compartido `src/shared/auth/with-billing.ts` (`requireMemberWithBilling` + `requireOwnerWithBilling`, billing en try/catch), usado por el módulo de ejecuciones de checklists. Falta migrar los call-sites pre-T-058 (`clientes`, `accidentabilidad`, …) a este helper.
+#282. Cierra el hardening detectado en T-058: `requireBillingAccess` (`src/shared/billing/access.ts`) propagaba como **reject sin manejar** (→ 500) cualquier error transitorio de la query de suscripción, en vez de un failure de dominio limpio (a diferencia de `getCurrentConsultora`, que devuelve `null` y nunca tira). Migración de los call-sites al helper seguro `src/shared/auth/with-billing.ts` (billing en try/catch → discriminated-union failure en vez de tirar): **8 Server Actions → `requireMemberWithBilling`** + **7 route handlers → el nuevo `billingAccessForRoute`** (402 gated / 503 error + log). Consolidada la copia local de checklists. **−156 líneas.**
 
 ## T-060c 🔜 RPC atómica `close_checklist_execution` (flip + CAPA + gen_acciones en una tx) [BAJA — opcional]
 
@@ -474,3 +470,9 @@ Gate de cobertura en CI. **Anti-REGRESIÓN, NO aspiracional** — corrige el tar
 - **Dónde corre:** job dedicado `coverage` en `ci.yml` (`scripts/test-coverage-local.mjs`: start+retry → db reset → `vitest run --coverage --no-file-parallelism` sobre los 3 projects, mismo aislamiento que `integration-tests`, cero secrets de prod). Va al `needs` de `ci-passed` (es gate). El upload del HTML es `continue-on-error` → no tumba el gate. Tradeoff: integration corre una 2ª vez acá (mantiene `integration-tests` como señal pura sin instrumentación v8).
 - **Hardening:** `permissions: contents: read` · 5 actions por SHA · `persist-credentials: false` · `node-version-file: .nvmrc`.
 - Probado **red→green** en CI (umbral 75 / quitar test de lógica → `ci-passed` rojo → revertir → verde).
+
+## T-157 ✅ Defense-in-depth `consultora_id` en agentes RAR (auditoría delta RAR, B-1) — EN MAIN (#283)
+
+#283. Remediación del hallazgo **B-1** de la 2ª pasada de auditoría de seguridad (Opus 4.8, delta RAR post-2026-06-10 — informe en `docs/auditoria-2026-06-17-seguridad-delta-rar.md`). Defense-in-depth: `.eq('consultora_id', auth.ctx.consultoraId)` en el SELECT + UPDATE de `update`/`archive`/`restore` de agentes RAR (la RLS ya aislaba por tenant; esto agrega el filtro explícito en la query, que no depende solo de la policy) + guard de aislamiento cross-tenant en `t143`.
+
+> **B-2 (FU, correctness — NO seguridad):** `parseRarSnapshot` deriva `faltan_datos` sobre el jsonb crudo (`snapshot.ts:89`); afecta el display del flag, no expone nada. Diferido.
