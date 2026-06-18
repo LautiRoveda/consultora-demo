@@ -476,3 +476,15 @@ Gate de cobertura en CI. **Anti-REGRESIÓN, NO aspiracional** — corrige el tar
 #283. Remediación del hallazgo **B-1** de la 2ª pasada de auditoría de seguridad (Opus 4.8, delta RAR post-2026-06-10 — informe en `docs/auditoria-2026-06-17-seguridad-delta-rar.md`). Defense-in-depth: `.eq('consultora_id', auth.ctx.consultoraId)` en el SELECT + UPDATE de `update`/`archive`/`restore` de agentes RAR (la RLS ya aislaba por tenant; esto agrega el filtro explícito en la query, que no depende solo de la policy) + guard de aislamiento cross-tenant en `t143`.
 
 > **B-2 (FU, correctness — NO seguridad):** `parseRarSnapshot` deriva `faltan_datos` sobre el jsonb crudo (`snapshot.ts:89`); afecta el display del flag, no expone nada. Diferido.
+
+## T-158 🚧 E2E funcional "a volumen" (@volume) — EN PR
+
+Suite E2E a volumen fuera del gate (corre nightly + on-demand). Valida que los flujos core aguantan VOLUMEN DE DATOS sin romperse: aislamiento RLS multi-tenant a escala, dashboard + semáforo por cliente, calendario, y el comportamiento (hoy) de los listados a volumen. NO es load/perf de concurrencia.
+
+- **Seed programático** (`src/tests/e2e/helpers/seed-volume.ts`, service-role batcheado): ~111 clientes + ~190 empleados (1 cliente industrial con 120) + 80 informes escritos (CERO IA) + ~100 calendar_events + 5 entregas EPP reales vía RPC. Seed DERIVATIVO del semáforo (la RPC `semaforo_clientes` no lee eventos genéricos: caminos informe_id / epp metadata).
+- **`src/tests/e2e/volume.spec.ts`** (tag `@volume`, 6 tests): RLS isolation, dashboard/semáforo, calendario + filtro server-side por tipo, truncación de clientes y empleados (limitación documentada → FU T-159), happy-path core sin IA (cliente UI → informe escrito UI → vencimiento EPP en calendario).
+- **Fuera del gate**: el job e2e del gate corre `--grep-invert @volume`; nightly `.github/workflows/e2e-volume-nightly.yml` (`--grep @volume`, cron diario + workflow_dispatch). Alerta RUIDOSA `if: failure()` (email Resend + Sentry vía `scripts/notify-volume-failure.mjs`, único step con secrets reales). Demo on-demand con input `force_fail`.
+
+## T-159 ⏳ Paginación + búsqueda server-side en listados — PRE-LANZAMIENTO (Tier 0)
+
+FU abierto de T-158. Los listados clientes/empleados/informes truncan a 50 sin paginación y la búsqueda es client-side sobre esas 50 → registros >50 invisibles e imposibles de buscar. La lista de empleados (per-cliente, 50) es la primera en romper en uso real (cliente industrial 50-200 empleados, EPP per-empleado). Spec completo en `docs/sprints/t159-paginacion-listados.md`. Las aserciones de truncación de `volume.spec.ts` (tests 4 y 5) son el contrato que este FU debe invertir.
