@@ -16,6 +16,11 @@
 name: E2E a volumen (nightly)
 
 on:
+  # TEMPORAL (T-158): validación live pre-merge. workflow_dispatch no se puede
+  # disparar hasta que el workflow esté en main; este push trigger acotado a la
+  # branch fuerza una corrida. SE REVIERTE antes del merge (el squash lo colapsa).
+  push:
+    branches: [t158-e2e-volumen]
   schedule:
     # 06:00 UTC = 03:00 ART, diario. Después del horario de menor actividad.
     - cron: '0 6 * * *'
