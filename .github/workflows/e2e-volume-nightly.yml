@@ -1,0 +1,162 @@
+# T-158 · E2E funcional "a volumen" (@volume) — NIGHTLY + on-demand.
+#
+# Por qué fuera del gate (fork 2 T-158): el suite a volumen siembra ~111 clientes
+# / ~190 empleados / 80 informes / ~100 eventos y navega varias vistas pesadas.
+# Correrlo en cada PR inflaría el wall-clock del `CI passed` (~7-8 min). Por eso
+# vive acá (cron diario + workflow_dispatch) y el job E2E del gate lo excluye con
+# `--grep-invert @volume`.
+#
+# Aislamiento (T-111/T-112): IDÉNTICO al job e2e-tests del gate — Supabase LOCAL
+# efímero (scripts/test-e2e-local.mjs: start → db reset → status -o env), build
+# horneado a 127.0.0.1:54321, CERO --linked. Imposible tocar prod.
+#
+# Condición no negociable (T-158): si el nightly ROMPE, alerta RUIDOSA (email vía
+# Resend + evento Sentry) en el step `if: failure()`. Ese step es el ÚNICO que usa
+# secrets REALES; el resto del job corre con placeholders, igual que el gate.
+name: E2E a volumen (nightly)
+
+on:
+  schedule:
+    # 06:00 UTC = 03:00 ART, diario. Después del horario de menor actividad.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      force_fail:
+        description: 'Forzar un fallo para demostrar la alerta (red→green del nightly)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-volume:
+    name: E2E @volume (nightly)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Placeholders (igual que el job e2e-tests del gate). El build los necesita
+      # para que Zod (env.ts) valide, pero NO se pega a ningún servicio externo:
+      # la IA no se invoca (volumen 100% service-role, happy-path sin generación).
+      NEXT_PUBLIC_SENTRY_DSN: https://placeholder@o0.ingest.sentry.io/0
+      SENTRY_ORG: placeholder-org
+      SENTRY_PROJECT: placeholder-project
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      ANTHROPIC_API_KEY: ci_placeholder_anthropic_volume_no_api_call_aaaaa
+      RESEND_API_KEY: re_placeholder_ci_does_not_call_resend
+      RESEND_FROM_ADDRESS: placeholder-ci@example.com
+      INTERNAL_CRON_SECRET: ci_placeholder_secret_32_chars_minimum_aaaaaa
+      TELEGRAM_BOT_TOKEN: ci_placeholder_telegram_bot_token_40_chars_aaa
+      TELEGRAM_BOT_USERNAME: consultorademo_ci_bot
+      TELEGRAM_WEBHOOK_SECRET: ci_placeholder_telegram_webhook_secret_32_chars
+      VAPID_PRIVATE_KEY: ci_placeholder_vapid_private_key_44_chars_b64url_aaa
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ci_placeholder_vapid_public_key_88_chars_b64url_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      VAPID_SUBJECT: mailto:ci-placeholder@example.com
+      ARS_PRICE_MONTHLY: '3000000'
+      MP_ACCESS_TOKEN: ci_placeholder_mercadopago_token_40_chars_minimum_aaaa
+      MP_WEBHOOK_SECRET: ci_placeholder_mercadopago_webhook_secret_32_chars
+      BILLING_GATE_DISABLED: 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      # Demo on-demand: forzar fallo ANTES de la suite para validar la alerta sin
+      # pagar el costo de sembrar/navegar. `if: failure()` del step de alerta lo capta.
+      - name: Forzar fallo (demo de alerta)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.force_fail }}
+        run: |
+          echo "::error::Fallo forzado (workflow_dispatch force_fail) para demostrar la alerta."
+          exit 1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm store cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Next.js build (E2E, key aislada)
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**/*.{ts,tsx,js,jsx}') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright browsers (Chromium only)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install chromium --with-deps
+
+      - name: Install Playwright system deps (browsers may be cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Resolver CHROMIUM_PATH para puppeteer-core (PDF server-side)
+        run: |
+          CHROMIUM_PATH="$(node -e "process.stdout.write(require('@playwright/test').chromium.executablePath())")"
+          test -x "$CHROMIUM_PATH" || { echo "::error::No se resolvió un Chromium ejecutable: $CHROMIUM_PATH"; exit 1; }
+          echo "CHROMIUM_PATH=$CHROMIUM_PATH" >> "$GITHUB_ENV"
+
+      # Solo el suite a volumen (--grep @volume). Supabase local efímero, nunca --linked.
+      - name: E2E @volume (Supabase local efímero)
+        run: node scripts/test-e2e-local.mjs --grep @volume
+
+      # Mismo gate de aislamiento que el job del gate: el build servido apunta al
+      # Supabase LOCAL (:54321), no a prod.
+      - name: Gate horneado — el build servido apunta al Supabase LOCAL
+        if: always()
+        run: |
+          if [ ! -d .next/server ]; then
+            echo "::warning::.next/server no existe (el build no se completó); skip del gate."
+            exit 0
+          fi
+          if grep -rqF --include='*.js' 'blijipnixnikaguojjee' .next/server; then
+            echo "::error::El build servido contiene el project-ref de PROD — NO se aisló."
+            exit 1
+          fi
+          if ! grep -rqE --include='*.js' '(127\.0\.0\.1|localhost):54321' .next/server; then
+            echo "::error::El build servido NO contiene la URL del Supabase local (:54321)."
+            exit 1
+          fi
+          echo "✅ Aislamiento OK."
+
+      # ALERTA RUIDOSA (condición no negociable T-158): si CUALQUIER step anterior
+      # falló, notificamos por email (Resend) + Sentry. ÚNICO step con secrets reales.
+      - name: Alerta de fallo (email Resend + Sentry)
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_ADDRESS: ${{ secrets.RESEND_FROM_ADDRESS }}
+          ALERT_EMAIL_TO: ${{ secrets.E2E_VOLUME_ALERT_TO }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/notify-volume-failure.mjs
