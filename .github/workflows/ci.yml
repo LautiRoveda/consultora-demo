@@ -472,8 +472,11 @@ jobs:
       # que `--shard=i/3` llegue al argv del orquestador y se forwardee a Playwright;
       # vía `pnpm run … --` el `--` se filtra y Playwright lo leería como filtro de
       # archivos. El reparto es por suma de tests (fullyParallel) → ~34 tests/shard.
+      # T-158: `--grep-invert @volume` EXCLUYE el suite a volumen del gate (corre
+      # nightly fuera del gate, ver .github/workflows/e2e-volume-nightly.yml) para
+      # NO inflar el wall-clock del `CI passed`.
       - name: E2E tests (Supabase local efímero) — shard ${{ matrix.shard }}/3
-        run: node scripts/test-e2e-local.mjs --shard=${{ matrix.shard }}/3
+        run: node scripts/test-e2e-local.mjs --shard=${{ matrix.shard }}/3 --grep-invert @volume
 
       # GATE DURO (T-112): probamos que el build SERVIDO quedó horneado apuntando al
       # Supabase LOCAL y NO a prod. Verificado empíricamente (no es obvio):
